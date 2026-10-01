@@ -400,4 +400,6 @@ Một số test gốc stub module `lightrag` trong `sys.modules`, nên các test
 
 `pyproject.toml` ghim `lightrag-hku>=1.4.9,<1.5` (cài từ PyPI, không dùng checkout local). Extra `service` thêm FastAPI, uvicorn, pydantic-settings, redis, pymongo, qdrant-client, httpx, minio, prometheus-client, OpenTelemetry, openai, google-genai. Entry point: `ami-rag-api`, `ami-rag-worker`, `ami-rag`.
 
+`mineru[core]>=3.4.1,<4`: MinerU 4.x đổi CLI (`mineru parse <path>`, `-p` = pages) nên không tương thích với lệnh `mineru -p <file> -o <dir> -m ...` mà `raganything/parser.py` gọi; bắt buộc ghim `<4`. MinerU 3.4.x mặc định backend `hybrid-engine` (nặng VRAM) khi không truyền `-b`, và chọn thiết bị bằng biến môi trường `MINERU_DEVICE_MODE` (không có cờ `-d`); `MINERU_VIRTUAL_VRAM_SIZE` (GB) buộc MinerU chọn batch size như thể GPU có chừng đó VRAM. Đo VRAM thực tế bằng `notebooks/mineru_vram_check.ipynb` (Colab).
+
 Thay đổi liên quan trong thư viện `raganything`: chunk multimodal lưu field có cấu trúc và `RAGAnything.aquery_data` làm giàu chunk; xem `docs/architecture.md` và `docs/api_reference.md`.
