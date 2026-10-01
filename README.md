@@ -332,7 +332,7 @@ ami_data (MinIO + Mongo) → Redis Streams rag:ingest → ami_rag worker
    → POST /v2/rag  (RAGAnything.aquery_data → rerank → text / image / table chunks with presigned asset URLs)
 ```
 
-Quick start: `make setup && cp .env.ami.example .env && make start_backend` (API, port 8009) and `make start_worker`; Docker: `make start_docker`. Entry points: `ami-rag-api`, `ami-rag-worker`, `ami-rag` (reindex/status/purge-doc CLI). Full documentation (in Vietnamese): [docs/ami_service.md](docs/ami_service.md).
+Quick start: `make setup && cp .env.ami.example .env && make start_backend` (API, port 8009) and `make start_worker`; Docker: `make start_docker`. Entry points: `ami-rag-api`, `ami-rag-worker`, `ami-rag` (reindex/status/purge-doc CLI). The service shares the backend's Mongo database `organization_db`; all of its collections are prefixed `multimodal_` (workspace `multimodal`, registry `multimodal_rag_documents`). Full documentation (in Vietnamese): [docs/ami_service.md](docs/ami_service.md).
 
 ### Usage Examples
 

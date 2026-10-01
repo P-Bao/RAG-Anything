@@ -1,6 +1,9 @@
+import logging
 from datetime import datetime, timezone
 
 from pymongo import MongoClient, ReturnDocument
+
+logger = logging.getLogger(__name__)
 
 STATUS_PROCESSING = "processing"
 STATUS_PROCESSED = "processed"
@@ -9,17 +12,29 @@ STATUS_STALE = "stale"
 
 
 class RagDocumentsRepo:
-    """Worker-owned registry of ingested documents (raganything_db.rag_documents).
+    """Worker-owned registry of ingested documents (organization_db.multimodal_rag_documents).
 
     One row per document (`_id` = Mongo ObjectId string): source fingerprint, status,
     attempts, MinIO assets and per-modality counts. Unchanged re-ingests are skipped
     via `source_hash`; failed docs stop consuming the delivery budget after
-    WORKER_MAX_DELIVERY attempts. Independent of the legacy backend collections.
+    WORKER_MAX_DELIVERY attempts. Lives in the shared `organization_db` under the `multimodal_` prefix; the backend collections are only read.
     """
 
-    def __init__(self, mongo_uri: str, db_name: str, collection_name: str = "rag_documents"):
+    def __init__(
+        self, mongo_uri: str, db_name: str, collection_name: str = "multimodal_rag_documents"
+    ):
         self._client: MongoClient = MongoClient(mongo_uri, tz_aware=True)
         self._col = self._client[db_name][collection_name]
+        self._ensure_indexes()
+
+    def _ensure_indexes(self) -> None:
+        """Indexes for admin/status queries and `$lookup` joins; best effort (idempotent)."""
+        try:
+            self._col.create_index("status")
+            self._col.create_index("organization_unit_id")
+            self._col.create_index("document_oid")
+        except Exception as exc:
+            logger.warning("could not ensure %s indexes: %s", self._col.name, exc)
 
     def get(self, document_id: str) -> dict | None:
         return self._col.find_one({"_id": document_id})
@@ -63,11 +78,13 @@ class RagDocumentsRepo:
         assets: list[str] | None = None,
         counts: dict | None = None,
         page_count: int = 0,
+        meta: dict | None = None,
     ) -> None:
         self._col.update_one(
             {"_id": document_id},
             {
                 "$set": {
+                    **(meta or {}),
                     "status": STATUS_PROCESSED,
                     "source_hash": source_hash or "",
                     "source": source,

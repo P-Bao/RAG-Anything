@@ -28,15 +28,17 @@ class Settings(BaseSettings):
     QWEN_EMBED_DIM: int = 1024
 
     MONGO_URI: str = "mongodb://localhost:27017/?directConnection=true"
-    RAG_DB: str = "raganything_db"
-    RAG_DOCUMENTS_COLLECTION: str = "rag_documents"
+    # Shares organization_db with the backend; every RAG collection is prefixed `multimodal_`
+    # (LightRAG names Mongo collections "{WORKSPACE}_{namespace}").
+    RAG_DB: str = "organization_db"
+    RAG_DOCUMENTS_COLLECTION: str = "multimodal_rag_documents"
     ORG_DB: str = "organization_db"
     DOC_COLLECTION: str = "documents"
 
     QDRANT_URL: str = "http://localhost:6333"
     QDRANT_API_KEY: str = ""
 
-    WORKSPACE: str = "ami_mm"
+    WORKSPACE: str = "multimodal"
     WORKING_DIR: str = "./rag_storage"
 
     PARSER: str = "mineru"

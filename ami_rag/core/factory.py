@@ -11,11 +11,13 @@ _asset_store_instance = None
 
 
 def _inject_storage_env(settings: Settings) -> None:
-    os.environ.setdefault("MONGO_URI", settings.MONGO_URI)
-    os.environ.setdefault("MONGO_DATABASE", settings.RAG_DB)
-    os.environ.setdefault("QDRANT_URL", settings.QDRANT_URL)
+    """LightRAG's Mongo/Qdrant storages read these env vars; Settings is the source of
+    truth, so overwrite (not setdefault) to keep them consistent with the registry."""
+    os.environ["MONGO_URI"] = settings.MONGO_URI
+    os.environ["MONGO_DATABASE"] = settings.RAG_DB
+    os.environ["QDRANT_URL"] = settings.QDRANT_URL
     if settings.QDRANT_API_KEY:
-        os.environ.setdefault("QDRANT_API_KEY", settings.QDRANT_API_KEY)
+        os.environ["QDRANT_API_KEY"] = settings.QDRANT_API_KEY
 
 
 def _build_llm_func(settings: Settings) -> Callable:

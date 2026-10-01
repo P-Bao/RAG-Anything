@@ -113,7 +113,7 @@ async def test_factory_builds_with_mongo_qdrant_config(tmp_working_dir):
     assert rag.vector_storage == "QdrantVectorDBStorage"
     assert rag.graph_storage == "MongoGraphStorage"
     assert rag.doc_status_storage == "MongoDocStatusStorage"
-    assert rag.workspace == "ami_mm"
+    assert rag.workspace == "multimodal"
     assert rag.chunk_token_size == 1200
     assert rag.chunk_overlap_token_size == 100
     assert rag.entity_extract_max_gleaning == 1

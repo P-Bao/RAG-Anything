@@ -2709,7 +2709,7 @@
               "transformations": []
             }
           },
-          "description": "Số document trong rag_documents theo trạng thái.",
+          "description": "Số document trong multimodal_rag_documents theo trạng thái.",
           "id": 29,
           "links": [],
           "title": "Documents theo status",

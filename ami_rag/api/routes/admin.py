@@ -146,6 +146,10 @@ def blocks_to_markdown(blocks: list[dict]) -> str:
     return "\n\n".join(parts)
 
 
+def _str_or_none(value):
+    return None if value is None else str(value)
+
+
 @router.get("/documents/{document_id}")
 async def document_status(document_id: str, state_repo=Depends(get_state_repo)):
     state = await asyncio.to_thread(state_repo.get, document_id)
@@ -159,6 +163,10 @@ async def document_status(document_id: str, state_repo=Depends(get_state_repo)):
         "counts": state.get("counts") or {},
         "page_count": state.get("page_count"),
         "parser": state.get("parser"),
+        "document_type": state.get("document_type"),
+        "title": state.get("title"),
+        "organization_unit_id": _str_or_none(state.get("organization_unit_id")),
+        "owner_id": _str_or_none(state.get("owner_id")),
         "error": state.get("error") or None,
         "updated_at": updated_at.isoformat() if hasattr(updated_at, "isoformat") else updated_at,
     }

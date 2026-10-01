@@ -344,3 +344,22 @@ async def test_failed_document_gets_fresh_attempt_budget_for_reprocess(
     await worker._process_message("1-1", RagEvent(event="created", document_id=PDF_ID))
     assert fake_state_repo.state[PDF_ID]["status"] == "failed"
     assert fake_state_repo.state[PDF_ID]["attempts"] == 0
+
+
+async def test_registry_row_gets_link_fields_from_document(
+    fake_rag_anything, fake_docs_repo, fake_state_repo, fake_queue, fake_asset_store
+):
+    from bson import ObjectId
+
+    fake_docs_repo.docs[PDF_ID]["owner_id"] = "sub-1"
+    worker = _worker(
+        fake_rag_anything, fake_docs_repo, fake_state_repo, fake_queue, fake_asset_store
+    )
+    await worker._process_message("1-1", RagEvent(event="created", document_id=PDF_ID))
+
+    row = fake_state_repo.state[PDF_ID]
+    assert row["status"] == "processed"
+    assert row["document_oid"] == ObjectId(PDF_ID)
+    assert row["organization_unit_id"] == fake_docs_repo.docs[PDF_ID]["organization_unit_id"]
+    assert row["owner_id"] == "sub-1"
+    assert row["document_type"] == fake_docs_repo.docs[PDF_ID]["document_type"]

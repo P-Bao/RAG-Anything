@@ -2,6 +2,7 @@ import json
 
 import httpx
 import pytest
+from bson import ObjectId
 
 from ami_rag.api import main as api_main
 from ami_rag.api.resolver import DocResolver
@@ -288,6 +289,12 @@ async def test_admin_document_status(client, fake_state_repo):
         parser="mineru",
         counts={"text": 1, "table": 1},
         page_count=3,
+        meta={
+            "organization_unit_id": ObjectId("64b000000000000000000002"),
+            "owner_id": "sub-1",
+            "document_type": "pdf",
+            "title": "Sổ tay",
+        },
     )
     resp = await client.get("/admin/documents/doc1")
     assert resp.status_code == 200
@@ -299,6 +306,10 @@ async def test_admin_document_status(client, fake_state_repo):
     assert body["page_count"] == 3
     assert body["parser"] == "mineru"
     assert body["error"] is None
+    assert body["organization_unit_id"] == "64b000000000000000000002"
+    assert body["owner_id"] == "sub-1"
+    assert body["document_type"] == "pdf"
+    assert body["title"] == "Sổ tay"
     assert set(body) == {
         "document_id",
         "status",
@@ -306,6 +317,10 @@ async def test_admin_document_status(client, fake_state_repo):
         "counts",
         "page_count",
         "parser",
+        "document_type",
+        "title",
+        "organization_unit_id",
+        "owner_id",
         "error",
         "updated_at",
     }

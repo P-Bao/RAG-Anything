@@ -45,3 +45,37 @@ def test_resolve_file_path_upload_crawl_and_fallback():
     assert resolve_file_path(crawl) == f"{DOC_ID}_thong-bao-1"
     assert resolve_file_path(text) == f"{DOC_ID}_text"
     assert resolve_file_path({}) is None
+
+
+def test_doc_link_fields_keep_mongo_types_for_lookup():
+    from bson import ObjectId
+
+    from ami_rag.sources import doc_link_fields
+
+    oid, org = ObjectId(), ObjectId()
+    fields = doc_link_fields(
+        {
+            "_id": oid,
+            "organization_unit_id": org,
+            "owner_id": "sub-123",
+            "document_type": "pdf",
+            "title": "Sổ tay",
+            "content": "ignored",
+        }
+    )
+    assert fields == {
+        "document_oid": oid,
+        "organization_unit_id": org,
+        "owner_id": "sub-123",
+        "document_type": "pdf",
+        "title": "Sổ tay",
+    }
+
+
+def test_doc_link_fields_string_id_and_missing_values():
+    from bson import ObjectId
+
+    from ami_rag.sources import doc_link_fields
+
+    assert doc_link_fields({"_id": DOC_ID}) == {"document_oid": ObjectId(DOC_ID)}
+    assert doc_link_fields({"_id": "not-an-objectid", "title": None}) == {}

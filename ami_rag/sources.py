@@ -59,3 +59,23 @@ def resolve_file_path(doc: dict) -> str | None:
     if not doc_id:
         return None
     return f"{doc_id}_{_source_basename(doc)}"
+
+
+def doc_link_fields(doc: dict) -> dict:
+    """Fields copied from the backend document into the RAG registry row.
+
+    Values keep their Mongo types: `document_oid` (ObjectId) and `organization_unit_id`
+    allow `$lookup` into `documents` / `organization_units` (same database), and
+    `owner_id` (the OIDC identity: users.sub / preferred_username / email, not users._id)
+    into `users`. Missing values are omitted.
+    """
+    from bson import ObjectId
+
+    fields: dict = {}
+    doc_id = doc.get("_id")
+    if doc_id is not None and ObjectId.is_valid(str(doc_id)):
+        fields["document_oid"] = doc_id if isinstance(doc_id, ObjectId) else ObjectId(str(doc_id))
+    for key in ("organization_unit_id", "owner_id", "document_type", "title"):
+        if doc.get(key) is not None:
+            fields[key] = doc[key]
+    return fields

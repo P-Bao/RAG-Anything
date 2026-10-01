@@ -136,6 +136,7 @@ class FakeRagDocumentsRepo:
         assets=None,
         counts=None,
         page_count=0,
+        meta=None,
     ):
         self.state[document_id] = {
             "attempts": 0,
@@ -147,6 +148,7 @@ class FakeRagDocumentsRepo:
             "assets": assets or [],
             "counts": counts or {},
             "page_count": page_count,
+            **(meta or {}),
             "error": "",
         }
 

@@ -28,6 +28,7 @@ from ami_rag.queue.streams import RagStreamQueue
 from ami_rag.settings import Settings, get_settings
 from ami_rag.sources import (
     SOURCE_MINIO_PARSE,
+    doc_link_fields,
     resolve_file_path,
     select_source,
     source_hash,
@@ -229,6 +230,7 @@ class IngestWorker:
             "assets": assets,
             "counts": counts,
             "page_count": page_count,
+            "meta": doc_link_fields(doc),
         }
 
     async def _process_message(self, message_id: str, event: RagEvent) -> None:
@@ -297,6 +299,7 @@ class IngestWorker:
                 assets=result["assets"],
                 counts=result["counts"],
                 page_count=result["page_count"],
+                meta=result.get("meta"),
             )
         )
 

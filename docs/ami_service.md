@@ -18,7 +18,7 @@ ami_rag worker  (ami-rag-worker, hoặc nhúng trong API khi WORKER_ENABLED=true
    ├─ lưu content_list.json vào MinIO
    └─ RAGAnything.insert_content_list(doc_id=<mongo id>)
         ▼
-   LightRAG: Mongo `raganything_db` (KV, doc_status, graph) + Qdrant (vector), workspace `ami_mm`
+   LightRAG: Mongo `organization_db` (KV, doc_status, graph; collection `multimodal_*`) + Qdrant (vector), workspace `multimodal`
 
 Hệ thống AI ──POST /v2/rag──▶ ami_rag API: RAGAnything.aquery_data (mix) → rerank service → resolve doc Mongo
                               → presign MinIO (artifact_url, file_url) → response
@@ -45,22 +45,91 @@ Hệ thống AI ──POST /v2/rag──▶ ami_rag API: RAGAnything.aquery_data
 
 Doc `minio_parse` không có `file_path` thì lỗi (`ValueError`). Ảnh crawl (tuỳ chọn): `CRAWL_IMAGES_ENABLED=true` thì worker tải ảnh của doc crawl về MinIO prefix `CRAWL_IMAGES_PREFIX` và thêm item `image`.
 
-## 3. Dữ liệu độc lập với luồng cũ
+## 3. Dữ liệu: dùng chung `organization_db`, tách bằng tiền tố `multimodal_`
+
+RAG dùng chung database `organization_db` với backend ami_data. Mọi collection của RAG có tiền tố `multimodal_` nên không đụng collection của backend (`documents`, `users`, ...).
 
 | Thành phần | Giá trị | Ghi chú |
 |---|---|---|
-| Mongo DB của RAG | `RAG_DB` = `raganything_db` | LightRAG KV/doc_status/graph (`MONGO_DATABASE` được set từ `RAG_DB`) |
-| Registry | `raganything_db.rag_documents` (`RAG_DOCUMENTS_COLLECTION`) | một dòng/doc, `_id` = ObjectId dạng string |
-| Workspace | `WORKSPACE` = `ami_mm` | phân vùng LightRAG/Qdrant |
+| Mongo DB của RAG | `RAG_DB` = `organization_db` | LightRAG KV/doc_status/graph (`MONGO_DATABASE` được set từ `RAG_DB` bằng cách gán trực tiếp `os.environ` trong `ami_rag/core/factory.py::_inject_storage_env`, nên `Settings` luôn thắng biến môi trường `MONGO_DATABASE`/`MONGO_URI` có sẵn) |
+| Registry | `organization_db.multimodal_rag_documents` (`RAG_DOCUMENTS_COLLECTION`) | một dòng/doc, `_id` = ObjectId dạng string |
+| Workspace | `WORKSPACE` = `multimodal` | tiền tố collection LightRAG (`{workspace}_{namespace}`) và phân vùng Qdrant |
 | Qdrant | `QDRANT_URL` | vector, partition theo workspace |
 | MinIO asset | `{ASSET_PREFIX}/{doc_id}/` (`rag-assets/…`) trong `MINIO_BUCKET` | ảnh/bảng/công thức (tên `sha256[:16]` + ext), `content_list.json` |
 | Nguồn doc | `organization_db.documents` (`ORG_DB`/`DOC_COLLECTION`) | **chỉ đọc**, lọc `status: "active"` khi duyệt toàn bộ |
 
-Các field của `rag_documents` (`ami_rag/storage/rag_documents.py`):
+### Các collection `multimodal_*` và ranh giới
+
+LightRAG đặt tên collection Mongo là `{workspace}_{namespace}` (`lightrag/kg/mongo_impl.py`, `final_namespace`). Với `WORKSPACE=multimodal`:
+
+| Collection | Nguồn | Ghi chú |
+|---|---|---|
+| `multimodal_rag_documents` | `ami_rag` (`RAG_DOCUMENTS_COLLECTION`) | registry, ghi bởi worker/CLI/admin |
+| `multimodal_full_docs`, `multimodal_text_chunks`, `multimodal_llm_response_cache`, `multimodal_full_entities`, `multimodal_full_relations`, `multimodal_entity_chunks`, `multimodal_relation_chunks` | LightRAG KV (`lightrag/namespace.py`) | |
+| `multimodal_doc_status` | LightRAG doc status | |
+| `multimodal_chunk_entity_relation`, `multimodal_chunk_entity_relation_edges` | LightRAG graph (`MongoGraphStorage`: node + `_edges`) | |
+| `multimodal_parse_cache`, `multimodal_multimodal_status` | RAGAnything (`raganything/raganything.py`, namespace `parse_cache` / `multimodal_status`) | tên lặp `multimodal_multimodal_status` vì workspace `multimodal` + namespace `multimodal_status` |
+| collection khác | do LightRAG tạo | vector (entities/relationships/chunks) nằm ở Qdrant, không ở Mongo |
+
+Ranh giới:
+
+| Collection | Quyền của RAG |
+|---|---|
+| `documents` | chỉ ĐỌC (`ORG_DB`/`DOC_COLLECTION`) |
+| `document_versions`, `organization_units`, `users` | không đọc trong code; chỉ dùng để `$lookup` khi truy vấn/báo cáo từ bên ngoài |
+| `multimodal_*` | GHI (tạo collection, index, upsert/xoá) |
+
+Lưu ý vận hành:
+- Quyền Mongo: user của service RAG cần `createCollection` + `createIndex` + đọc/ghi trên `multimodal_*` trong `organization_db` (`_ensure_indexes` tạo index `status`, `organization_unit_id`, `document_oid`; lỗi chỉ log warning), và chỉ cần `find` trên `documents`.
+- Biến `MONGODB_WORKSPACE` (nếu đặt trong môi trường) sẽ ghi đè workspace trong tên collection Mongo của LightRAG (`mongo_impl.py`, đọc trực tiếp từ môi trường), khiến tên collection không còn theo `WORKSPACE`; đừng đặt biến này trừ khi cố ý.
+- Tên collection phụ thuộc `WORKSPACE`: đổi `WORKSPACE` = tạo bộ collection/partition Qdrant mới (dữ liệu cũ không được dùng nữa, cần backfill lại). `RAG_DOCUMENTS_COLLECTION` không theo `WORKSPACE`, nên registry cũ còn `processed` có thể khiến doc bị bỏ qua: dùng `--force`.
+- Backup/restore/drop `organization_db` ảnh hưởng cả backend lẫn RAG; khi chỉ muốn xoá dữ liệu RAG, drop từng collection `multimodal_*` (kèm dữ liệu Qdrant), không drop database.
+
+### Liên kết với organization_units / users
+
+Mỗi dòng registry được ghi thêm các field liên kết khi `processed` (`ami_rag/sources.py::doc_link_fields`, truyền qua `meta=` vào `mark_processed`; dòng `failed`/`processing` chưa có):
+
+| Field registry | Kiểu | Liên kết tới |
+|---|---|---|
+| `_id` | string | `documents._id` dưới dạng chuỗi |
+| `document_oid` | ObjectId | `documents._id` (dùng cho `$lookup`) |
+| `organization_unit_id` | giữ kiểu gốc của `documents` (ObjectId) | `organization_units._id` |
+| `owner_id` | string | định danh OIDC: khớp `users.sub` / `users.preferred_username` / `users.email`, KHÔNG phải `users._id` (xem `ami_data/.../app/repositories/user_repository.py`, `find_all_users_with_upload_count`) |
+| `document_type`, `title` | string | sao chép từ `documents` |
+
+`$lookup` chỉ chạy trong cùng một database, vì vậy RAG phải dùng chung `organization_db`. Ví dụ:
+
+```javascript
+db.multimodal_rag_documents.aggregate([
+  { $match: { status: "processed" } },
+  { $lookup: { from: "documents", localField: "document_oid", foreignField: "_id", as: "doc" } },
+  { $lookup: { from: "organization_units", localField: "organization_unit_id", foreignField: "_id", as: "unit" } },
+  { $lookup: {
+      from: "users",
+      let: { owner: "$owner_id" },
+      pipeline: [
+        { $match: { $expr: { $and: [
+            { $ne: ["$$owner", null] },
+            { $or: [
+              { $eq: ["$sub", "$$owner"] },
+              { $eq: ["$preferred_username", "$$owner"] },
+              { $eq: ["$email", "$$owner"] } ] } ] } } }
+      ],
+      as: "owner" } },
+  { $project: { status: 1, title: 1, "unit.name": 1, "owner.preferred_username": 1, "doc.status": 1 } }
+])
+```
+
+(Tên field hiển thị như `unit.name` tuỳ schema `organization_units` của backend; điều chỉnh cho khớp.)
+
+### Field của `multimodal_rag_documents`
+
+Các field (`ami_rag/storage/rag_documents.py`):
 
 | Field | Ý nghĩa |
 |---|---|
 | `_id` | document id |
+| `document_oid`, `organization_unit_id`, `owner_id`, `document_type`, `title` | field liên kết (bảng trên), chỉ có sau lần `processed` |
 | `status` | `processing` / `processed` / `failed` / `stale` |
 | `source`, `source_hash` | nguồn (`mongo_text`/`minio_parse`) và vân tay |
 | `file_path` | `{doc_id}_{basename}` dùng cho citation |
@@ -87,11 +156,11 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `QWEN_EMBED_BASE_URL` / `QWEN_EMBED_MODEL` / `QWEN_EMBED_API_KEY` | `http://vllm:8000/v1` / `Qwen/Qwen3-Embedding-0.6B` / rỗng | |
 | | `QWEN_EMBED_DIM` | `1024` | |
 | Mongo | `MONGO_URI` | `mongodb://localhost:27017/?directConnection=true` | |
-| | `RAG_DB` | `raganything_db` | |
-| | `RAG_DOCUMENTS_COLLECTION` | `rag_documents` | |
+| | `RAG_DB` | `organization_db` | dùng chung DB với backend |
+| | `RAG_DOCUMENTS_COLLECTION` | `multimodal_rag_documents` | registry |
 | | `ORG_DB` / `DOC_COLLECTION` | `organization_db` / `documents` | chỉ đọc |
 | Qdrant | `QDRANT_URL` / `QDRANT_API_KEY` | `http://localhost:6333` / rỗng | |
-| Index | `WORKSPACE` | `ami_mm` | |
+| Index | `WORKSPACE` | `multimodal` | tiền tố collection LightRAG + phân vùng Qdrant |
 | | `WORKING_DIR` | `./rag_storage` | working dir LightRAG |
 | Parser | `PARSER` | `mineru` | |
 | | `PARSE_METHOD` | `auto` | |
@@ -230,7 +299,7 @@ Cùng request, trả NDJSON (`application/x-ndjson`): `{"status": "retrieving"}`
 | `GET /admin/pipeline_status` | `{workspace, doc_status_counts (LightRAG), queue_pending}` |
 | `POST /admin/reprocess_failed` | publish lại event `updated` cho mọi doc `failed` trong registry → `{requeued}` |
 | `POST /admin/reindex` | body `{"all": true}` hoặc `{"document_ids": [...]}`; publish event `updated` → `{published}` (không lọc type, không có `force`) |
-| `GET /admin/documents/{id}` | trạng thái registry: `status, source, counts, page_count, parser, error, updated_at`; 404 nếu chưa có |
+| `GET /admin/documents/{id}` | trạng thái registry: `status, source, counts, page_count, parser, document_type, title, organization_unit_id, owner_id, error, updated_at` (4 field `document_type/title/organization_unit_id/owner_id` lấy từ `multimodal_rag_documents`, ObjectId trả về dạng string, `null` nếu dòng chưa `processed`); 404 nếu chưa có |
 | `GET /admin/documents/{id}/content` | từ `content_list.json` trên MinIO: `{document_id, markdown, blocks, tables}` (block có `type`, `page_idx`, `text`/`table_body`/`caption`/`latex`, `asset_url`); 404 nếu chưa có |
 
 Khác: `GET /healthz`, `GET /readyz`, `GET /metrics`.
@@ -257,7 +326,7 @@ Mặc định (không `--direct`) lệnh chỉ XADD event `created` vào `RAG_ST
 
 ## 8. Runbook backfill dữ liệu cũ
 
-Mục tiêu: nạp toàn bộ doc có sẵn trong `organization_db.documents` vào index mới `ami_mm`. Doc cũ chỉ có text/bảng đơn giản trong Mongo vẫn được parse lại từ file MinIO (nếu `original_file_name` không rỗng/`.txt`); text Mongo của pdf/docx **không** được dùng.
+Mục tiêu: nạp toàn bộ doc có sẵn trong `organization_db.documents` vào index mới (workspace `multimodal`, collection `organization_db.multimodal_*`). Doc đã `processed` từ trước khi có field liên kết (`document_oid`, `organization_unit_id`, `owner_id`, ...) chỉ được bổ sung các field này khi nạp lại (`--force`). Doc cũ chỉ có text/bảng đơn giản trong Mongo vẫn được parse lại từ file MinIO (nếu `original_file_name` không rỗng/`.txt`); text Mongo của pdf/docx **không** được dùng.
 
 1. Chuẩn bị: `.env` đúng, worker chạy (`make start_docker` hoặc `make start_worker`), `make health` OK, `ami-rag status` thấy `rerank service: ok` và `queue pending: 0`. Worker cần GPU/MinerU và model cache sẵn (xem mục 5).
 2. Dry-run toàn bộ, kiểm tra cột `source` (`mongo_text`/`minio_parse`) hợp lý:
@@ -269,7 +338,7 @@ Mục tiêu: nạp toàn bộ doc có sẵn trong `organization_db.documents` v�
 6. Theo dõi:
    - `ami-rag status` (đếm theo status, `queue pending`, doc failed);
    - `curl -s localhost:8009/admin/pipeline_status` (thêm header `Authorization: Bearer ...` nếu có `RAG_API_KEY`);
-   - metric worker `:9109/metrics`: `multimodal_rag_ingest_events_total{result}`, `..._stream_pending`, `..._stream_lag`, `..._documents{status}`, `..._parse_failures_total`; dashboard row "Ingest pipeline".
+   - metric worker `:9109/metrics`: `multimodal_rag_ingest_events_total{result}`, `..._stream_pending`, `..._stream_lag`, `..._documents{status}` (đếm theo `status` trong `organization_db.multimodal_rag_documents`), `..._parse_failures_total`; dashboard row "Ingest pipeline".
    - `make logs SERVICE=ami-rag-worker`.
 7. Xử lý lỗi:
    - doc `failed`: `POST /admin/reprocess_failed` (hoặc `ami-rag reindex --doc-ids <id>`);
@@ -308,7 +377,7 @@ Metric worker (`:9109/metrics` của `ami-rag-worker`; khi `WORKER_ENABLED=true`
 | `asset_upload_failures_total`, `pages_total` | Counter | |
 | `items_total` | Counter | `modality` |
 | `stream_pending`, `stream_lag` | Gauge | |
-| `documents` | Gauge | `status` |
+| `documents` | Gauge | `status` (đọc từ `multimodal_rag_documents`) |
 
 Scrape và dashboard:
 - Service Docker trên host: điền `__NODE_IP__` trong `monitoring/k8s/multimodal-rag-retrieval-metrics-scrape.yaml` rồi `make metrics-scrape-apply`. Service trong k8s: `monitoring/helm/servicemonitor.yaml`. Cả hai có 2 endpoint: `metrics` (8009) và `worker-metrics` (9109).
