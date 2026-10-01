@@ -20,6 +20,8 @@ from raganything.utils import (
     insert_text_content,
     insert_text_content_with_multimodal_content,
     get_processor_for_type,
+    build_modal_chunk_metadata,
+    format_asset_line,
     format_table_body,
     get_equation_text_and_format,
     get_table_body,
@@ -1122,10 +1124,12 @@ class ProcessorMixin:
                 "file_path": file_ref,
                 "llm_cache_list": [],  # LightRAG will populate this field
                 # Multimodal-specific metadata
-                "is_multimodal": True,
                 "modal_entity_name": entity_info["entity_name"],
-                "original_type": data["content_type"],
-                "page_idx": data["item_info"].get("page_idx", 0),
+                **build_modal_chunk_metadata(
+                    data["content_type"],
+                    original_item,
+                    data["item_info"].get("page_idx", 0),
+                ),
             }
 
         self.logger.debug(
@@ -1175,7 +1179,9 @@ class ProcessorMixin:
                 return PROMPTS["image_chunk"].format(
                     section_path=section_path if section_path else "None",
                     neighbor_text=neighbor_text if neighbor_text else "None",
-                    image_path=image_path,
+                    image_path_line=format_asset_line(
+                        original_item, "Image Path: ", image_path
+                    ),
                     captions=", ".join(captions) if captions else "None",
                     footnotes=", ".join(footnotes) if footnotes else "None",
                     enhanced_caption=description,
@@ -1192,7 +1198,9 @@ class ProcessorMixin:
                 )
 
                 return PROMPTS["table_chunk"].format(
-                    table_img_path=table_img_path,
+                    table_img_path_line=format_asset_line(
+                        original_item, "Image Path: ", table_img_path
+                    ),
                     table_caption=", ".join(table_caption) if table_caption else "None",
                     table_body=table_body,
                     table_footnote=", ".join(table_footnote)

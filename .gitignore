@@ -78,3 +78,7 @@ memory-bank/
 .claude/
 .cursor/
 CLAUDE.md
+
+# AMI service: tracked despite the generic ignores above
+!.env.ami.example
+!tests/**/test_*.py

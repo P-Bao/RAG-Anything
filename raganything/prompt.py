@@ -337,14 +337,14 @@ PROMPTS["image_chunk"] = """
 Image Content Analysis:
 - Section Path: {section_path}
 - Neighbor Text: {neighbor_text}
-Image Path: {image_path}
+{image_path_line}
 Captions: {captions}
 Footnotes: {footnotes}
 
 Visual Analysis: {enhanced_caption}"""
 
 PROMPTS["table_chunk"] = """Table Analysis:
-Image Path: {table_img_path}
+{table_img_path_line}
 Caption: {table_caption}
 Structure: {table_body}
 Footnotes: {table_footnote}

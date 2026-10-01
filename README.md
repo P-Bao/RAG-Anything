@@ -322,6 +322,18 @@ python -c "from raganything import RAGAnything; rag = RAGAnything(); print('✅ 
 
 Models are downloaded automatically on first use. For manual download, refer to [MinerU Model Source Configuration](https://github.com/opendatalab/MinerU/blob/master/README.md#22-model-source-configuration).
 
+### AMI service (ami_rag)
+
+This fork also ships `ami_rag/`, a production multimodal RAG service for the AMI system (ingest worker + retrieval API). Flow:
+
+```
+ami_data (MinIO + Mongo) → Redis Streams rag:ingest → ami_rag worker
+   (MinerU parse → assets to MinIO → RAGAnything.insert_content_list → LightRAG on Mongo/Qdrant)
+   → POST /v2/rag  (RAGAnything.aquery_data → rerank → text / image / table chunks with presigned asset URLs)
+```
+
+Quick start: `make setup && cp .env.ami.example .env && make start_backend` (API, port 8009) and `make start_worker`; Docker: `make start_docker`. Entry points: `ami-rag-api`, `ami-rag-worker`, `ami-rag` (reindex/status/purge-doc CLI). Full documentation (in Vietnamese): [docs/ami_service.md](docs/ami_service.md).
+
 ### Usage Examples
 
 #### 1. End-to-End Document Processing

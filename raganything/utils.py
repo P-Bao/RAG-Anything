@@ -60,6 +60,56 @@ def format_table_body(table_body: Any) -> str:
     return str(table_body)
 
 
+def format_asset_line(item: Dict[str, Any], path_prefix: str, path: Any) -> str:
+    """Render the asset reference line of an image/table chunk.
+
+    When the item carries an ``asset_key`` (object-store key set by the
+    caller) it is printed instead of the temporary local path.
+    """
+    asset_key = item.get("asset_key") if isinstance(item, dict) else None
+    if asset_key:
+        return f"Asset: {asset_key}"
+    return f"{path_prefix}{path}"
+
+
+def build_modal_chunk_metadata(
+    content_type: str, item: Any, page_idx: Any = None
+) -> Dict[str, Any]:
+    """Structured metadata stored next to a multimodal chunk in ``text_chunks``.
+
+    Missing values are ``None`` (never invented). ``table_body`` is the raw
+    table content before prompt formatting; ``caption`` joins the image/table
+    captions of the item.
+    """
+    if not isinstance(item, dict):
+        item = {}
+    if page_idx is None:
+        page_idx = item.get("page_idx", 0)
+
+    captions: List[str] = []
+    for key in ("image_caption", "img_caption", "table_caption"):
+        for cap in normalize_caption_list(item.get(key)):
+            if cap not in captions:
+                captions.append(cap)
+
+    table_body = None
+    if content_type == "table":
+        raw_body = get_table_body(item)
+        if raw_body not in (None, ""):
+            table_body = (
+                raw_body if isinstance(raw_body, str) else format_table_body(raw_body)
+            )
+
+    return {
+        "is_multimodal": True,
+        "original_type": content_type,
+        "page_idx": page_idx,
+        "asset_key": item.get("asset_key") or None,
+        "table_body": table_body,
+        "caption": ", ".join(captions) if captions else None,
+    }
+
+
 def get_equation_text_and_format(item: Dict[str, Any]) -> Tuple[str, str]:
     """Read equation content while preserving LaTeX aliases from content lists.
 

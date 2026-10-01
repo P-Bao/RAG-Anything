@@ -92,8 +92,9 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=setuptools.find_packages(
-        exclude=("tests*", "docs*")
-    ),  # Automatically find packages
+        include=("raganything*", "ami_rag*"),
+        exclude=("tests*", "docs*"),
+    ),  # raganything + ami_rag service packages
     classifiers=[
         "Development Status :: 4 - Beta",
         "Programming Language :: Python :: 3",

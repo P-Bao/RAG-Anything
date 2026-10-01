@@ -1,6 +1,6 @@
 huggingface_hub
 # LightRAG packages
-lightrag-hku
+lightrag-hku>=1.4.9,<1.5
 # MinerU 2.0 packages (replaces magic-pdf) - handles PDF parsing with multiple backends
 # >=3.4.1: earlier versions iterate pdftext's PageChars return value directly and
 # crash with "TypeError: 'PageChars' object is not iterable" against pdftext>=0.7

@@ -13,7 +13,7 @@ import re
 import json
 import time
 import base64
-from typing import Dict, Any, Tuple, List
+from typing import Dict, Any, Tuple, List, Optional
 from pathlib import Path
 from dataclasses import dataclass
 
@@ -29,6 +29,8 @@ from lightrag.operate import extract_entities, merge_nodes_and_edges
 # Import prompt templates
 from raganything.prompt import PROMPTS
 from raganything.utils import (
+    build_modal_chunk_metadata,
+    format_asset_line,
     format_table_body,
     get_equation_text_and_format,
     get_table_body,
@@ -537,8 +539,13 @@ class BaseModalProcessor:
         batch_mode: bool = False,
         doc_id: str = None,
         chunk_order_index: int = 0,
+        chunk_metadata: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, Dict[str, Any]]:
-        """Create entity and text chunk"""
+        """Create entity and text chunk
+
+        ``chunk_metadata`` (see ``build_modal_chunk_metadata``) is stored with the
+        chunk in ``text_chunks`` only; it is omitted when ``None``.
+        """
         # Create chunk
         chunk_id = compute_mdhash_id(str(modal_chunk), prefix="chunk-")
         tokens = len(self.tokenizer.encode(modal_chunk))
@@ -553,6 +560,8 @@ class BaseModalProcessor:
             "full_doc_id": actual_doc_id,  # Use proper document ID
             "file_path": file_path,
         }
+        if chunk_metadata:
+            chunk_data.update(chunk_metadata)
 
         # Store chunk
         await self.text_chunks_db.upsert({chunk_id: chunk_data})
@@ -1067,7 +1076,9 @@ class ImageModalProcessor(BaseModalProcessor):
             modal_chunk = PROMPTS["image_chunk"].format(
                 section_path=section_path if section_path else "None",
                 neighbor_text=neighbor_text if neighbor_text else "None",
-                image_path=image_path,
+                image_path_line=format_asset_line(
+                    content_data, "Image Path: ", image_path
+                ),
                 captions=", ".join(captions) if captions else "None",
                 footnotes=", ".join(footnotes) if footnotes else "None",
                 enhanced_caption=enhanced_caption,
@@ -1080,6 +1091,11 @@ class ImageModalProcessor(BaseModalProcessor):
                 batch_mode,
                 doc_id,
                 chunk_order_index,
+                chunk_metadata=build_modal_chunk_metadata(
+                    content_type,
+                    content_data,
+                    (item_info or {}).get("page_idx"),
+                ),
             )
 
         except Exception as e:
@@ -1261,7 +1277,9 @@ class TableModalProcessor(BaseModalProcessor):
 
             # Build complete table content
             modal_chunk = PROMPTS["table_chunk"].format(
-                table_img_path=table_img_path,
+                table_img_path_line=format_asset_line(
+                    content_data, "Image Path: ", table_img_path
+                ),
                 table_caption=", ".join(table_caption) if table_caption else "None",
                 table_body=table_body,
                 table_footnote=", ".join(table_footnote) if table_footnote else "None",
@@ -1275,6 +1293,11 @@ class TableModalProcessor(BaseModalProcessor):
                 batch_mode,
                 doc_id,
                 chunk_order_index,
+                chunk_metadata=build_modal_chunk_metadata(
+                    content_type,
+                    content_data,
+                    (item_info or {}).get("page_idx"),
+                ),
             )
 
         except Exception as e:
@@ -1458,6 +1481,11 @@ class EquationModalProcessor(BaseModalProcessor):
                 batch_mode,
                 doc_id,
                 chunk_order_index,
+                chunk_metadata=build_modal_chunk_metadata(
+                    content_type,
+                    content_data,
+                    (item_info or {}).get("page_idx"),
+                ),
             )
 
         except Exception as e:
@@ -1621,6 +1649,11 @@ class GenericModalProcessor(BaseModalProcessor):
                 batch_mode,
                 doc_id,
                 chunk_order_index,
+                chunk_metadata=build_modal_chunk_metadata(
+                    content_type,
+                    modal_content,
+                    (item_info or {}).get("page_idx"),
+                ),
             )
 
         except Exception as e:

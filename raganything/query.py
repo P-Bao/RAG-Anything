@@ -218,6 +218,91 @@ class QueryMixin:
             )
         return result
 
+    async def aquery_data(
+        self, query: str, mode: str = "mix", **param_kwargs
+    ) -> Dict[str, Any]:
+        """
+        Retrieve structured data (entities, relationships, chunks, references)
+        without generating an LLM answer.
+
+        Returns the same dict as ``LightRAG.aquery_data`` (status/message/data/
+        metadata). Each item in ``data["chunks"]`` is enriched, from the
+        ``text_chunks`` KV, with ``modality`` ("text" or the multimodal
+        ``original_type``), ``asset_key``, ``table_body``, ``page_idx`` and
+        ``caption`` (None when absent). Enrichment failures are logged and
+        never raised.
+
+        Args:
+            query: Query text
+            mode: Query mode ("local", "global", "hybrid", "naive", "mix", "bypass")
+            **param_kwargs: Other query parameters, passed to QueryParam
+        """
+        init_result = await self._ensure_lightrag_initialized()
+        if not init_result or not init_result.get("success"):
+            raise RuntimeError(
+                f"LightRAG initialization failed: {(init_result or {}).get('error', 'unknown error')}"
+            )
+
+        query_param = QueryParam(mode=mode, **param_kwargs)
+        result = await self.lightrag.aquery_data(query, query_param)
+
+        try:
+            await self._enrich_chunks_with_modal_metadata(result)
+        except Exception as exc:
+            self.logger.warning(f"Failed to enrich aquery_data chunks: {exc}")
+        return result
+
+    async def _enrich_chunks_with_modal_metadata(self, result: Any) -> None:
+        """Add modality metadata from ``text_chunks`` to ``result["data"]["chunks"]`` in place."""
+        data = result.get("data") if isinstance(result, dict) else None
+        chunks = data.get("chunks") if isinstance(data, dict) else None
+        if not chunks:
+            return
+
+        defaults = {
+            "modality": "text",
+            "asset_key": None,
+            "table_body": None,
+            "page_idx": None,
+            "caption": None,
+        }
+        for chunk in chunks:
+            if isinstance(chunk, dict):
+                for key, value in defaults.items():
+                    chunk.setdefault(key, value)
+
+        chunk_ids = [
+            chunk["chunk_id"]
+            for chunk in chunks
+            if isinstance(chunk, dict) and chunk.get("chunk_id")
+        ]
+        if not chunk_ids:
+            return
+
+        try:
+            records = await self.lightrag.text_chunks.get_by_ids(chunk_ids)
+        except Exception as exc:
+            self.logger.warning(f"Failed to read text_chunks for enrichment: {exc}")
+            return
+
+        by_id = {
+            chunk_id: record
+            for chunk_id, record in zip(chunk_ids, records or [])
+            if isinstance(record, dict)
+        }
+        for chunk in chunks:
+            if not isinstance(chunk, dict):
+                continue
+            record = by_id.get(chunk.get("chunk_id"))
+            if not record:
+                continue
+            if record.get("is_multimodal"):
+                chunk["modality"] = record.get("original_type") or "text"
+            chunk["asset_key"] = record.get("asset_key")
+            chunk["table_body"] = record.get("table_body")
+            chunk["page_idx"] = record.get("page_idx")
+            chunk["caption"] = record.get("caption")
+
     async def aquery_with_multimodal(
         self,
         query: str,
@@ -866,6 +951,13 @@ class QueryMixin:
         """
         loop = always_get_an_event_loop()
         return loop.run_until_complete(self.aquery(query, mode=mode, **kwargs))
+
+    def query_data(self, query: str, mode: str = "mix", **param_kwargs) -> Dict[str, Any]:
+        """Synchronous version of :meth:`aquery_data`"""
+        loop = always_get_an_event_loop()
+        return loop.run_until_complete(
+            self.aquery_data(query, mode=mode, **param_kwargs)
+        )
 
     def query_with_multimodal(
         self,

@@ -22,7 +22,7 @@ classifiers = [
 ]
 dependencies = [
     "huggingface_hub",
-    "lightrag-hku<1.5",
+    "lightrag-hku>=1.4.9,<1.5",
     "mineru[core]>=3.4.1",
     "tqdm",
 ]
@@ -47,6 +47,21 @@ video = [
     "faster-whisper>=1.0.0",
     "opencv-python>=4.8.0",
 ]
+service = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic-settings>=2.3",
+    "redis>=5.0",
+    "pymongo>=4.6",
+    "qdrant-client>=1.9",
+    "httpx>=0.27",
+    "minio>=7.2",
+    "prometheus-client>=0.21.0",
+    "opentelemetry-sdk>=1.28.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.28.0",
+    "openai>=2.0",
+    "google-genai",
+]
 all = [
     "Pillow>=10.0.0",
     "reportlab>=4.0.0",
@@ -59,7 +74,25 @@ all = [
     "scenedetect[opencv]>=0.6.0",
     "moviepy>=2.0.0",
     "opencv-python>=4.8.0",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic-settings>=2.3",
+    "redis>=5.0",
+    "pymongo>=4.6",
+    "qdrant-client>=1.9",
+    "httpx>=0.27",
+    "minio>=7.2",
+    "prometheus-client>=0.21.0",
+    "opentelemetry-sdk>=1.28.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.28.0",
+    "openai>=2.0",
+    "google-genai",
 ]
+
+[project.scripts]
+ami-rag-api = "ami_rag.api.main:run"
+ami-rag-worker = "ami_rag.workers.ingest_worker:run"
+ami-rag = "ami_rag.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/HKUDS/RAG-Anything"
@@ -71,6 +104,7 @@ Issues = "https://github.com/HKUDS/RAG-Anything/issues"
 dev-dependencies = [
     "pytest>=6.0",
     "pytest-asyncio",
+    "ruff",
     "black",
     "isort",
     "flake8",
@@ -80,7 +114,7 @@ dev-dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["raganything*"]
+include = ["raganything*", "ami_rag*"]
 
 [tool.setuptools]
 include-package-data = true
@@ -91,7 +125,16 @@ version = {attr = "raganything.__version__"}
 [tool.ruff]
 target-version = "py310"
 
+[tool.ruff.lint.per-file-ignores]
+# AMI service (ami_rag): FastAPI Depends-in-defaults and intentional fire-and-forget blind excepts
+"ami_rag/api/**" = ["B008", "BLE001"]
+"ami_rag/cli.py" = ["BLE001"]
+"ami_rag/workers/**" = ["BLE001"]
+"ami_rag/storage/**" = ["BLE001"]
+"tests/ami_service/**" = ["BLE001", "TRY002", "PERF102"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test*.py"]
 norecursedirs = ["examples"]
+asyncio_mode = "auto"

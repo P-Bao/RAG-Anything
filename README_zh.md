@@ -300,6 +300,10 @@ python -c "from raganything import RAGAnything; rag = RAGAnything(); print('✅ 
 
 模型在首次使用时自动下载。手动下载参考[MinerU模型源配置](https://github.com/opendatalab/MinerU/blob/master/README_zh-CN.md#22-%E6%A8%A1%E5%9E%8B%E6%BA%90%E9%85%8D%E7%BD%AE)：
 
+### AMI 服务 (ami_rag)
+
+本分支新增 `ami_rag/` 包：面向 AMI 系统的多模态 RAG 服务（摄取 worker + 检索 API）。流程：`ami_data (MinIO+Mongo) → Redis Streams rag:ingest → ami_rag worker (MinerU 解析 → MinIO 资源 → RAGAnything.insert_content_list → LightRAG Mongo/Qdrant) → POST /v2/rag`。详细文档（越南语）见 [docs/ami_service.md](docs/ami_service.md)。
+
 ### 使用示例
 
 #### 1. 端到端文档处理
