@@ -165,6 +165,12 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | Parser | `PARSER` | `mineru` | |
 | | `PARSE_METHOD` | `auto` | |
 | | `PARSER_OUTPUT_DIR` | `./output` | |
+| MinerU (chỉ khi `PARSER=mineru`) | `MINERU_BACKEND` | `pipeline` | truyền `-b`; xem mục 5.1 vì sao không bỏ trống |
+| | `MINERU_DEVICE` | rỗng | rỗng = tự nhận; `cuda` / `cuda:0` / `cpu`; map sang env `MINERU_DEVICE_MODE` của tiến trình mineru |
+| | `MINERU_VIRTUAL_VRAM_SIZE` | `0` | GB; `0` = dùng VRAM thật; >0 map sang env cùng tên, MinerU chọn batch size như thể GPU có chừng đó VRAM |
+| | `MINERU_LANG` | rỗng | gợi ý ngôn ngữ OCR (`ch`, `en`, `latin`, ...); rỗng = mặc định MinerU |
+| | `MINERU_SOURCE` | rỗng | nguồn model: `huggingface` / `modelscope` / `local`; rỗng = mặc định |
+| | `MINERU_TIMEOUT` | `1800` | giây/tài liệu; `0` = không giới hạn |
 | Chunking | `CHUNK_SIZE` / `CHUNK_OVERLAP` | `1200` / `100` | token |
 | | `MAX_GLEANING` | `1` | |
 | | `SUMMARY_LANGUAGE` | `Tiếng Việt` | |
@@ -222,10 +228,37 @@ make restart | make down | make docker-clean
 ```
 
 - Hai service dùng chung image: `ami-rag-api` (port 8009) và `ami-rag-worker` (port 9109 cho `/metrics`). Mongo, Qdrant, Redis, MinIO, rerank chạy ngoài compose trên network external `ami-network`; trong container, host trong `.env` phải là tên container, không phải `localhost`.
-- GPU: `ami-rag-worker` có `deploy.resources.reservations.devices` (nvidia, count 1) cho MinerU. Bỏ khối này để parse bằng CPU (chậm hơn nhiều).
+- GPU: `ami-rag-worker` có `deploy.resources.reservations.devices` (nvidia, count 1) cho MinerU. Bỏ khối này để parse bằng CPU (xem 5.1).
 - Cache model MinerU: volume `mineru-models` mount tại `/models` (`HF_HOME=/models/huggingface`, `MINERU_MODEL_SOURCE=huggingface`), tránh tải lại mỗi lần rebuild. Volume `rag-output` mount tại `/app/output`.
 - LibreOffice (`libreoffice-writer`) đã cài trong image để chuyển doc/docx sang PDF trước khi MinerU parse; chạy local cần tự cài LibreOffice.
 - Biến Make ghi đè: `PORT`, `WORKER_METRICS_PORT`, `COMPOSE_FILE`, `SERVICE`, `NETWORK`.
+
+### 5.1 MinerU: backend, GPU/VRAM, chạy CPU
+
+Worker gọi `parse_document(..., **parser_kwargs(settings))` (`ami_rag/workers/ingest_worker.py`, `ami_rag/settings.py::parser_kwargs`). Hàm này đổi `MINERU_BACKEND/LANG/SOURCE/TIMEOUT` thành kwargs `backend/lang/source/timeout`, còn `MINERU_DEVICE` và `MINERU_VIRTUAL_VRAM_SIZE` thành `env` của tiến trình `mineru` (`MINERU_DEVICE_MODE`, `MINERU_VIRTUAL_VRAM_SIZE`). Biến rỗng/`0` thì không truyền. Parser khác `mineru` thì trả `{}`.
+
+**Vì sao phải đặt `MINERU_BACKEND=pipeline`**: MinerU 3.4.x khi không có `-b` mặc định dùng `hybrid-engine`, chậm hơn ~6 lần và tốn VRAM gấp ~8 lần `pipeline`. Đừng để trống.
+
+Số đo trên Colab T4, PDF 10 trang, MinerU 3.x:
+
+| Cấu hình | Thời gian | VRAM đỉnh |
+|---|---|---|
+| `pipeline`, GPU auto (không đặt `MINERU_VIRTUAL_VRAM_SIZE`) | 50.5 s | 1821 MiB |
+| `pipeline`, `MINERU_VIRTUAL_VRAM_SIZE=4` | 57.0 s | 1135 MiB |
+| `pipeline`, `MINERU_VIRTUAL_VRAM_SIZE=8` | 49.8 s | 1817 MiB |
+| `pipeline`, `MINERU_VIRTUAL_VRAM_SIZE=16` | 47.4 s | 3369 MiB |
+| `hybrid-engine` (mặc định MinerU khi không có `-b`) | 286 s | 14539 MiB |
+| Đường thư viện `parse_document` (GPU auto) | 46.4 s | 1821 MiB |
+| CPU (3 trang) | 82.7 s (~27 s/trang) | n/a |
+| GPU | ~5 s/trang | |
+
+Reranker `bge-reranker-v2-m3` fp16, batch 40x512: đỉnh ~1.9 GiB, 1.0 s (nếu chạy chung GPU với worker, cộng vào ngân sách VRAM).
+
+Khuyến nghị:
+- `pipeline` dưới 4 GiB VRAM nên chạy GPU trực tiếp (mặc định, `MINERU_DEVICE` rỗng).
+- GPU dùng chung với service khác (reranker, vLLM, ...): đặt `MINERU_VIRTUAL_VRAM_SIZE=4` (đỉnh ~1.1 GiB, chậm hơn nhẹ). Giá trị lớn hơn làm MinerU dùng batch lớn hơn nên tốn thêm VRAM, không nhanh hơn đáng kể.
+- Chạy CPU: đặt `MINERU_DEVICE=cpu` và bỏ khối `deploy.resources.reservations.devices` của `ami-rag-worker` trong `docker-compose.ami.yml`. Chậm ~5 lần (~27 s/trang): tăng `MINERU_TIMEOUT` cho file dài và `WORKER_RETRY_IDLE_MS` cho đủ lớn hơn thời gian parse.
+- Tự đo lại trên GPU của bạn bằng `notebooks/mineru_vram_check.ipynb`.
 
 ## 6. API
 

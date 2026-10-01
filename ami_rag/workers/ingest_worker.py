@@ -25,7 +25,7 @@ from ami_rag.observability import (
 )
 from ami_rag.queue.events import EVENT_DELETED, RagEvent
 from ami_rag.queue.streams import RagStreamQueue
-from ami_rag.settings import Settings, get_settings
+from ami_rag.settings import Settings, get_settings, parser_kwargs
 from ami_rag.sources import (
     SOURCE_MINIO_PARSE,
     doc_link_fields,
@@ -182,7 +182,10 @@ class IngestWorker:
                 try:
                     with observe_ingest_stage("parse"):
                         content_list, _ = await self.rag_anything.parse_document(
-                            str(local), output_dir=tmp, parse_method=self.settings.PARSE_METHOD
+                            str(local),
+                            output_dir=tmp,
+                            parse_method=self.settings.PARSE_METHOD,
+                            **parser_kwargs(self.settings),
                         )
                 except Exception:
                     INGEST_PARSE_FAILURES_TOTAL.labels(

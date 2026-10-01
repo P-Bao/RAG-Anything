@@ -45,6 +45,17 @@ class Settings(BaseSettings):
     PARSE_METHOD: str = "auto"
     PARSER_OUTPUT_DIR: str = "./output"
 
+    # MinerU (only used when PARSER=mineru). Measured on Colab T4, 10-page PDF: `pipeline` peaks at
+    # ~1.8 GiB with auto VRAM (1.1 GiB at MINERU_VIRTUAL_VRAM_SIZE=4, 3.3 GiB at 16) in ~50 s;
+    # `hybrid-engine` (MinerU 3.4.x default when -b is omitted) peaks at ~14.5 GiB in ~286 s,
+    # so always pass a backend.
+    MINERU_BACKEND: str = "pipeline"
+    MINERU_DEVICE: str = ""  # "" = auto; cuda | cuda:0 | cpu (-> env MINERU_DEVICE_MODE)
+    MINERU_VIRTUAL_VRAM_SIZE: int = 0  # GB the parser may assume; 0 = auto (use GPU's real VRAM)
+    MINERU_LANG: str = ""  # OCR language hint (ch, en, latin, ...); "" = MinerU default
+    MINERU_SOURCE: str = ""  # model source: huggingface | modelscope | local; "" = default
+    MINERU_TIMEOUT: int = 1800  # seconds per document; 0 = no limit
+
     CHUNK_SIZE: int = 1200
     CHUNK_OVERLAP: int = 100
     MAX_GLEANING: int = 1
@@ -82,6 +93,33 @@ class Settings(BaseSettings):
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8009
     RAG_API_KEY: str = ""
+
+
+def parser_kwargs(settings) -> dict:
+    """Extra kwargs for `RAGAnything.parse_document` derived from MINERU_* settings.
+
+    Empty for non-MinerU parsers. Device and VRAM cap go through the subprocess env
+    (MINERU_DEVICE_MODE / MINERU_VIRTUAL_VRAM_SIZE), which is what the Colab VRAM sweep measured.
+    """
+    if getattr(settings, "PARSER", "mineru") != "mineru":
+        return {}
+    kwargs: dict = {}
+    if backend := getattr(settings, "MINERU_BACKEND", ""):
+        kwargs["backend"] = backend
+    if lang := getattr(settings, "MINERU_LANG", ""):
+        kwargs["lang"] = lang
+    if source := getattr(settings, "MINERU_SOURCE", ""):
+        kwargs["source"] = source
+    if timeout := getattr(settings, "MINERU_TIMEOUT", 0):
+        kwargs["timeout"] = int(timeout)
+    env: dict[str, str] = {}
+    if device := getattr(settings, "MINERU_DEVICE", ""):
+        env["MINERU_DEVICE_MODE"] = device
+    if vram := getattr(settings, "MINERU_VIRTUAL_VRAM_SIZE", 0):
+        env["MINERU_VIRTUAL_VRAM_SIZE"] = str(int(vram))
+    if env:
+        kwargs["env"] = env
+    return kwargs
 
 
 @lru_cache

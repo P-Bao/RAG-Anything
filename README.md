@@ -334,6 +334,8 @@ ami_data (MinIO + Mongo) → Redis Streams rag:ingest → ami_rag worker
 
 Quick start: `make setup && cp .env.ami.example .env && make start_backend` (API, port 8009) and `make start_worker`; Docker: `make start_docker`. Entry points: `ami-rag-api`, `ami-rag-worker`, `ami-rag` (reindex/status/purge-doc CLI). The service shares the backend's Mongo database `organization_db`; all of its collections are prefixed `multimodal_` (workspace `multimodal`, registry `multimodal_rag_documents`). Full documentation (in Vietnamese): [docs/ami_service.md](docs/ami_service.md).
 
+MinerU settings for the worker (`MINERU_BACKEND`, `MINERU_DEVICE`, `MINERU_VIRTUAL_VRAM_SIZE`, `MINERU_LANG`, `MINERU_SOURCE`, `MINERU_TIMEOUT`): keep `MINERU_BACKEND=pipeline` (MinerU 3.4.x defaults to `hybrid-engine` without `-b`: ~6x slower, ~14.5 GiB VRAM vs ~1.8 GiB on a T4, 10-page PDF). Run on GPU directly (pipeline needs < 4 GiB); on a shared GPU set `MINERU_VIRTUAL_VRAM_SIZE=4`; CPU-only (`MINERU_DEVICE=cpu`, ~27 s/page vs ~5 s/page on GPU) requires removing the GPU reservation in `docker-compose.ami.yml`. See section 5.1 of the doc above.
+
 ### Usage Examples
 
 #### 1. End-to-End Document Processing

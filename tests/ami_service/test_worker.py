@@ -363,3 +363,48 @@ async def test_registry_row_gets_link_fields_from_document(
     assert row["organization_unit_id"] == fake_docs_repo.docs[PDF_ID]["organization_unit_id"]
     assert row["owner_id"] == "sub-1"
     assert row["document_type"] == fake_docs_repo.docs[PDF_ID]["document_type"]
+
+
+def test_parser_kwargs_maps_mineru_settings():
+    from ami_rag.settings import Settings, parser_kwargs
+
+    s = Settings(
+        _env_file=None,
+        MINERU_BACKEND="pipeline",
+        MINERU_DEVICE="cuda",
+        MINERU_VIRTUAL_VRAM_SIZE=4,
+        MINERU_LANG="en",
+        MINERU_TIMEOUT=600,
+    )
+    kw = parser_kwargs(s)
+    assert kw["backend"] == "pipeline" and kw["lang"] == "en" and kw["timeout"] == 600
+    assert kw["env"] == {"MINERU_DEVICE_MODE": "cuda", "MINERU_VIRTUAL_VRAM_SIZE": "4"}
+    assert "source" not in kw
+
+
+def test_parser_kwargs_defaults_and_other_parsers():
+    from ami_rag.settings import Settings, parser_kwargs
+
+    kw = parser_kwargs(Settings(_env_file=None))
+    assert kw["backend"] == "pipeline" and "env" not in kw  # auto device/VRAM -> no env override
+    assert parser_kwargs(Settings(_env_file=None, PARSER="docling")) == {}
+
+
+async def test_worker_passes_mineru_kwargs_to_parse(
+    fake_rag_anything, fake_docs_repo, fake_state_repo, fake_queue, fake_asset_store
+):
+    rag = fake_rag_anything
+    w = _worker(rag, fake_docs_repo, fake_state_repo, fake_queue, fake_asset_store)
+    w.settings.MINERU_BACKEND = "pipeline"
+    w.settings.MINERU_DEVICE = "cpu"
+    seen = {}
+    orig = rag.parse_document
+
+    async def spy(file_path, output_dir=None, parse_method=None, **kwargs):
+        seen.update(kwargs)
+        return await orig(file_path, output_dir=output_dir, parse_method=parse_method, **kwargs)
+
+    rag.parse_document = spy
+    await w.handle_event(RagEvent(event="created", document_id=PDF_ID))
+    assert seen["backend"] == "pipeline"
+    assert seen["env"] == {"MINERU_DEVICE_MODE": "cpu"}
