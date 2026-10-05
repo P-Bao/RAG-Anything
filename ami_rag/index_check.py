@@ -33,7 +33,7 @@ ERROR_HINTS = {
     ERR_QUOTA: "API credit/quota exhausted: top up billing, then re-run `ami-rag reindex --all --repair`",
     ERR_RATE_LIMIT: "provider rate limit (429): lower concurrency or wait, then re-run the repair",
     ERR_UPSTREAM: "provider temporarily unavailable (5xx): re-run the repair later",
-    ERR_AUTH: "API key rejected (401/403): fix GEMINI_API_KEY, then re-run the repair",
+    ERR_AUTH: "API key rejected (401/403): fix QWEN_LLM_API_KEY, then re-run the repair",
     ERR_INCOMPLETE: "index still incomplete after processing: re-run the repair",
     ERR_OTHER: "unexpected error: see the error message / worker logs",
 }

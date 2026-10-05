@@ -48,6 +48,7 @@ neo4jWorkDir/
 # Data & Storage
 inputs/
 rag_storage*/
+embed_cache.db
 examples/input/
 examples/output/
 output*/

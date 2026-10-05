@@ -11,21 +11,25 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    LLM_PROFILE: str = "gemini"
-    GEMINI_API_KEY: str = ""
-    GEMINI_LLM_MODEL: str = "gemini-2.5-flash"
-    GEMINI_VISION_MODEL: str = ""
-    GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-001"
-    EMBEDDING_DIM: int = 1536
-
+    # --- LLM (qwen-selfhost, OpenAI-compatible): describe_func / answer_func ---
     QWEN_LLM_BASE_URL: str = "http://vllm:8000/v1"
     QWEN_LLM_MODEL: str = "Qwen/Qwen3-32B"
     QWEN_LLM_API_KEY: str = ""
     QWEN_VLM_MODEL: str = ""
-    QWEN_EMBED_BASE_URL: str = "http://vllm:8000/v1"
-    QWEN_EMBED_MODEL: str = "Qwen/Qwen3-Embedding-0.6B"
-    QWEN_EMBED_API_KEY: str = ""
-    QWEN_EMBED_DIM: int = 1024
+
+    # --- Remote embedding server (máy B, qwen-embedding-server) ---
+    EMBED_SERVER_URL: str = "http://localhost:8007"
+    # Chỉ từ env - không ghi token vào file config/commit
+    EMBED_SERVER_TOKEN: str = ""
+    EMBED_MODEL: str = "Qwen/Qwen3-VL-Embedding-2B"
+    # Dùng để xác minh với server lúc handshake (dim thực tế do server quyết định)
+    EMBED_DIM: int = 2048
+    EMBED_TIMEOUT: int = 60
+    EMBED_BATCH_SIZE: int = 32
+    EMBED_MAX_CONCURRENCY: int = 4
+    EMBED_RETRIES: int = 3
+    EMBED_CACHE_ENABLED: bool = True
+    EMBED_CACHE_PATH: str = "./embed_cache.db"
 
     MONGO_URI: str = "mongodb://localhost:27017/?directConnection=true"
     # Shares organization_db with the backend; every RAG collection is prefixed `multimodal_`

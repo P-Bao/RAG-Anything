@@ -1,13 +1,13 @@
 import base64
 import os
 from collections.abc import Callable
-from functools import partial
 
 from ami_rag.settings import Settings, get_settings
 
 _rag_instance = None
 _raganything_instance = None
 _asset_store_instance = None
+_remote_embedder_instance = None
 
 
 def _inject_storage_env(settings: Settings) -> None:
@@ -24,21 +24,6 @@ def _build_llm_func(settings: Settings) -> Callable:
     # LightRAG calls `llm_model_func(prompt, system_prompt=..., ...)`, but the lightrag
     # `*_complete_if_cache` helpers take `model` as their FIRST positional argument, so a
     # `partial(..., model=...)` binds the prompt to `model` ("multiple values for 'model'").
-    if settings.LLM_PROFILE == "gemini":
-        from lightrag.llm.gemini import gemini_complete_if_cache
-
-        async def gemini_llm(prompt, system_prompt=None, history_messages=None, **kwargs):
-            return await gemini_complete_if_cache(
-                settings.GEMINI_LLM_MODEL,
-                prompt,
-                system_prompt=system_prompt,
-                history_messages=history_messages,
-                api_key=settings.GEMINI_API_KEY or None,
-                **kwargs,
-            )
-
-        return gemini_llm
-
     from lightrag.llm.openai import openai_complete_if_cache
 
     async def qwen_llm(prompt, system_prompt=None, history_messages=None, **kwargs):
@@ -96,70 +81,6 @@ def _build_vision_func(settings: Settings) -> Callable:
     RAGAnything calls it as `(prompt, system_prompt=..., image_data=<base64>)` or, for
     multimodal queries, `("", messages=[OpenAI-style messages with image_url parts])`.
     """
-    if settings.LLM_PROFILE == "gemini":
-        model = settings.GEMINI_VISION_MODEL or settings.GEMINI_LLM_MODEL
-
-        # lightrag's gemini_complete_if_cache is text-only (it drops image_data/messages),
-        # so call the google-genai client directly.
-        async def gemini_vision(
-            prompt,
-            system_prompt=None,
-            history_messages=None,
-            image_data=None,
-            messages=None,
-            **kwargs,
-        ):
-            from google import genai
-            from google.genai import types
-
-            if messages is None:
-                messages = _openai_style_messages(
-                    prompt, system_prompt, history_messages, image_data
-                )
-
-            system_parts: list[str] = []
-            contents = []
-            for message in messages:
-                content = message.get("content")
-                if message.get("role") == "system":
-                    system_parts.append(content if isinstance(content, str) else "")
-                    continue
-                role = "model" if message.get("role") == "assistant" else "user"
-                if isinstance(content, str):
-                    parts = [types.Part.from_text(text=content)]
-                else:
-                    parts = []
-                    for item in content or []:
-                        if item.get("type") == "text":
-                            parts.append(types.Part.from_text(text=item.get("text", "")))
-                        elif item.get("type") == "image_url":
-                            url = (item.get("image_url") or {}).get("url", "")
-                            if url.startswith("data:") and ";base64," in url:
-                                header, b64 = url.split(",", 1)
-                                parts.append(
-                                    types.Part.from_bytes(
-                                        data=base64.b64decode(b64),
-                                        mime_type=header[5:].split(";")[0],
-                                    )
-                                )
-                contents.append(types.Content(role=role, parts=parts))
-
-            client = genai.Client(api_key=settings.GEMINI_API_KEY or None)
-            config = (
-                types.GenerateContentConfig(system_instruction="\n".join(system_parts))
-                if any(system_parts)
-                else None
-            )
-            response = await client.aio.models.generate_content(
-                model=model, contents=contents, config=config
-            )
-            text = getattr(response, "text", None)
-            if not text:
-                raise RuntimeError("Gemini vision response did not contain any text.")
-            return text
-
-        return gemini_vision
-
     from lightrag.llm.openai import openai_complete_if_cache
 
     model = settings.QWEN_VLM_MODEL or settings.QWEN_LLM_MODEL
@@ -188,61 +109,21 @@ def _build_vision_func(settings: Settings) -> Callable:
     return qwen_vision
 
 
-_GEMINI_EMBED_CONCURRENCY = 8
-
-
-async def _gemini_embed_one_per_text(texts: list[str], **kwargs):
-    """Embed each text in its own request.
-
-    `gemini-embedding-2` is multimodal: a `contents` list is merged into ONE embedding,
-    so a batch of N texts returns 1 vector and LightRAG fails with "Vector count
-    mismatch". One request per text keeps the 1:1 text -> vector contract.
-    """
-    import asyncio
-
-    import numpy as np
-    from lightrag.llm.gemini import gemini_embed
-
-    sem = asyncio.Semaphore(_GEMINI_EMBED_CONCURRENCY)
-
-    async def embed(text: str):
-        async with sem:
-            vectors = await gemini_embed.func([text], **kwargs)
-        if len(vectors) != 1:
-            raise RuntimeError(f"Gemini returned {len(vectors)} vectors for 1 text")
-        return vectors[0]
-
-    return np.stack(await asyncio.gather(*(embed(t) for t in texts)))
-
-
 def _build_embedding_func(settings: Settings):
+    """Embedding qua RemoteEmbedder (server máy B), bọc theo contract EmbeddingFunc
+    của LightRAG (dùng tới khi LightRAG bị gỡ ở giai đoạn chuyển pipeline)."""
     from lightrag.utils import EmbeddingFunc
 
-    if settings.LLM_PROFILE == "gemini":
-        return EmbeddingFunc(
-            embedding_dim=settings.EMBEDDING_DIM,
-            max_token_size=2048,
-            # Without it Gemini returns its native 3072 dims (EMBEDDING_DIM=1536 is never
-            # requested) and LightRAG reads one text as "2 vectors".
-            send_dimensions=True,
-            func=partial(
-                _gemini_embed_one_per_text,
-                model=settings.GEMINI_EMBEDDING_MODEL,
-                api_key=settings.GEMINI_API_KEY or None,
-            ),
-        )
+    async def remote_embed(texts: list[str]):
+        import numpy as np
 
-    from lightrag.llm.openai import openai_embed
+        vectors = await get_remote_embedder().embed_documents(list(texts))
+        return np.array(vectors)
 
     return EmbeddingFunc(
-        embedding_dim=settings.QWEN_EMBED_DIM,
+        embedding_dim=settings.EMBED_DIM,
         max_token_size=8192,
-        func=partial(
-            openai_embed.func,
-            model=settings.QWEN_EMBED_MODEL,
-            base_url=settings.QWEN_EMBED_BASE_URL,
-            api_key=settings.QWEN_EMBED_API_KEY or None,
-        ),
+        func=remote_embed,
     )
 
 
@@ -256,8 +137,8 @@ def build_rag(
 
     Storage mapping: Mongo `RAG_DB` for KV/doc-status/graph (MongoKVStorage,
     MongoDocStatusStorage, MongoGraphStorage), Qdrant for vectors (QdrantVectorDBStorage,
-    workspace-partitioned). LLM/embedding per profile (gemini default, qwen-selfhost
-    fallback). Test paths can inject llm_model_func/embedding_func directly.
+    workspace-partitioned). LLM = qwen-selfhost (OpenAI-compatible); embedding qua
+    RemoteEmbedder (server máy B). Test paths can inject llm_model_func/embedding_func.
     """
     from lightrag import LightRAG
 
@@ -345,10 +226,24 @@ def get_asset_store():
     return _asset_store_instance
 
 
+def get_remote_embedder():
+    """Cached RemoteEmbedder built from settings (handshake chạy lười ở lần embed đầu)."""
+    global _remote_embedder_instance
+    if _remote_embedder_instance is None:
+        from ami_rag.core.remote_embedder import build_remote_embedder
+
+        _remote_embedder_instance = build_remote_embedder(get_settings())
+    return _remote_embedder_instance
+
+
 async def close_rag() -> None:
     global _rag_instance, _raganything_instance, _asset_store_instance
+    global _remote_embedder_instance
     _raganything_instance = None
     _asset_store_instance = None
     if _rag_instance is not None:
         await _rag_instance.finalize_storages()
         _rag_instance = None
+    if _remote_embedder_instance is not None:
+        await _remote_embedder_instance.close()
+        _remote_embedder_instance = None

@@ -103,7 +103,7 @@ async def test_factory_builds_with_mongo_qdrant_config(tmp_working_dir):
     from ami_rag.core.factory import build_rag
     from ami_rag.settings import Settings
 
-    settings = Settings(LLM_PROFILE="gemini", WORKING_DIR=tmp_working_dir)
+    settings = Settings(WORKING_DIR=tmp_working_dir)
     rag = build_rag(
         settings,
         llm_model_func=lambda prompt, **kwargs: "ok",
