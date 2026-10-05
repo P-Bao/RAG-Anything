@@ -16,7 +16,8 @@ ami_rag worker  (ami-rag-worker, hoặc nhúng trong API khi WORKER_ENABLED=true
    │    └─ minio_parse: tải file gốc từ MinIO → MinerU parse → content_list (text/image/table/equation)
    ├─ upload ảnh/bảng/công thức lên MinIO  rag-assets/{doc_id}/…  (gắn item["asset_key"])
    ├─ lưu content_list.json vào MinIO
-   └─ RAGAnything.insert_content_list(doc_id=<mongo id>)
+   ├─ RAGAnything.insert_content_list(doc_id=<mongo id>)
+   └─ index check: chunk vector (Qdrant) + entity (graph) phải có thật, nếu không → retry/`failed`
         ▼
    LightRAG: Mongo `organization_db` (KV, doc_status, graph; collection `multimodal_*`) + Qdrant (vector), workspace `multimodal`
 
@@ -26,7 +27,8 @@ Hệ thống AI ──POST /v2/rag──▶ ami_rag API: RAGAnything.aquery_data
 
 - Event mỏng: queue chỉ mang `event` (`created`/`updated`/`deleted`), `document_id`, `content_hash`, `document_type`, `org_id`. Worker đọc nội dung từ Mongo/MinIO (`ami_rag/queue/events.py`).
 - Id 1:1: LightRAG doc id = MongoDB ObjectId; `file_path` của chunk = `{doc_id}_{basename}` nên API tra ngược về Mongo (`ami_rag/api/resolver.py`).
-- Update = xoá index cũ rồi insert lại; `deleted` xoá index + asset MinIO + dòng registry. Nguồn không đổi (`source_hash` trùng, status `processed`) thì bị bỏ qua.
+- Update = xoá index cũ rồi insert lại; `deleted` xoá index + asset MinIO + dòng registry. Nguồn không đổi (`source_hash` trùng, status `processed`) thì bị bỏ qua, cả ở worker lẫn ở CLI `reindex` (CLI không publish event cho doc đó, trừ khi `--force`).
+- Index check: LightRAG nuốt lỗi embedding/LLM (hết quota, 402/429/5xx), nên `insert_content_list` có thể trả về bình thường dù không có vector chunk hay entity nào. Sau mỗi lần insert, worker đếm lại thực tế (`ami_rag/index_check.py::inspect_document`: chunk trong `doc_status`, vector trong Qdrant, entity/relation trong `full_entities`/`full_relations`), ghi log `index check: doc=… chunks=N vectors=N entities=N relations=N OK`. Thiếu vector hoặc không có entity thì ghi `WARNING`, ném `IngestIncompleteError` (đi theo đường retry → `failed`) thay vì ghi `processed`. Kết quả đếm lưu vào registry (`index_stats`). Tắt bằng `INGEST_VERIFY=false`; cho phép doc không có entity bằng `INGEST_REQUIRE_ENTITIES=false`.
 - Retry: `WORKER_MAX_DELIVERY` lần; quá ngưỡng thì dòng registry được đánh dấu `failed` và message được ack. Event lỗi chưa đủ ngưỡng được để pending và tự giao lại (XAUTOCLAIM) sau `WORKER_RETRY_IDLE_MS` (mặc định 10 phút; cần Redis ≥ 6.2) — đặt đủ lớn hơn thời gian parse MinerU dài nhất để worker khác không "cướp" message đang xử lý. Khi `failed`, `attempts` được reset nên `reprocess_failed`/`reindex --force` có đủ ngân sách thử lại.
 - LLM profile: `gemini` (mặc định) hoặc `qwen-selfhost` (vLLM, OpenAI-compatible) qua `LLM_PROFILE`. Rerank là service ngoài `POST {RERANK_BASE_URL}/rerank`; lỗi rerank thì trả chunk không điểm (fallback).
 
@@ -136,6 +138,7 @@ Các field (`ami_rag/storage/rag_documents.py`):
 | `parser` | giá trị `PARSER` lúc nạp |
 | `assets` | danh sách key MinIO đã upload |
 | `counts`, `page_count` | số item theo modality (`text/image/table/equation/other`), số trang |
+| `index_stats` | `{chunks, vectors, entities, relations}` đếm được ngay sau lần nạp thành công hoặc sau `reindex --repair` |
 | `attempts`, `last_hash`, `error` | theo dõi lần thử/lỗi (`error` cắt 2000 ký tự) |
 | `created_at`, `updated_at` | thời điểm |
 
@@ -149,8 +152,8 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `GEMINI_API_KEY` | rỗng | |
 | | `GEMINI_LLM_MODEL` | `gemini-2.5-flash` | |
 | | `GEMINI_VISION_MODEL` | rỗng | rỗng = dùng `GEMINI_LLM_MODEL` |
-| | `GEMINI_EMBEDDING_MODEL` | `gemini-embedding-001` | |
-| | `EMBEDDING_DIM` | `1536` | chiều embedding Gemini |
+| | `GEMINI_EMBEDDING_MODEL` | `gemini-embedding-001` | `gemini-embedding-2` cũng dùng được: embedding được gọi từng text một vì model này gộp cả batch thành 1 vector (xem 5.2) |
+| | `EMBEDDING_DIM` | `1536` | chiều embedding Gemini; được gửi cho API (`send_dimensions`), không thì Gemini trả 3072 chiều |
 | | `QWEN_LLM_BASE_URL` / `QWEN_LLM_MODEL` / `QWEN_LLM_API_KEY` | `http://vllm:8000/v1` / `Qwen/Qwen3-32B` / rỗng | |
 | | `QWEN_VLM_MODEL` | rỗng | rỗng = dùng `QWEN_LLM_MODEL` |
 | | `QWEN_EMBED_BASE_URL` / `QWEN_EMBED_MODEL` / `QWEN_EMBED_API_KEY` | `http://vllm:8000/v1` / `Qwen/Qwen3-Embedding-0.6B` / rỗng | |
@@ -184,11 +187,15 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `WORKER_MAX_DELIVERY` | `3` | |
 | | `WORKER_RETRY_IDLE_MS` | `600000` | Sau bao lâu (ms) message pending lỗi được giao lại |
 | | `WORKER_METRICS_PORT` | `9109` | `/metrics` của `ami-rag-worker` |
+| | `INGEST_VERIFY` | `true` | kiểm tra index (vector chunk, entity) sau mỗi lần nạp; thiếu thì retry/`failed` |
+| | `INGEST_REQUIRE_ENTITIES` | `true` | `false` = chỉ bắt buộc có vector chunk, cho phép doc không có entity |
 | Rerank | `RERANK_BASE_URL` | `http://localhost:8010` | |
-| | `RERANK_TOP_K` | `5` | số chunk trả về sau rerank |
+| | `RERANK_TOP_K` | `5` | số tài liệu trả về mặc định khi request không chỉ định `top_k` |
 | | `RERANK_TIMEOUT` | `60` | giây |
-| Retrieval | `RETRIEVAL_TOP_K` | `40` | top_k mặc định khi request không gửi |
-| | `RETRIEVAL_CHUNK_TOP_K` | `40` | |
+| Retrieval | `RETRIEVAL_TOP_K` | `40` | số entity/quan hệ trích xuất tối thiểu từ LightRAG |
+| | `RETRIEVAL_CHUNK_TOP_K` | `40` | số chunk tối thiểu lấy từ LightRAG trước khi lọc và rerank |
+| | `RETRIEVAL_OVERFETCH` | `4` | hệ số nhân lấy ứng viên: `chunk_top_k = max(RETRIEVAL_CHUNK_TOP_K, top_k * RETRIEVAL_OVERFETCH)` để sau khi lọc org/type vẫn đủ `top_k` kết quả |
+| Repair | `REPAIR_CONCURRENCY` | `2` | số tài liệu sửa song song trong `reindex --repair` (thấp để tránh rate limit 429) |
 | MinIO | `MINIO_ENDPOINT` | `localhost:9000` | |
 | | `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | `minioadmin` / rỗng | |
 | | `MINIO_BUCKET` | `ami-data-documents` | |
@@ -198,7 +205,7 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `MINIO_PRESIGN_EXPIRES` | `3600` | giây, cho `artifact_url`/`file_url` |
 | API | `API_HOST` / `API_PORT` | `0.0.0.0` / `8009` | |
 | | `RAG_API_KEY` | rỗng | rỗng = không auth |
-| Tracing | `OTEL_EXPORTER_OTLP_ENDPOINT` | rỗng | rỗng = tracing tắt; đọc từ `os.environ` |
+| Tracing | `OTEL_EXPORTER_OTLP_ENDPOINT` | rỗng | rỗng = tracing tắt; đọc từ `os.environ`. Chỉ API dùng; compose để trống cho worker. Trỏ tới OTLP/HTTP của Tempo riêng `tempo-multimodal-rag` (xem 9) |
 | | `OTEL_SERVICE_NAME` | `multimodal-rag-retrieval` | |
 | | `TRACE_OUTPUT_MAX_LEN` | `2000000` | giới hạn ký tự event `documents_json`; `0` = không cắt |
 
@@ -227,6 +234,7 @@ make logs SERVICE=ami-rag-worker
 make restart | make down | make docker-clean
 ```
 
+- Build image chậm (~20 phút khi đổi code): `Dockerfile.ami` chép `ami_rag/` trước `pip install ".[service]"` nên mỗi lần sửa code `pip` tải lại toàn bộ gói (kể cả CUDA).
 - Hai service dùng chung image: `ami-rag-api` (port 8009) và `ami-rag-worker` (port 9109 cho `/metrics`). Mongo, Qdrant, Redis, MinIO, rerank chạy ngoài compose trên network external `ami-network`; trong container, host trong `.env` phải là tên container, không phải `localhost`.
 - GPU: `ami-rag-worker` có `deploy.resources.reservations.devices` (nvidia, count 1) cho MinerU. Bỏ khối này để parse bằng CPU (xem 5.1).
 - Cache model MinerU: volume `mineru-models` mount tại `/models` (`HF_HOME=/models/huggingface`, `MINERU_MODEL_SOURCE=huggingface`), tránh tải lại mỗi lần rebuild. Volume `rag-output` mount tại `/app/output`.
@@ -259,6 +267,13 @@ Khuyến nghị:
 - GPU dùng chung với service khác (reranker, vLLM, ...): đặt `MINERU_VIRTUAL_VRAM_SIZE=4` (đỉnh ~1.1 GiB, chậm hơn nhẹ). Giá trị lớn hơn làm MinerU dùng batch lớn hơn nên tốn thêm VRAM, không nhanh hơn đáng kể.
 - Chạy CPU: đặt `MINERU_DEVICE=cpu` và bỏ khối `deploy.resources.reservations.devices` của `ami-rag-worker` trong `docker-compose.ami.yml`. Chậm ~5 lần (~27 s/trang): tăng `MINERU_TIMEOUT` cho file dài và `WORKER_RETRY_IDLE_MS` cho đủ lớn hơn thời gian parse.
 - Tự đo lại trên GPU của bạn bằng `notebooks/mineru_vram_check.ipynb`.
+
+### 5.2 Gemini embedding / LLM và Redis (đã gặp thực tế)
+
+- `ami_rag/core/factory.py::_build_embedding_func`: `EmbeddingFunc(send_dimensions=True)` để gửi `EMBEDDING_DIM`; thiếu thì Gemini trả vector 3072 chiều và LightRAG báo `Vector count mismatch: expected 1 vectors but got 2 vectors`. Embedding gọi từng text một (`_gemini_embed_one_per_text`, đồng thời tối đa 8) vì `gemini-embedding-2` gộp cả batch thành 1 vector. Nhiều `429` khi nạp hàng loạt thì giảm `_GEMINI_EMBED_CONCURRENCY`.
+- `_build_llm_func` bọc `gemini_complete_if_cache` / `openai_complete_if_cache` bằng hàm nhận `prompt` đầu tiên: helper của lightrag nhận `model` ở vị trí đầu, dùng `partial(..., model=...)` sẽ gây `got multiple values for argument 'model'` và mọi bước trích entity thất bại.
+- Hết credit Gemini (`402 RESOURCE_EXHAUSTED: prepayment credits are depleted`) hay model quá tải (`503`) làm LightRAG bỏ qua vector/entity. Nạp credit rồi dùng `ami-rag verify` / `reindex --repair` (mục 7) để xác định và sửa doc bị ảnh hưởng.
+- Redis: `redis-py` ≥ 8 mặc định `socket_timeout=5s`, trùng với `XREADGROUP BLOCK` (`WORKER_POLL_BLOCK_MS`) nên worker báo `queue read failed: Timeout reading from redis`. Client của worker đặt `socket_timeout = WORKER_POLL_BLOCK_MS/1000 + 5` và `health_check_interval=30` (`ingest_worker.py::_build_default_deps`).
 
 ## 6. API
 
@@ -319,7 +334,7 @@ Response (rút gọn; mỗi document có đủ các field, giá trị không áp
 - `artifact_url`: presigned URL (hết hạn sau `MINIO_PRESIGN_EXPIRES`) của `asset_key`; `null` khi chunk không có asset hoặc presign lỗi (tăng `presign_failures_total`).
 - `filters.modality` lọc chunk trước rerank (áp dụng cả v1/v2); `filters.organization_unit_id` / `filters.document_type` chỉ áp dụng cho v2, đo bằng `docs_filtered_total`.
 - `include_kg: true` thêm `entities` (tối đa 20: `name`, `type`, `description`) vào mỗi document.
-- Mode: `naive`, `local`, `global`, `hybrid`, `mix` (mặc định). `top_k` 1..200, mặc định `RETRIEVAL_TOP_K`; số document trả về tối đa `RERANK_TOP_K`.
+- Mode: `naive`, `local`, `global`, `hybrid`, `mix` (mặc định). `top_k` (1..200) là số document trả về cuối cùng (mặc định `RERANK_TOP_K` khi không gửi). Hệ thống lấy `top_k * RETRIEVAL_OVERFETCH` ứng viên từ LightRAG để đảm bảo sau khi lọc modality / org / document_type và rerank vẫn đủ số tài liệu yêu cầu.
 
 ### POST /v2/rag/stream
 
@@ -341,7 +356,8 @@ Khác: `GET /healthz`, `GET /readyz`, `GET /metrics`.
 
 ```bash
 ami-rag reindex (--all | --doc-ids ID [ID ...]) [--type pdf,docx,text,crawl] [--limit N] \
-                [--batch-size 100] [--force] [--dry-run] [--direct]
+                [--batch-size 100] [--force] [--dry-run] [--direct] [--repair]
+ami-rag verify [--doc-ids ID [ID ...]] [--type …] [--limit N] [--batch-size 100] [--all]
 ami-rag status
 ami-rag purge-doc --doc-id <id>
 ```
@@ -351,13 +367,78 @@ ami-rag purge-doc --doc-id <id>
 | `--all` / `--doc-ids` | bắt buộc một trong hai; `--all` duyệt doc `status: active` của `organization_db.documents` |
 | `--type` | lọc `document_type` (danh sách phân tách bằng dấu phẩy) |
 | `--limit`, `--batch-size` | giới hạn số doc; kích thước batch cursor Mongo |
-| `--dry-run` | in bảng `doc_id / type / source / hash / processed` rồi thoát, không ghi gì |
+| `--dry-run` | in bảng theo loại `total / skip(done) / to_ingest` rồi thoát, không ghi gì (với `--repair`: liệt kê doc thiếu vector/entity) |
 | `--force` | đánh dấu `stale` các doc `processed` đã chọn để nạp lại dù `source_hash` không đổi |
 | `--direct` | nạp ngay trong tiến trình CLI (không qua Redis/worker), in `indexed/skipped/failed` |
+| `--repair` | với doc `processed`/`failed`: chạy lại phần còn thiếu của index từ chunk text đã lưu trong Mongo (chuyển thành `processed` khi xong); doc chưa từng có chunk tự động đưa vào full ingest |
 
-Mặc định (không `--direct`) lệnh chỉ XADD event `created` vào `RAG_STREAM`; worker xử lý. `status` in workspace, số doc active, đếm registry theo status, `queue pending`, id doc failed và tình trạng rerank service. `purge-doc` xoá doc khỏi LightRAG, asset MinIO và registry.
+Mặc định (không `--direct`, không `--force`) lệnh bỏ qua doc đã `processed` có `source_hash` không đổi (in `skipping N already processed document(s)`), chỉ XADD event `created` cho phần còn lại vào `RAG_STREAM`; worker xử lý. Doc `failed`/`stale`/chưa có trong registry luôn được nạp lại.
+
+`--repair` (`ami_rag/index_check.py::repair_document`): chạy trên tập doc `processed` và `failed` đã có chunk text trong `multimodal_text_chunks`. Lệnh kiểm tra index thật: (1) re-embed các chunk chưa có vector trong Qdrant; (2) chạy lại trích entity/relation chỉ khi doc chưa có entity nào. Khi hoàn tất, doc được cập nhật `status: processed` và lưu `index_stats`. Nếu thiếu chunk text hoặc chưa từng ingest, doc tự động chuyển sang hàng đợi full ingest. Lệnh có cơ chế **preflight** và **circuit breaker**: gặp lỗi cạn credit (`QUOTA_EXHAUSTED`) hoặc sai khóa (`AUTH_FAILED`) sẽ **dừng ngay lập tức** toàn bộ tiến trình thay vì đánh dấu fail hàng loạt các doc còn lại. Sau khi kết thúc, CLI in bảng phân loại lỗi theo mã (`QUOTA_EXHAUSTED`, `RATE_LIMITED`, `UPSTREAM_UNAVAILABLE`) kèm hướng dẫn khắc phục cụ thể.
+
+`verify` đếm, cho từng doc: số chunk (`doc_status.chunks_list`), vector chunk trong Qdrant, entity/relation (`full_entities`/`full_relations`); in dòng `doc=… chunks=… vectors=… entities=… relations=… OK|INCOMPLETE: lý do` kèm trạng thái registry (`processed`, `failed(MÃ_LỖI)`, `never-ingested`), in bảng tóm tắt lỗi theo nguyên nhân và `index ready: X/Y docs`; thoát mã 1 nếu còn doc thiếu. `status` in workspace, số doc active, đếm registry theo status, `queue pending`, danh sách doc failed nhóm theo mã lỗi (`failed documents by cause`) và tình trạng rerank service. `purge-doc` xoá doc khỏi LightRAG, asset MinIO và registry.
+
+### 7.1 Chạy CLI khi dùng Docker
+
+`docker-compose.ami.yml` chỉ có hai service: `ami-rag-api` và `ami-rag-worker`. Không có service `ami-rag` riêng; `ami-rag` là lệnh bên trong image (entry point `ami_rag.cli:main`). Chạy lệnh trong container đang chạy, dùng cùng `.env` (Mongo, Redis, Qdrant, Gemini) với service:
+
+```bash
+# từ thư mục gốc repo; -T tắt TTY (cần khi pipe/tee/cron, vô hại khi chạy tay)
+docker compose -f docker-compose.ami.yml exec ami-rag-worker ami-rag status
+docker compose -f docker-compose.ami.yml exec ami-rag-worker ami-rag reindex --all --dry-run
+docker compose -f docker-compose.ami.yml exec ami-rag-worker ami-rag reindex --all
+docker compose -f docker-compose.ami.yml exec ami-rag-worker ami-rag verify
+docker compose -f docker-compose.ami.yml exec ami-rag-worker ami-rag reindex --all --repair --type text --limit 20
+```
+
+Rút gọn bằng Makefile (`make cli`, chạy `ami-rag <lệnh con>` trong `ami-rag-worker`):
+
+```bash
+make cli status
+make cli verify
+make cli -- reindex --all --dry-run        # cờ dạng --xxx cần "--" để make không tự parse
+make cli -- reindex --all --repair --type text --limit 20
+make cli ARGS="reindex --doc-ids <id> --force"   # hoặc truyền qua ARGS, không cần "--"
+make cli CLI_SERVICE=ami-rag-api status    # đổi container
+```
+
+Chạy nền cho lượng dữ liệu lớn (`--repair`, `--direct`, `--force` trên cả nghìn doc): thêm `BG=1`. Lệnh chạy detached trong container (`exec -d`), sống tiếp khi đóng terminal/SSH; log ghi vào `/app/output/cli/cli-<thời gian>.log` (volume `rag-output`, symlink `latest.log`), dòng cuối `# exit=<mã>`.
+
+```bash
+make cli BG=1 -- reindex --all --repair     # in đường dẫn log, trả về ngay
+make cli-logs                               # tail -f log của lệnh nền gần nhất (Ctrl-C chỉ dừng tail)
+make cli-ps                                 # liệt kê mọi tiến trình `ami-rag <lệnh>` đang chạy (pid, thời gian)
+make cli-stop                               # dừng lệnh nền gần nhất (chỉ pid đó)
+make cli-stop PID=<pid>                     # dừng pid lấy từ cli-ps
+```
+
+`cli-stop` chỉ kill đúng pid đã ghi, không đụng worker/API hay phiên `ami-rag` mở tay khác. Dừng giữa chừng an toàn vì `--repair`/`reindex` idempotent: chạy lại sẽ bỏ qua doc đã đủ. Lệnh `reindex` mặc định chỉ XADD event nên chạy xong rất nhanh, việc nặng do worker làm nền; `BG=1` chủ yếu có ích cho `--repair` và `--direct`. Đừng chạy hai `--repair`/`--direct` song song (cùng ghi một index và cùng quota Gemini); `cli-ps` để kiểm tra trước khi bắt đầu.
+
+Không có `--`, `make cli reindex --all` báo `unrecognized option '--all'` (lệnh con không cờ như `status`, `verify` thì không cần). Target kiểm tra container đang chạy theo `docker compose exec`, nên cần `make start_docker` trước.
+
+Sai thường gặp: `docker compose exec ami-rag reindex --all` lỗi vì `ami-rag` là tên lệnh chứ không phải tên service. Đúng: `exec <service> ami-rag <lệnh con>`, với `<service>` là `ami-rag-worker` hoặc `ami-rag-api`.
+
+Chọn container:
+
+| Lệnh | Nên chạy trong | Lý do |
+|---|---|---|
+| `status`, `reindex` (mặc định, `--dry-run`, `--force`), `purge-doc` | `ami-rag-worker` hoặc `ami-rag-api` | chỉ đọc Mongo/Redis hoặc XADD event; worker đang chạy xử lý tiếp |
+| `verify` | `ami-rag-worker` | đọc Mongo + Qdrant, cần `.env` của worker |
+| `reindex --repair`, `reindex --direct` | `ami-rag-worker` | khởi tạo LightRAG ngay trong tiến trình CLI và gọi Gemini; worker có đủ model cache và biến môi trường |
+
+Lưu ý:
+- `--direct` và `--repair` ghi thẳng vào index từ tiến trình CLI. Nên chạy khi queue rỗng (`status` cho `queue pending: 0`) để không trùng với doc worker đang xử lý. Hai lệnh này cùng quota Gemini với worker.
+- Lệnh `exec` dài nên chạy nền, có log: `docker compose -f docker-compose.ami.yml exec -T ami-rag-worker ami-rag reindex --all --repair > repair.log 2>&1 &`, rồi `tail -f repair.log`. Hoặc dùng `tmux`/`screen`. Ngắt phiên SSH có thể làm dừng lệnh đang chạy ở foreground; `reindex` mặc định chỉ XADD event nên chạy lại sau khi bị ngắt là an toàn (doc đã `processed` bị bỏ qua).
+- Container phải đang chạy. Nếu chưa: `make start_docker` (hoặc `docker compose -f docker-compose.ami.yml up -d`). Nếu cần chạy mà không dựa vào container sẵn có (không đụng worker):
+  `docker compose -f docker-compose.ami.yml run --rm --no-deps ami-rag-worker ami-rag verify`
+  (`run` tạo container tạm cùng image/`.env`/volume, không publish cổng 9109; `--rm` xoá khi xong).
+- Image đang chạy phải có code CLI mới. Sau khi sửa `ami_rag/`, `docker compose -f docker-compose.ami.yml up -d --build` (lâu, xem mục 5) rồi mới chạy `verify`/`--repair`; image cũ báo `invalid choice` hoặc thiếu cờ `--repair`.
+- Mã thoát của `exec` là mã thoát của lệnh trong container, nên `verify` (trả 1 khi còn doc thiếu) dùng được trong script/CI: `docker compose -f docker-compose.ami.yml exec -T ami-rag-worker ami-rag verify || echo "còn doc thiếu"`.
+- Ngoài Docker (máy dev, đã `uv sync`): `uv run ami-rag <lệnh con>` với cùng cờ; host trong `.env` phải truy cập được từ máy đó (tên container như `redis`, `mongo` chỉ phân giải trong `ami-network`).
 
 ## 8. Runbook backfill dữ liệu cũ
+
+Các lệnh `ami-rag …` dưới đây viết ở dạng ngắn; khi chạy bằng Docker thêm tiền tố `docker compose -f docker-compose.ami.yml exec ami-rag-worker` (mục 7.1).
 
 Mục tiêu: nạp toàn bộ doc có sẵn trong `organization_db.documents` vào index mới (workspace `multimodal`, collection `organization_db.multimodal_*`). Doc đã `processed` từ trước khi có field liên kết (`document_oid`, `organization_unit_id`, `owner_id`, ...) chỉ được bổ sung các field này khi nạp lại (`--force`). Doc cũ chỉ có text/bảng đơn giản trong Mongo vẫn được parse lại từ file MinIO (nếu `original_file_name` không rỗng/`.txt`); text Mongo của pdf/docx **không** được dùng.
 
@@ -367,7 +448,7 @@ Mục tiêu: nạp toàn bộ doc có sẵn trong `organization_db.documents` v�
 3. Thử text/crawl nhỏ (nhanh, không cần MinerU):
    `ami-rag reindex --all --type text,crawl --limit 20`
 4. Thử file thật (MinerU, chậm): `ami-rag reindex --all --type pdf,docx --limit 3`. Kiểm tra `GET /admin/documents/{id}` (`counts` có `table`/`image`), `GET /admin/documents/{id}/content`, và một truy vấn `POST /v2/rag/` v2 với `filters.modality`.
-5. Chạy toàn bộ: `ami-rag reindex --all` (doc đã `processed` và không đổi sẽ bị worker bỏ qua; thêm `--force` để nạp lại tất cả).
+5. Chạy toàn bộ: `ami-rag reindex --all` (doc đã `processed` và không đổi bị bỏ qua ngay ở CLI; thêm `--force` để nạp lại tất cả). Trước đó kiểm tra Gemini còn credit (một lần embed thử), vì hết credit thì index rỗng dù doc báo `processed` ở bản worker cũ.
 6. Theo dõi:
    - `ami-rag status` (đếm theo status, `queue pending`, doc failed);
    - `curl -s localhost:8009/admin/pipeline_status` (thêm header `Authorization: Bearer ...` nếu có `RAG_API_KEY`);
@@ -378,11 +459,14 @@ Mục tiêu: nạp toàn bộ doc có sẵn trong `organization_db.documents` v�
    - nạp lại bắt buộc (đổi cấu hình parser/chunking): `ami-rag reindex --doc-ids <id> --force` hoặc `--all --type pdf,docx --force`;
    - cần chạy đồng bộ để xem lỗi trực tiếp: thêm `--direct` (dừng worker trước nếu không muốn hai tiến trình cùng ghi);
    - doc không cần nữa: `ami-rag purge-doc --doc-id <id>`.
-8. Hoàn tất khi `queue pending` và `lag` về 0, `status` không còn `processing`/`failed`, `multimodal_rag_ingest_documents{status="processed"}` xấp xỉ số doc active.
+8. Kiểm tra index thật: `ami-rag verify` (chỉ đọc). Báo cáo số doc theo tầng: tổng doc active trong Mongo → có dòng registry `processed` → có chunk text → chunk có vector Qdrant → có entity; số "index ready" là doc đủ vector (và entity). Doc thiếu: `ami-rag reindex --all --repair --dry-run` rồi bỏ `--dry-run`; lỗi table/image của pdf/docx: `--doc-ids <id> --force`.
+9. Hoàn tất khi `queue pending` và `lag` về 0, `status` không còn `processing`/`failed`, `multimodal_rag_ingest_documents{status="processed"}` xấp xỉ số doc active, và `ami-rag verify` báo `index ready` bằng số doc active (doc lỗi `IngestIncompleteError` nằm ở `failed` với lý do trong `error`).
 
 ## 9. Monitoring
 
 Chi tiết triển khai: [`monitoring/README.md`](../monitoring/README.md).
+
+Tracing (OTLP/HTTP): chỉ truy vấn `POST /v2/rag` được trace — span `rag.retrieval` (input: attribute `input.query`/`input.mode`/`input.version`/`input.top_k`; output: danh sách document đầy đủ trong event `documents_json`) cùng span con theo stage (`raganything_query`/`rerank`/`resolve`). Worker không trace (ingest chỉ có metric Prometheus) và FastAPI telemetry tự động bị tắt (`FastAPI(telemetry={"auto_configure": False, "tracing": False, "metrics": False, "logs": False})` trong `ami_rag/api/main.py`), nếu không FastAPI ≥ 0.142 đọc `OTEL_EXPORTER_OTLP_ENDPOINT` rồi trace mọi route và đẩy metrics/logs tới `/v1/metrics`, `/v1/logs` (Tempo trả `404`: log `Failed to export metrics batch code: 404`). Tempo dùng riêng cho service này: release helm `tempo-multimodal-rag` (`monitoring/helm/tempo-multimodal-rag-values.yaml`, chart `grafana/tempo` 1.24.4, tách khỏi Tempo của conversational-agent); datasource Grafana uid `multimodal_rag_log` nạp qua sidecar bằng ConfigMap `monitoring/helm/grafana-datasource-tempo-multimodal-rag.yaml`; URL Grafana `http://tempo-multimodal-rag.monitoring.svc.cluster.local:3200`; `OTEL_EXPORTER_OTLP_ENDPOINT` trỏ tới NodePort OTLP/HTTP 4318 của service (`kubectl get svc tempo-multimodal-rag -n monitoring`).
 
 Metric API (`GET :8009/metrics`, prefix `multimodal_rag_retrieval_`):
 
@@ -405,7 +489,7 @@ Metric worker (`:9109/metrics` của `ami-rag-worker`; khi `WORKER_ENABLED=true`
 | `events_total` | Counter | `event` (created/updated/deleted), `result` (processed/skipped/failed/retry) |
 | `in_flight` | Gauge | |
 | `duration_seconds` | Histogram | `source` (minio_parse/mongo_text/none) |
-| `stage_duration_seconds` | Histogram | `stage` (download/parse/upload_assets/insert/delete) |
+| `stage_duration_seconds` | Histogram | `stage` (download/parse/upload_assets/insert/verify/delete) |
 | `parse_failures_total` | Counter | `document_type` |
 | `asset_upload_failures_total`, `pages_total` | Counter | |
 | `items_total` | Counter | `modality` |
@@ -427,7 +511,7 @@ uv run pytest tests --ignore=tests/ami_service     # test gốc RAG-Anything
 uv run pytest tests/ami_service                    # test của ami_rag (hoặc: make test)
 ```
 
-Một số test gốc stub module `lightrag` trong `sys.modules`, nên các test tích hợp trong `tests/ami_service/test_integration_*.py` tự skip khi chạy chung hai bộ; chạy `tests/ami_service` riêng để chúng chạy với `lightrag` thật. Phần còn lại của `tests/ami_service` dùng fake (không cần dịch vụ ngoài).
+Một số test gốc stub module `lightrag` trong `sys.modules`, nên các test tích hợp trong `tests/ami_service/test_integration_*.py` tự skip khi chạy chung hai bộ; chạy `tests/ami_service` riêng để chúng chạy với `lightrag` thật. Phần còn lại của `tests/ami_service` dùng fake (không cần dịch vụ ngoài). `test_index_check.py` phủ index check của worker, `inspect_document`/`repair_document` (đường re-embed) và việc `reindex` bỏ qua doc đã `processed`; đường trích entity của `repair` cần Gemini thật nên chưa có test tự động.
 
 ## 11. Phiên bản
 

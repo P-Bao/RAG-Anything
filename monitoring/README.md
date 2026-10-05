@@ -28,7 +28,7 @@ Khi API chạy worker nhúng (`WORKER_ENABLED=true`) thì metric ingest nằm ch
    `helm/dashboard-configmap.generated.yaml` là file sinh ra, không sửa tay.
    Label `release: kube-prometheus-stack` phải khớp selector của Prometheus
    (`kubectl get prometheus -A -o jsonpath='{.items[*].spec.ruleSelector}'`).
-4. Tracing (tuỳ chọn): đặt `OTEL_EXPORTER_OTLP_ENDPOINT` (vd `http://host.docker.internal:30749`) trong `.env`; compose nạp `.env` vào container. Worker dùng `OTEL_SERVICE_NAME=multimodal-rag-ingest` (đặt trong compose).
+4. Tracing (tuỳ chọn): đặt `OTEL_EXPORTER_OTLP_ENDPOINT` (vd `http://host.docker.internal:32706`, NodePort OTLP/HTTP của `tempo-multimodal-rag`) trong `.env`; compose nạp `.env` vào container. Chỉ API (`/v2/rag`, span `rag.retrieval` kèm input/output) gửi trace; worker không trace (compose để trống `OTEL_EXPORTER_OTLP_ENDPOINT`), ingest chỉ có metric Prometheus.
 
 ## Dashboard
 
@@ -37,7 +37,7 @@ Rows: Tổng quan · Requests theo ngày/giờ · Latency & Errors · Pipeline s
 
 Yêu cầu:
 - Prometheus datasource uid `prometheus`.
-- Tempo datasource uid `afy8sa3jsx88wf` (panel Recent traces; đổi nếu cluster khác).
+- Tempo datasource uid `multimodal_rag_log` (panel Recent traces). Tempo riêng cho service này: release `tempo-multimodal-rag` (`monitoring/helm/tempo-multimodal-rag-values.yaml`), datasource nạp qua sidecar bằng `monitoring/helm/grafana-datasource-tempo-multimodal-rag.yaml`. URL Grafana: `http://tempo-multimodal-rag.monitoring.svc.cluster.local:3200`; app ghi trace tới OTLP/HTTP NodePort 32706 (`OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:32706`; xem lại bằng `kubectl get svc tempo-multimodal-rag -n monitoring`).
 - Plugin `volkovlabs-echarts-panel` (panel Requests theo ngày/giờ).
 
 Mỗi lần đổi metric trong `ami_rag/observability.py` cần cập nhật dashboard;
