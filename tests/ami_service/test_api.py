@@ -66,7 +66,8 @@ async def test_v1_exact_contract_shape(client):
 
 async def test_v1_rerank_scores_descending(client, app):
     resp = await client.post(
-        "/v2/rag/", json={"messages": [{"role": "user", "content": "học phí"}], "top_k": 5}
+        "/v2/rag/",
+        json={"messages": [{"role": "user", "content": "học phí"}], "top_k": 5},
     )
     docs = resp.json()["documents"]
     scores = [d["score"] for d in docs]
@@ -378,3 +379,82 @@ def test_blocks_to_markdown_skips_image_without_url_and_renders_equation():
 async def test_healthz(client):
     resp = await client.get("/healthz")
     assert resp.status_code == 200
+
+
+# --- top_k == number of documents finally returned ---------------------------------------
+
+
+def _many_chunks(n, org_every=None):
+    chunks = []
+    for i in range(n):
+        chunks.append(
+            {
+                "content": f"chunk {i}",
+                "file_path": "64b000000000000000000001_a.pdf",
+                "chunk_id": f"c{i}",
+                "reference_id": "1",
+            }
+        )
+    return chunks
+
+
+async def test_top_k_is_final_document_count(client, fake_rag):
+    fake_rag.set_chunks(_many_chunks(30))
+    resp = await client.post(
+        "/v2/rag/",
+        json={
+            "messages": [{"role": "user", "content": "học phí"}],
+            "top_k": 7,
+            "version": 2,
+        },
+    )
+    body = resp.json()
+    assert len(body["documents"]) == 7
+    assert body["meta"]["requested_top_k"] == 7 and body["meta"]["returned"] == 7
+    _, _, _, kwargs = fake_rag.calls[0]
+    assert kwargs["chunk_top_k"] >= 7 * 4
+
+
+async def test_top_k_defaults_to_rerank_top_k(client, fake_rag, monkeypatch):
+    from ami_rag.settings import get_settings
+
+    monkeypatch.setattr(get_settings(), "RERANK_TOP_K", 5)
+    fake_rag.set_chunks(_many_chunks(30))
+    resp = await client.post("/v2/rag/", json={"messages": [{"role": "user", "content": "q"}]})
+    assert len(resp.json()["documents"]) == 5
+
+
+async def test_filters_applied_before_rerank_do_not_shrink_top_k(client, fake_rag):
+    # 20 chunks of doc 1 (org ...2) followed by 20 of doc 3 (other org); filtering to doc 3's org
+    # must still return top_k docs because the cut happens after filtering.
+    chunks = _many_chunks(20) + [
+        {**c, "file_path": "64b000000000000000000003_b.pdf", "chunk_id": f"x{i}"}
+        for i, c in enumerate(_many_chunks(20))
+    ]
+    fake_rag.set_chunks(chunks)
+    resp = await client.post(
+        "/v2/rag/",
+        json={
+            "messages": [{"role": "user", "content": "q"}],
+            "top_k": 5,
+            "version": 2,
+            "filters": {"document_type": "crawl"},
+        },
+    )
+    body = resp.json()
+    assert len(body["documents"]) == 5
+    assert all(d["doc"]["document_type"] == "crawl" for d in body["documents"])
+
+
+async def test_fewer_candidates_than_top_k_reported_in_meta(client, fake_rag):
+    fake_rag.set_chunks(_many_chunks(3))
+    resp = await client.post(
+        "/v2/rag/",
+        json={
+            "messages": [{"role": "user", "content": "q"}],
+            "top_k": 10,
+            "version": 2,
+        },
+    )
+    meta = resp.json()["meta"]
+    assert meta["requested_top_k"] == 10 and meta["returned"] == 3 and meta["candidates"] == 3

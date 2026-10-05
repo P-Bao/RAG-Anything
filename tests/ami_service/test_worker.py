@@ -382,10 +382,12 @@ def test_parser_kwargs_maps_mineru_settings():
     assert "source" not in kw
 
 
-def test_parser_kwargs_defaults_and_other_parsers():
+def test_parser_kwargs_defaults_and_other_parsers(monkeypatch):
     from ami_rag.settings import Settings, parser_kwargs
 
-    kw = parser_kwargs(Settings(_env_file=None))
+    monkeypatch.delenv("MINERU_DEVICE", raising=False)
+    monkeypatch.delenv("MINERU_VIRTUAL_VRAM_SIZE", raising=False)
+    kw = parser_kwargs(Settings(_env_file=None, MINERU_DEVICE="", MINERU_VIRTUAL_VRAM_SIZE=0))
     assert kw["backend"] == "pipeline" and "env" not in kw  # auto device/VRAM -> no env override
     assert parser_kwargs(Settings(_env_file=None, PARSER="docling")) == {}
 

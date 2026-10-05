@@ -14,6 +14,9 @@ class FakeRAG:
         self.calls.append(("query_data", query, mode, kwargs))
         return self.query_result
 
+    def set_chunks(self, chunks):
+        self.query_result["data"]["chunks"] = chunks
+
     async def ainsert(self, input, ids=None, file_paths=None, **kwargs):
         self.calls.append(("insert", input, ids, file_paths))
 
@@ -152,9 +155,39 @@ class FakeRagDocumentsRepo:
             "error": "",
         }
 
-    def mark_failed(self, document_id, error, source_hash=None):
+    def mark_failed(
+        self,
+        document_id,
+        error,
+        source_hash=None,
+        *,
+        error_code="OTHER",
+        error_stage="",
+        retryable=True,
+    ):
         entry = self.state.setdefault(document_id, {})
-        entry.update({"attempts": 0, "status": "failed", "error": error})
+        entry.update(
+            {
+                "attempts": 0,
+                "status": "failed",
+                "error": error,
+                "error_code": error_code,
+                "error_stage": error_stage,
+                "error_retryable": retryable,
+            }
+        )
+
+    def mark_repaired(self, document_id, index_stats):
+        entry = self.state.setdefault(document_id, {})
+        entry.update(
+            {
+                "attempts": 0,
+                "status": "processed",
+                "index_stats": index_stats,
+                "error": "",
+                "error_code": "",
+            }
+        )
 
     def mark_stale(self, document_ids=None):
         n = 0
@@ -169,6 +202,37 @@ class FakeRagDocumentsRepo:
 
     def get_processed_ids(self):
         return {k for k, v in self.state.items() if v.get("status") == "processed"}
+
+    def get_processed_hashes(self):
+        return {
+            k: v.get("source_hash", "")
+            for k, v in self.state.items()
+            if v.get("status") == "processed"
+        }
+
+    def get_repairable_hashes(self):
+        return {
+            k: v.get("source_hash", "")
+            for k, v in self.state.items()
+            if v.get("status") in ("processed", "failed")
+        }
+
+    def failed_by_code(self, sample=3):
+        out = {}
+        for k, v in self.state.items():
+            if v.get("status") != "failed":
+                continue
+            entry = out.setdefault(
+                v.get("error_code") or "OTHER",
+                {"count": 0, "ids": [], "error": v.get("error", "")},
+            )
+            entry["count"] += 1
+            if len(entry["ids"]) < sample:
+                entry["ids"].append(k)
+        return out
+
+    def set_index_stats(self, document_id, stats):
+        self.state.setdefault(document_id, {})["index_stats"] = stats
 
     def delete(self, document_id):
         self.state.pop(document_id, None)
@@ -272,8 +336,17 @@ class FakeRAGAnything:
         return (
             [
                 {"type": "text", "text": "Giới thiệu", "page_idx": 0},
-                {"type": "image", "img_path": str(img), "image_caption": ["Sơ đồ"], "page_idx": 1},
-                {"type": "table", "table_body": "| a | b |\n|---|---|\n| 1 | 2 |", "page_idx": 2},
+                {
+                    "type": "image",
+                    "img_path": str(img),
+                    "image_caption": ["Sơ đồ"],
+                    "page_idx": 1,
+                },
+                {
+                    "type": "table",
+                    "table_body": "| a | b |\n|---|---|\n| 1 | 2 |",
+                    "page_idx": 2,
+                },
             ],
             "parsed-doc-id",
         )
