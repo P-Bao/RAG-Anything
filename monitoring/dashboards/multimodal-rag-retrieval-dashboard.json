@@ -318,13 +318,13 @@
                     "hidden": false,
                     "query": {
                       "datasource": {
-                        "name": "afy8sa3jsx88wf"
+                        "name": "multimodal_rag_log"
                       },
                       "group": "tempo",
                       "kind": "DataQuery",
                       "spec": {
                         "limit": 50,
-                        "query": "{resource.service.name=\"multimodal-rag-retrieval\"} | select(trace:id, span.input.query, span.input.mode, event.documents_json)",
+                        "query": "{resource.service.name=\"multimodal-rag-retrieval\" && name=\"rag.retrieval\"} | select(trace:id, span.input.query, span.input.mode, event.documents_json)",
                         "queryType": "traceql",
                         "tableType": "spans"
                       },
@@ -638,7 +638,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "last_over_time((histogram_quantile(0.5, sum(rate(multimodal_rag_retrieval_duration_seconds_bucket[5m])) by (le)))[6h:1m])",
+                        "expr": "last_over_time((histogram_quantile(0.5, sum(rate(multimodal_rag_retrieval_duration_seconds_bucket[5m])) by (le)) > 0)[30d:5m])",
                         "legendFormat": "P50"
                       },
                       "version": "v0"
@@ -657,7 +657,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "last_over_time((histogram_quantile(0.95, sum(rate(multimodal_rag_retrieval_duration_seconds_bucket[5m])) by (le)))[6h:1m])",
+                        "expr": "last_over_time((histogram_quantile(0.95, sum(rate(multimodal_rag_retrieval_duration_seconds_bucket[5m])) by (le)) > 0)[30d:5m])",
                         "legendFormat": "P95"
                       },
                       "version": "v0"
@@ -676,7 +676,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "last_over_time((histogram_quantile(0.99, sum(rate(multimodal_rag_retrieval_duration_seconds_bucket[5m])) by (le)))[6h:1m])",
+                        "expr": "last_over_time((histogram_quantile(0.99, sum(rate(multimodal_rag_retrieval_duration_seconds_bucket[5m])) by (le)) > 0)[30d:5m])",
                         "legendFormat": "P99"
                       },
                       "version": "v0"
@@ -785,7 +785,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (mode) (rate(multimodal_rag_retrieval_errors_total[5m]))",
+                        "expr": "(sum by (mode) (rate(multimodal_rag_retrieval_errors_total[5m]))) or (0 * sum by (mode) (rate(multimodal_rag_retrieval_requests_total[5m]))) or vector(0)",
                         "legendFormat": "{{mode}}"
                       },
                       "version": "v0"
@@ -898,7 +898,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "last_over_time((histogram_quantile(0.5, sum(rate(multimodal_rag_retrieval_docs_returned_bucket[5m])) by (le)))[6h:1m])",
+                        "expr": "last_over_time((histogram_quantile(0.5, sum(rate(multimodal_rag_retrieval_docs_returned_bucket[5m])) by (le)) > 0)[30d:5m])",
                         "legendFormat": "P50 docs"
                       },
                       "version": "v0"
@@ -917,7 +917,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "last_over_time((sum(rate(multimodal_rag_retrieval_docs_returned_sum[5m])) / sum(rate(multimodal_rag_retrieval_docs_returned_count[5m])))[6h:1m])",
+                        "expr": "last_over_time(((sum(rate(multimodal_rag_retrieval_docs_returned_sum[5m])) / sum(rate(multimodal_rag_retrieval_docs_returned_count[5m]))) > 0)[30d:5m])",
                         "legendFormat": "avg docs"
                       },
                       "version": "v0"
@@ -1107,7 +1107,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(multimodal_rag_retrieval_lightrag_failures_total[5m]))",
+                        "expr": "sum(rate(multimodal_rag_retrieval_lightrag_failures_total[5m])) or vector(0)",
                         "legendFormat": "lightrag non-success/s"
                       },
                       "version": "v0"
@@ -1216,7 +1216,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "last_over_time((histogram_quantile(0.95, sum(rate(multimodal_rag_retrieval_stage_duration_seconds_bucket[5m])) by (le, stage)))[6h:1m])",
+                        "expr": "last_over_time((histogram_quantile(0.95, sum(rate(multimodal_rag_retrieval_stage_duration_seconds_bucket[5m])) by (le, stage)) > 0)[30d:5m])",
                         "legendFormat": "{{stage}}"
                       },
                       "version": "v0"
@@ -1325,7 +1325,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (stage) (rate(multimodal_rag_retrieval_stage_duration_seconds_sum[5m]))",
+                        "expr": "(sum by (stage) (rate(multimodal_rag_retrieval_stage_duration_seconds_sum[5m]))) or vector(0)",
                         "legendFormat": "{{stage}}"
                       },
                       "version": "v0"
@@ -1434,7 +1434,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (reason) (rate(multimodal_rag_retrieval_rerank_fallback_total[5m]))",
+                        "expr": "(sum by (reason) (rate(multimodal_rag_retrieval_rerank_fallback_total[5m]))) or vector(0)",
                         "legendFormat": "{{reason}}"
                       },
                       "version": "v0"
@@ -1543,7 +1543,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "last_over_time((histogram_quantile(0.5, sum(rate(multimodal_rag_retrieval_chunks_retrieved_bucket[5m])) by (le)))[6h:1m])",
+                        "expr": "last_over_time((histogram_quantile(0.5, sum(rate(multimodal_rag_retrieval_chunks_retrieved_bucket[5m])) by (le)) > 0)[30d:5m])",
                         "legendFormat": "P50 chunks"
                       },
                       "version": "v0"
@@ -1562,7 +1562,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "last_over_time((sum(rate(multimodal_rag_retrieval_chunks_retrieved_sum[5m])) / sum(rate(multimodal_rag_retrieval_chunks_retrieved_count[5m])))[6h:1m])",
+                        "expr": "last_over_time(((sum(rate(multimodal_rag_retrieval_chunks_retrieved_sum[5m])) / sum(rate(multimodal_rag_retrieval_chunks_retrieved_count[5m]))) > 0)[30d:5m])",
                         "legendFormat": "avg chunks"
                       },
                       "version": "v0"
@@ -1671,7 +1671,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(multimodal_rag_retrieval_docs_filtered_total[5m]))",
+                        "expr": "sum(rate(multimodal_rag_retrieval_docs_filtered_total[5m])) or vector(0)",
                         "legendFormat": "filtered/s"
                       },
                       "version": "v0"
@@ -1780,7 +1780,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "last_over_time((histogram_quantile(0.95, sum(rate(multimodal_rag_retrieval_duration_seconds_bucket[5m])) by (le, mode)))[6h:1m])",
+                        "expr": "last_over_time((histogram_quantile(0.95, sum(rate(multimodal_rag_retrieval_duration_seconds_bucket[5m])) by (le, mode)) > 0)[30d:5m])",
                         "legendFormat": "{{mode}}"
                       },
                       "version": "v0"
@@ -1889,7 +1889,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (modality) (rate(multimodal_rag_retrieval_docs_by_modality_total[5m]))",
+                        "expr": "(sum by (modality) (rate(multimodal_rag_retrieval_docs_by_modality_total[5m]))) or vector(0)",
                         "legendFormat": "{{modality}}"
                       },
                       "version": "v0"
@@ -1998,7 +1998,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum(rate(multimodal_rag_retrieval_presign_failures_total[5m]))",
+                        "expr": "sum(rate(multimodal_rag_retrieval_presign_failures_total[5m])) or vector(0)",
                         "legendFormat": "presign failures"
                       },
                       "version": "v0"
@@ -2350,7 +2350,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (result) (rate(multimodal_rag_ingest_events_total[5m]))",
+                        "expr": "(sum by (result) (rate(multimodal_rag_ingest_events_total[5m]))) or (0 * sum by (result) (multimodal_rag_ingest_events_total)) or vector(0)",
                         "legendFormat": "{{result}}"
                       },
                       "version": "v0"
@@ -2459,7 +2459,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.5, sum by (le, source) (rate(multimodal_rag_ingest_duration_seconds_bucket[15m])))",
+                        "expr": "last_over_time((histogram_quantile(0.5, sum by (le, source) (rate(multimodal_rag_ingest_duration_seconds_bucket[15m]))) > 0)[30d:5m])",
                         "legendFormat": "P50 {{source}}"
                       },
                       "version": "v0"
@@ -2478,7 +2478,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "histogram_quantile(0.95, sum by (le, source) (rate(multimodal_rag_ingest_duration_seconds_bucket[15m])))",
+                        "expr": "last_over_time((histogram_quantile(0.95, sum by (le, source) (rate(multimodal_rag_ingest_duration_seconds_bucket[15m]))) > 0)[30d:5m])",
                         "legendFormat": "P95 {{source}}"
                       },
                       "version": "v0"
@@ -2587,7 +2587,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (stage) (rate(multimodal_rag_ingest_stage_duration_seconds_sum[5m]))",
+                        "expr": "(sum by (stage) (rate(multimodal_rag_ingest_stage_duration_seconds_sum[5m]))) or vector(0)",
                         "legendFormat": "{{stage}}"
                       },
                       "version": "v0"
@@ -2805,7 +2805,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (document_type) (increase(multimodal_rag_ingest_parse_failures_total[15m]))",
+                        "expr": "(sum by (document_type) (increase(multimodal_rag_ingest_parse_failures_total[15m]))) or vector(0)",
                         "legendFormat": "{{document_type}}"
                       },
                       "version": "v0"
@@ -2914,7 +2914,7 @@
                       "group": "prometheus",
                       "kind": "DataQuery",
                       "spec": {
-                        "expr": "sum by (modality) (rate(multimodal_rag_ingest_items_total[15m]))",
+                        "expr": "(sum by (modality) (rate(multimodal_rag_ingest_items_total[15m]))) or vector(0)",
                         "legendFormat": "{{modality}}"
                       },
                       "version": "v0"

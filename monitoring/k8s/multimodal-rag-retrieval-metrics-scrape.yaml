@@ -36,7 +36,7 @@ metadata:
   namespace: monitoring
 subsets:
   - addresses:
-      - ip: __NODE_IP__
+      - ip: 10.170.100.221
     ports:
       - name: metrics
         port: 8009
