@@ -105,6 +105,9 @@ class FakeDocsRepo:
                 return doc
         return None
 
+    def count(self):
+        return len(self.docs)
+
 
 class FakeRagDocumentsRepo:
     """In-memory stand-in for ami_rag.storage.rag_documents.RagDocumentsRepo."""

@@ -4,7 +4,7 @@
 # uv, ruff, pytest, docker compose, kubectl.
 #
 # Override: make logs SERVICE=ami-rag-worker | make health PORT=8009
-# CLI trong Docker: make cli verify | make cli reindex --all --dry-run (xem target `cli`)
+# CLI trong Docker: make cli status | make cli -- reindex --stale --dry-run (xem target `cli`)
 
 SHELL = /bin/bash
 
@@ -37,7 +37,7 @@ help:
 	@echo "  make logs             - Theo doi log (SERVICE=ten-service tuy chon)"
 	@echo "  make ps               - Trang thai container"
 	@echo "  make health           - Goi /healthz va dem metric o /metrics"
-	@echo "  make cli <lenh> ...   - Chay 'ami-rag <lenh> ...' trong container $(CLI_SERVICE) (vd: make cli verify)"
+	@echo "  make cli <lenh> ...   - Chay 'ami-rag <lenh> ...' trong container $(CLI_SERVICE) (vd: make cli status)"
 	@echo "  make cli BG=1 -- ...  - Nhu tren nhung chay nen (log: $(CLI_LOG_DIR)/latest.log trong container)"
 	@echo "  make cli-logs         - Theo doi log lenh cli chay nen gan nhat"
 	@echo "  make cli-ps           - Liet ke lenh ami-rag dang chay trong container"
@@ -115,7 +115,7 @@ health:
 # Chay CLI ami-rag trong container dang chay (mac dinh $(CLI_SERVICE); doi bang CLI_SERVICE=ami-rag-api).
 #   make cli status
 #   make cli -- reindex --all --dry-run     (cac co `--xxx` can dau `--` de make khong tu parse)
-#   make cli ARGS="reindex --all --repair --type text --limit 20"
+#   make cli ARGS="reindex --all --yes"
 # Tham so dang vi tri duoc nhan qua MAKECMDGOALS; rule `%` chi bat khi goal dau la `cli`
 # de go sai ten target khac van bao loi.
 ifeq ($(firstword $(MAKECMDGOALS)),cli)
@@ -126,7 +126,7 @@ $(filter-out cli,$(MAKECMDGOALS)):
 endif
 
 cli:
-	@test -n "$(CLI_ARGS)" || { echo "usage: make cli [BG=1] <status|verify|reindex|purge-doc> [...]  (hoac ARGS=\"...\")"; exit 2; }
+	@test -n "$(CLI_ARGS)" || { echo "usage: make cli [BG=1] <status|retry|reindex> [...]  (hoac ARGS=\"...\")"; exit 2; }
 ifeq ($(BG),1)
 	@f=$$(docker compose -f $(COMPOSE_FILE) exec -T $(CLI_SERVICE) sh -c '\
 		d=$(CLI_LOG_DIR); mkdir -p $$d; f=$$d/cli-$$(date +%Y%m%d-%H%M%S).log; : > $$f; ln -sf $$f $$d/latest.log; \
@@ -148,8 +148,8 @@ cli-ps:
 	@docker compose -f $(COMPOSE_FILE) exec -T $(CLI_SERVICE) sh -c "ps -eo pid,etime,args | grep '[b]in/ami-rag ' || echo 'no ami-rag command running'"
 
 # Dung lenh chay nen gan nhat (hoac PID=<pid> lay tu cli-ps). Chi kill dung tien trinh do, khong dung
-# worker/API va khong dung lenh ami-rag khac (vd. phien --repair mo tay). Doc dang xu ly do dang: chay lai
-# `make cli verify` / `reindex --repair` (idempotent).
+# worker/API va khong dung lenh ami-rag khac (vd. phien reindex mo tay). Doc dang xu ly do dang:
+# chay lai `make cli retry --all-failed --yes` / `reindex --stale --yes` (idempotent).
 cli-stop:
 	@docker compose -f $(COMPOSE_FILE) exec -T $(CLI_SERVICE) sh -c '\
 		p="$(PID)"; \

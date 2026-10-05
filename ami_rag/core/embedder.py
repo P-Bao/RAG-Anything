@@ -4,6 +4,7 @@ Máy A (pipeline/CLI) KHÔNG chứa torch/transformers - mọi embedding đi qua
 ``RemoteEmbedder`` gọi sang embedding server (máy B) qua HTTP.
 """
 
+import re
 from typing import Protocol
 
 
@@ -49,3 +50,17 @@ class Embedder(Protocol):
     async def embed_query(self, text: str) -> list[float]:
         """Embed một câu hỏi (query embedding, không cache)."""
         ...
+
+
+def embed_model_slug(model_name: str) -> str:
+    """'Qwen/Qwen3-VL-Embedding-2B' -> 'qwen3-vl-embedding-2b'."""
+    slug = model_name.rsplit("/", 1)[-1].strip().lower()
+    return re.sub(r"[^a-z0-9._-]+", "-", slug).strip("-")
+
+
+def collection_name(prefix: str, embed_model: str, chunker_version: str) -> str:
+    """Quy ước tên collection vector: {prefix}__{embed_model_slug}__{chunker_version}.
+
+    Không bao giờ trộn vector của hai embed model trong một collection.
+    """
+    return f"{prefix}__{embed_model_slug(embed_model)}__{chunker_version}"

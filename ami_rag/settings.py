@@ -81,6 +81,12 @@ class Settings(BaseSettings):
     INGEST_VERIFY: bool = True
     INGEST_REQUIRE_ENTITIES: bool = True
 
+    # --- Pipeline / CLI ---
+    # Quy ước collection: {WORKSPACE}__{embed_model_slug}__{CHUNKER_VERSION}
+    CHUNKER_VERSION: str = "v1"
+    # doc `processing` quá lâu (tiến trình chết giữa chừng) được `status` báo là treo
+    CLI_STUCK_PROCESSING_MINUTES: int = 60
+
     RERANK_BASE_URL: str = "http://localhost:8010"
     RERANK_TOP_K: int = 5
     RERANK_TIMEOUT: int = 60
@@ -90,7 +96,6 @@ class Settings(BaseSettings):
     # candidates fetched = final top_k * RETRIEVAL_OVERFETCH, so filters/rerank still leave top_k docs
     RETRIEVAL_OVERFETCH: int = 4
     # docs repaired in parallel by `reindex --repair` (low: avoids provider 429)
-    REPAIR_CONCURRENCY: int = 2
 
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"

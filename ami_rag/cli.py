@@ -1,9 +1,22 @@
+"""AMI RAG maintenance CLI - 3 lệnh: status, retry, reindex.
+
+- `status`: xem trạng thái doc (mặc định chỉ đọc local: 0 LLM, 0 embed, 0 model call).
+- `retry`: chạy lại doc `failed`, tiếp tục từ stage lỗi bằng dữ liệu trung gian đã lưu.
+- `reindex`: xử lý lại thủ công (chunk -> embed từ dữ liệu parse + mô tả modal đã lưu).
+
+Pipeline thật (chunk -> embed -> upsert Qdrant) được cắm qua `PipelineRunner`
+(triển khai ở giai đoạn chuyển pipeline); CLI chỉ orchestrate và đọc DocStatusStore.
+"""
+
 import argparse
 import asyncio
-from itertools import islice
+from collections import Counter
+from pathlib import Path
 
 from ami_rag.settings import get_settings
-from ami_rag.sources import source_hash
+
+LOCK_PATH = Path("./.ami_rag_cli.lock")
+STAGES = ("parse", "describe", "chunk", "embed", "indexed")
 
 
 def _build_docs_repo(settings):
@@ -16,532 +29,431 @@ def _build_docs_repo(settings):
     )
 
 
-def _build_state_repo(settings):
-    from ami_rag.storage.rag_documents import RagDocumentsRepo
+def _build_status_store(settings):
+    from ami_rag.storage.doc_status import DocStatusStore
 
-    return RagDocumentsRepo(
+    return DocStatusStore(
         mongo_uri=settings.MONGO_URI,
         db_name=settings.RAG_DB,
         collection_name=settings.RAG_DOCUMENTS_COLLECTION,
     )
 
 
-def _build_queue(settings):
-    import os
-    import uuid
+def _build_runner(settings):
+    from ami_rag.core.pipeline import create_runner
 
-    from ami_rag.queue.streams import RagStreamQueue
-    from ami_rag.workers.ingest_worker import aioredis_from_url
+    return create_runner(settings)
 
-    return RagStreamQueue(
-        redis_client=aioredis_from_url(settings.REDIS_URL),
-        stream=settings.RAG_STREAM,
-        group=settings.RAG_CONSUMER_GROUP,
-        consumer=settings.RAG_CONSUMER_NAME or f"cli-{os.getpid()}-{uuid.uuid4().hex[:8]}",
+
+def _build_embedder(settings):
+    from ami_rag.core.remote_embedder import RemoteEmbedder
+
+    return RemoteEmbedder(
+        base_url=settings.EMBED_SERVER_URL,
+        model=settings.EMBED_MODEL,
+        expected_dim=settings.EMBED_DIM,
+        token=settings.EMBED_SERVER_TOKEN,
+        timeout=settings.EMBED_TIMEOUT,
     )
 
 
-def _parse_types(raw: str | None) -> list[str] | None:
-    types = [t.strip() for t in (raw or "").split(",") if t.strip()]
-    return types or None
+def _resolve_doc_ids(raw_ids: list[str], docs_repo, store) -> list[tuple[str, str]]:
+    """Chuyển --doc <id|path> thành (doc_id, label). Path được resolve qua docs repo."""
+    resolved = []
+    for raw in raw_ids:
+        row = store.get(raw)
+        if row:
+            resolved.append((raw, row.get("source_path") or raw))
+            continue
+        doc = docs_repo.find_by_id(raw) or docs_repo.find_by_file_path(raw)
+        if doc:
+            resolved.append((str(doc["_id"]), doc.get("file_path") or raw))
+        else:
+            resolved.append((raw, raw))
+    return resolved
 
 
-def _select_documents(docs_repo, args) -> list[dict]:
-    types = _parse_types(args.type)
-    if args.doc_ids:
-        documents = [d for d in (docs_repo.find_by_id(i) for i in args.doc_ids) if d]
-        if types:
-            documents = [d for d in documents if d.get("document_type") in types]
-        return documents[: args.limit] if args.limit else documents
-    cursor = docs_repo.iter_all(batch_size=args.batch_size, document_types=types)
-    return list(islice(cursor, args.limit) if args.limit else cursor)
+def _fmt_time(value) -> str:
+    return str(value)[:19] if value else "-"
 
 
-def _split_processed(documents: list[dict], processed_hashes: dict[str, str]):
-    """(to_ingest, already_processed): processed with an unchanged source hash is skipped."""
-    todo, done = [], []
-    for doc in documents:
-        unchanged = processed_hashes.get(str(doc["_id"])) == source_hash(doc)
-        (done if unchanged else todo).append(doc)
-    return todo, done
-
-
-def _print_table(rows: dict[str, list[int]], headers: list[str]) -> None:
-    print(f"{'type':<10}" + "".join(f"{h:>12}" for h in headers))
-    for key, values in sorted(rows.items()):
-        print(f"{key:<10}" + "".join(f"{v:>12}" for v in values))
-    totals = [sum(v[i] for v in rows.values()) for i in range(len(headers))]
-    print(f"{'ALL':<10}" + "".join(f"{v:>12}" for v in totals))
-
-
-def _print_dry_run(documents: list[dict], processed_hashes: dict[str, str]) -> None:
-    _, done = _split_processed(documents, processed_hashes)
-    done_ids = {str(d["_id"]) for d in done}
-    rows: dict[str, list[int]] = {}
-    for doc in documents:
-        row = rows.setdefault(doc.get("document_type") or "-", [0, 0, 0])
-        skipped = str(doc["_id"]) in done_ids
-        row[0] += 1
-        row[1] += skipped
-        row[2] += not skipped
-    _print_table(rows, ["total", "skip(done)", "to_ingest"])
-    print("dry-run, nothing written (processed docs are skipped unless --force)")
-
-
-def _event_for(doc: dict):
-    from ami_rag.queue.events import EVENT_CREATED, RagEvent
-
-    return RagEvent(
-        event=EVENT_CREATED,
-        document_id=str(doc["_id"]),
-        content_hash=doc.get("content_hash") or source_hash(doc),
-        document_type=doc.get("document_type"),
-        org_id=str(doc["organization_unit_id"]) if doc.get("organization_unit_id") else None,
-    )
-
-
-def _print_error_summary(by_code: dict[str, list[tuple[str, str]]]) -> None:
-    """by_code: {error_code: [(doc_id, message), ...]} -> grouped table with hints."""
-    from ami_rag.index_check import ERROR_HINTS
-
-    if not by_code:
-        return
-    print("\nerrors by cause:")
-    print(f"  {'code':<22}{'docs':>6}  example")
-    for code, items in sorted(by_code.items(), key=lambda kv: -len(kv[1])):
-        doc_id, message = items[0]
-        print(f"  {code:<22}{len(items):>6}  {doc_id}: {message[:140]}")
-        print(f"  {'':<22}{'':>6}  -> {ERROR_HINTS.get(code, ERROR_HINTS['OTHER'])}")
-
-
-def _print_fatal(exc, remaining: int) -> None:
-    from ami_rag.index_check import ERROR_HINTS
-
-    print(f"\nSTOPPED: {exc}")
-    print(f"  {ERROR_HINTS.get(exc.code, '')}")
-    print(
-        f"  {remaining} document(s) were NOT attempted and keep their current status "
-        "(nothing was marked failed because of this error)."
-    )
-
-
-async def _reindex_direct(settings, docs_repo, state_repo, documents: list[dict]) -> int:
-    from ami_rag.core.factory import close_rag, get_asset_store, get_raganything
-    from ami_rag.index_check import (
-        FATAL_ERROR_CODES,
-        FatalIngestError,
-        classify_error,
-        preflight_providers,
-        short_error,
-    )
-    from ami_rag.workers.ingest_worker import IngestWorker
-
-    rag_anything = await get_raganything()
-    worker = IngestWorker(
-        rag_anything=rag_anything,
-        docs_repo=docs_repo,
-        state_repo=state_repo,
-        queue=None,
-        asset_store=get_asset_store(),
-        settings=settings,
-    )
-    indexed = skipped = failed = 0
-    errors: dict[str, list[tuple[str, str]]] = {}
-    rc = 0
-    try:
-        try:
-            await preflight_providers(rag_anything.lightrag)
-        except FatalIngestError as exc:
-            _print_fatal(exc, len(documents))
-            return 2
-        for pos, doc in enumerate(documents):
-            doc_id = str(doc["_id"])
-            event = _event_for(doc)
-            try:
-                result = await worker.handle_event(event)
-            except Exception as exc:
-                code = classify_error(exc)
-                if code in FATAL_ERROR_CODES:
-                    _print_fatal(
-                        FatalIngestError(code, f"{doc_id}: {short_error(exc)}"),
-                        len(documents) - pos,
-                    )
-                    rc = 2
-                    break
-                failed += 1
-                errors.setdefault(code, []).append((doc_id, short_error(exc)))
-                print(f"FAILED {doc_id} [{code}]: {short_error(exc)}")
-                await asyncio.to_thread(
-                    state_repo.mark_failed,
-                    doc_id,
-                    str(exc),
-                    event.content_hash,
-                    error_code=code,
-                    error_stage="ingest",
-                )
-                continue
-            if result:
-                await worker.mark_processed(doc_id, result)
-                indexed += 1
-                print(f"indexed {doc_id} counts={result['counts']}")
-            else:
-                skipped += 1
-    finally:
-        await close_rag()
-    print(f"direct reindex done: indexed={indexed} skipped={skipped} failed={failed}")
-    _print_error_summary(errors)
-    return rc or (1 if failed else 0)
-
-
-async def _inspect_many(rag, doc_ids: list[str], concurrency: int = 8) -> list:
-    from ami_rag.index_check import inspect_document
-
-    sem = asyncio.Semaphore(concurrency)
-
-    async def one(doc_id: str):
-        async with sem:
-            return await inspect_document(rag, doc_id)
-
-    return list(await asyncio.gather(*(one(i) for i in doc_ids)))
-
-
-async def _repair_one(rag, st, require: bool, retries: int = 2):
-    """Repair one doc. Returns (kind, payload):
-    ok -> after-stats | full -> message | fatal -> FatalIngestError | fail -> (code, message)
-    """
-    from ami_rag.index_check import (
-        ERR_INCOMPLETE,
-        FATAL_ERROR_CODES,
-        FatalIngestError,
-        IngestIncompleteError,
-        classify_error,
-        repair_document,
-        short_error,
-    )
-
-    for attempt in range(retries + 1):
-        try:
-            after = await repair_document(rag, st.doc_id, st)
-        except IngestIncompleteError as exc:
-            return "full", short_error(exc)
-        except Exception as exc:
-            code = classify_error(exc)
-            if code in FATAL_ERROR_CODES:
-                return "fatal", FatalIngestError(code, f"{st.doc_id}: {short_error(exc)}")
-            if attempt < retries:
-                await asyncio.sleep(5 * (attempt + 1))
-                continue
-            return "fail", (code, short_error(exc))
-        problems = after.problems(require)
-        if problems:
-            return "fail", (ERR_INCOMPLETE, "; ".join(problems))
-        return "ok", after
-    return "fail", ("OTHER", "unreachable")
-
-
-async def _reindex_repair(args, settings, state_repo, documents: list[dict]) -> int:
-    """Re-run only the missing index parts (chunk vectors, entities) of processed AND failed
-    docs from the chunk text already in Mongo. Docs with no chunks / no chunk text, and docs
-    never registered, fall back to a full re-ingest (published to the stream).
-
-    Stops the whole command on quota/auth errors (they would fail every remaining doc).
-    Returns the process exit code: 0 all good, 1 some docs still failed, 2 stopped early.
-    """
-    from ami_rag.core.factory import close_rag, get_rag
-    from ami_rag.index_check import FatalIngestError, preflight_providers
-
-    require = settings.INGEST_REQUIRE_ENTITIES
-    repairable = await asyncio.to_thread(state_repo.get_repairable_hashes)
-    failed_ids = set(await asyncio.to_thread(state_repo.get_failed_ids))
-    candidates = [d for d in documents if str(d["_id"]) in repairable]
-    unregistered = [d for d in documents if str(d["_id"]) not in repairable]
-    by_id = {str(d["_id"]): d for d in candidates}
-    print(
-        f"repair: {len(candidates)}/{len(documents)} selected doc(s) are processed/failed "
-        f"({sum(1 for i in by_id if i in failed_ids)} failed); "
-        f"{len(unregistered)} never ingested -> full ingest"
-    )
-    rag = await get_rag()
-    rc = 0
-    try:
-        stats = await _inspect_many(rag, list(by_id))
-        bad = [st for st in stats if not st.ok(require)]
-        healed = [st for st in stats if st.ok(require) and st.doc_id in failed_ids]
-        for st in bad:
-            print(f"  {st.line(require)} type={by_id[st.doc_id].get('document_type')}")
+def _print_rows(rows: list[dict]) -> None:
+    print(f"{'doc_id':<26}{'status':<12}{'stage':<10}{'attempts':>9}  {'updated_at':<20}error")
+    for row in rows:
+        error = (row.get("error") or "")[:80]
         print(
-            f"repair: {len(stats) - len(bad)} complete, {len(bad)} incomplete "
-            f"({len(healed)} complete but still marked failed)"
+            f"{row['_id']:<26}{row.get('effective') or row.get('status', '-'):<12}"
+            f"{row.get('stage') or '-':<10}{row.get('attempts', 0):>9}  "
+            f"{_fmt_time(row.get('updated_at')):<20}{error}"
         )
-        if args.dry_run:
-            print("dry-run, nothing written")
-            return 0
-
-        for st in healed:
-            await asyncio.to_thread(state_repo.mark_repaired, st.doc_id, st.as_dict())
-        if bad:
-            try:
-                await preflight_providers(rag)
-            except FatalIngestError as exc:
-                _print_fatal(exc, len(bad))
-                return 2
-
-        repaired = failed = 0
-        full_reingest: list[dict] = list(unregistered)
-        errors: dict[str, list[tuple[str, str]]] = {}
-        transient_streak = 0
-        width = max(1, settings.REPAIR_CONCURRENCY)
-        for start in range(0, len(bad), width):
-            batch = bad[start : start + width]
-            results = await asyncio.gather(*(_repair_one(rag, st, require) for st in batch))
-            fatal = None
-            for st, (kind, payload) in zip(batch, results):
-                if kind == "ok":
-                    repaired += 1
-                    transient_streak = 0
-                    print(f"  repaired {payload.line(require)}")
-                    await asyncio.to_thread(state_repo.mark_repaired, st.doc_id, payload.as_dict())
-                elif kind == "full":
-                    print(f"  NEEDS FULL REINDEX {st.doc_id}: {payload}")
-                    full_reingest.append(by_id[st.doc_id])
-                elif kind == "fatal":
-                    fatal = fatal or payload
-                else:
-                    code, message = payload
-                    failed += 1
-                    transient_streak = (
-                        transient_streak + 1 if code not in ("INDEX_INCOMPLETE",) else 0
-                    )
-                    errors.setdefault(code, []).append((st.doc_id, message))
-                    print(f"  REPAIR FAILED {st.doc_id} [{code}]: {message}")
-                    await asyncio.to_thread(
-                        state_repo.mark_failed,
-                        st.doc_id,
-                        message,
-                        None,
-                        error_code=code,
-                        error_stage="repair",
-                    )
-            if fatal is not None:
-                done = start + len(batch)
-                _print_fatal(fatal, len(bad) - done)
-                rc = 2
-                break
-            if transient_streak >= 5:
-                print(
-                    f"\nSTOPPED: {transient_streak} consecutive documents failed "
-                    f"with provider errors; {len(bad) - start - len(batch)} not attempted."
-                )
-                rc = 2
-                break
-
-        print(f"repair done: repaired={repaired} failed={failed} full_reindex={len(full_reingest)}")
-        _print_error_summary(errors)
-        if full_reingest and rc != 2:
-            ids = [str(d["_id"]) for d in full_reingest]
-            await asyncio.to_thread(state_repo.mark_stale, ids)
-            queue = _build_queue(settings)
-            for doc in full_reingest:
-                await queue.publish(_event_for(doc))
-            print(f"published {len(full_reingest)} full ingest events to {settings.RAG_STREAM}")
-        if rc == 0 and failed:
-            rc = 1
-        if rc:
-            print(
-                f"exit code {rc}: re-run `ami-rag reindex --all --repair` after fixing the cause above"
-            )
-        return rc
-    finally:
-        await close_rag()
 
 
-async def cmd_reindex(args) -> int:
-    """Returns the process exit code (0 ok, 1 some docs failed, 2 stopped early)."""
-    settings = get_settings()
-    docs_repo = _build_docs_repo(settings)
-    state_repo = _build_state_repo(settings)
-    documents = await asyncio.to_thread(_select_documents, docs_repo, args)
-
-    if args.repair:
-        return await _reindex_repair(args, settings, state_repo, documents)
-
-    processed_hashes = await asyncio.to_thread(state_repo.get_processed_hashes)
-    if args.dry_run:
-        _print_dry_run(documents, processed_hashes if not args.force else {})
-        return 0
-
-    if args.force:
-        ids = [str(d["_id"]) for d in documents]
-        staled = await asyncio.to_thread(state_repo.mark_stale, ids)
-        print(f"marked {staled} processed document(s) stale (--force)")
-    else:
-        documents, done = _split_processed(documents, processed_hashes)
-        print(f"skipping {len(done)} already processed document(s); {len(documents)} to ingest")
-
-    if args.direct:
-        return await _reindex_direct(settings, docs_repo, state_repo, documents)
-
-    queue = _build_queue(settings)
-    for doc in documents:
-        await queue.publish(_event_for(doc))
-    print(f"published {len(documents)} ingest events to {settings.RAG_STREAM}")
-    return 0
+def _detail_line(row: dict) -> str:
+    lines = [
+        f"doc_id:         {row['_id']}",
+        (
+            f"status:         {row.get('effective') or row.get('status', '-')}"
+            f"  stage: {row.get('stage') or '-'}"
+        ),
+        f"source_path:    {row.get('source_path') or '-'}",
+        f"content_hash:   {row.get('content_hash') or '-'}",
+        f"attempts:       {row.get('attempts', 0)}",
+        f"chunk_count:    {row.get('chunk_count', 0)}",
+        f"embed_model:    {row.get('embed_model') or '-'}  dim: {row.get('embed_dim') or '-'}",
+        f"chunker_version:{row.get('chunker_version') or '-'}",
+        f"updated_at:     {_fmt_time(row.get('updated_at'))}",
+    ]
+    if row.get("error"):
+        lines.append(f"error ({row.get('error_stage') or '-'}): {row['error'][:400]}")
+    return "\n".join(lines)
 
 
-async def cmd_verify(args) -> bool:
-    """Count what really exists in the index per document. Returns True when all are OK."""
-    from ami_rag.core.factory import close_rag, get_rag
+def _apply_embed_overrides(args, settings) -> None:
+    if getattr(args, "embed_server_url", None):
+        settings.EMBED_SERVER_URL = args.embed_server_url
+    if getattr(args, "embed_batch_size", None):
+        settings.EMBED_BATCH_SIZE = args.embed_batch_size
 
-    settings = get_settings()
-    docs_repo = _build_docs_repo(settings)
-    state_repo = _build_state_repo(settings)
-    documents = await asyncio.to_thread(_select_documents, docs_repo, args)
-    hashes = await asyncio.to_thread(state_repo.get_processed_hashes)
-    by_id = {str(d["_id"]): d for d in documents}
-    require = settings.INGEST_REQUIRE_ENTITIES
 
-    rag = await get_rag()
-    try:
-        stats = await _inspect_many(rag, list(by_id))
-    finally:
-        await close_rag()
+def _confirm(prompt: str, *, yes: bool) -> bool:
+    if yes:
+        return True
+    answer = input(f"{prompt} [y/N] ").strip().lower()
+    return answer in ("y", "yes")
 
-    rows: dict[str, list[int]] = {}
-    bad = 0
-    failed_info = await asyncio.to_thread(state_repo.failed_by_code, 10**9)
-    failed_code = {i: code for code, e in failed_info.items() for i in e["ids"]}
-    for st in stats:
-        doc_type = by_id[st.doc_id].get("document_type") or "-"
-        row = rows.setdefault(doc_type, [0, 0, 0, 0, 0])
-        row[0] += 1
-        row[1] += st.ok(require)
-        row[2] += not st.ok(require)
-        row[3] += st.doc_id in hashes
-        row[4] += st.chunks
-        if not st.ok(require):
-            bad += 1
-        if args.all or not st.ok(require):
-            if st.doc_id in hashes:
-                registry = "processed"
-            elif st.doc_id in failed_code:
-                registry = f"failed({failed_code[st.doc_id]})"
-            else:
-                registry = "never-ingested"
-            print(f"{st.line(require)} type={doc_type} registry={registry}")
-    _print_table(rows, ["total", "ok", "incomplete", "registry_ok", "chunks"])
+
+# --------------------------------------------------------------------------
+# status
+# --------------------------------------------------------------------------
+async def cmd_status(args, *, settings=None, store=None, docs_repo=None, embedder=None) -> None:
+    """Xem trạng thái doc. Mặc định chỉ đọc local: 0 LLM, 0 embed, 0 model call."""
+    import datetime
+
+    settings = settings or get_settings()
+    store = store or _build_status_store(settings)
+    docs_repo = docs_repo or _build_docs_repo(settings)
+
+    rows = await asyncio.to_thread(store.all_rows)
+    for row in rows:
+        from ami_rag.storage.doc_status import effective_status
+
+        row["effective"] = effective_status(
+            row, settings.EMBED_MODEL, settings.CHUNKER_VERSION
+        )
+    counts = Counter(row["effective"] for row in rows)
+
+    total_docs = await asyncio.to_thread(docs_repo.count)
+    missing = max(total_docs - len(rows), 0)
+    if missing:
+        counts["pending (thiếu bản ghi)"] = missing
+
+    from ami_rag.core.embedder import collection_name
+
+    print(f"workspace: {settings.WORKSPACE}")
     print(
-        f"index ready: {len(stats) - bad}/{len(stats)} docs "
-        f"(chunk vectors present{' + entities' if require else ''})"
+        f"config: embed_model={settings.EMBED_MODEL} dim={settings.EMBED_DIM} "
+        f"chunker_version={settings.CHUNKER_VERSION}"
     )
-    selected = set(by_id)
-    _print_error_summary(
-        {
-            code: [(i, e["error"]) for i in e["ids"] if i in selected]
-            for code, e in failed_info.items()
-            if any(i in selected for i in e["ids"])
-        }
+    print(
+        f"collection đang dùng: {collection_name(settings.WORKSPACE, settings.EMBED_MODEL, settings.CHUNKER_VERSION)}"
     )
-    if bad:
-        print("fix: ami-rag reindex --all --repair [--dry-run]")
-    return bad == 0
+    print(f"documents trong org_db: {total_docs}")
+    print(f"trạng thái: {dict(sorted(counts.items())) or '{}'}")
+
+    # doc `processing` quá lâu (tiến trình chết giữa chừng) -> treo
+    stuck_cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
+        minutes=settings.CLI_STUCK_PROCESSING_MINUTES
+    )
+    stuck = [
+        row
+        for row in rows
+        if row.get("status") == "processing"
+        and row.get("updated_at")
+        and row["updated_at"] < stuck_cutoff
+    ]
+    if stuck:
+        print(f"TREO: {len(stuck)} doc đang `processing` quá "
+              f"{settings.CLI_STUCK_PROCESSING_MINUTES} phút (tiến trình chết giữa chừng?):")
+        for row in stuck[:10]:
+            print(f"  {row['_id']} stage={row.get('stage') or '-'} updated_at={_fmt_time(row.get('updated_at'))}")
+
+    if args.doc:
+        for doc_id, label in _resolve_doc_ids([args.doc], docs_repo, store):
+            row = store.get(doc_id)
+            if row is None:
+                print(f"\n{label}: không có bản ghi (pending)")
+            else:
+                from ami_rag.storage.doc_status import effective_status as es
+
+                row["effective"] = es(row, settings.EMBED_MODEL, settings.CHUNKER_VERSION)
+                print(f"\n{label}:")
+                print(_detail_line(row))
+        return
+
+    from ami_rag.storage.doc_status import STATUS_FAILED, STATUS_STALE
+
+    if args.failed:
+        failed = [row for row in rows if row["effective"] == STATUS_FAILED]
+        print(f"\nfailed ({len(failed)}):")
+        if failed:
+            _print_rows(failed)
+        return
+    if args.stale:
+        stale = [row for row in rows if row["effective"] == STATUS_STALE]
+        print(f"\nstale ({len(stale)}):")
+        if stale:
+            _print_rows(stale)
+        return
+
+    if args.check_embed_server:
+        await _check_embed_server(settings, embedder)
 
 
-async def cmd_status(_args) -> None:
+async def _check_embed_server(settings, embedder=None) -> None:
     import httpx
 
-    settings = get_settings()
-    docs_repo = _build_docs_repo(settings)
-    state_repo = _build_state_repo(settings)
-    queue = _build_queue(settings)
-    total = await asyncio.to_thread(docs_repo.count)
-    state_counts = await asyncio.to_thread(state_repo.counts)
-    failed_info = await asyncio.to_thread(state_repo.failed_by_code)
-    pending = await queue.pending_count()
-    print(f"workspace: {settings.WORKSPACE}")
-    print(f"documents (active) in org_db: {total}")
-    print(f"rag documents: {state_counts}")
-    print(f"queue pending: {pending}")
-    if failed_info:
-        from ami_rag.index_check import ERROR_HINTS
-
-        print("failed documents by cause:")
-        for code, entry in sorted(failed_info.items(), key=lambda kv: -kv[1]["count"]):
-            print(f"  {code}: {entry['count']} doc(s), e.g. {entry['ids']}")
-            print(f"    {ERROR_HINTS.get(code, ERROR_HINTS['OTHER'])}")
-    else:
-        print("failed document ids: none")
+    embedder = embedder or _build_embedder(settings)
+    health_line = None
     try:
         async with httpx.AsyncClient(timeout=5) as client:
-            resp = await client.get(f"{settings.RERANK_BASE_URL.rstrip('/')}/health")
-            print(f"rerank service: {'ok' if resp.status_code == 200 else resp.status_code}")
-    except Exception:
-        print("rerank service: unreachable")
-
-
-async def cmd_purge(args) -> None:
-    from ami_rag.core.factory import close_rag, get_asset_store, get_rag
-
-    settings = get_settings()
-    state_repo = _build_state_repo(settings)
-    rag = await get_rag()
+            resp = await client.get(f"{settings.EMBED_SERVER_URL.rstrip('/')}/health")
+            body = resp.json() if resp.status_code == 200 else {}
+            health_line = (
+                f"embed server /health: {'ok' if resp.status_code == 200 else resp.status_code}"
+                f"  model={body.get('model', '-')} device={body.get('device', '-')}"
+            )
+    except Exception as exc:
+        health_line = f"embed server /health: unreachable ({settings.EMBED_SERVER_URL}): {exc}"
+    print(health_line)
+    # Dù /health unreachable, vẫn thử handshake /info để báo lỗi rõ hơn.
     try:
-        await rag.adelete_by_doc_id(args.doc_id)
-        removed = await asyncio.to_thread(get_asset_store().delete_doc_assets, args.doc_id)
-        await asyncio.to_thread(state_repo.delete, args.doc_id)
-        print(f"purged {args.doc_id} from the RAG index ({removed} asset object(s) removed)")
+        info = await embedder.verify()
+        print(
+            f"embed server /info: model={info.get('model_name')} dim={info.get('dim')} "
+            f"khớp config (EMBED_MODEL={settings.EMBED_MODEL}, EMBED_DIM={settings.EMBED_DIM})"
+        )
+    except Exception as exc:
+        print(f"embed server /info: LỆCH hoặc lỗi: {exc}")
+
+
+# --------------------------------------------------------------------------
+# retry
+# --------------------------------------------------------------------------
+async def cmd_retry(args, *, settings=None, store=None, docs_repo=None, runner=None) -> int:
+    """Chạy lại doc `failed`, tiếp tục từ stage lỗi bằng dữ liệu trung gian đã lưu."""
+    settings = settings or get_settings()
+    store = store or _build_status_store(settings)
+    docs_repo = docs_repo or _build_docs_repo(settings)
+    runner = runner or _build_runner(settings)
+
+    rows = await asyncio.to_thread(store.all_rows)
+    failed = [row for row in rows if row.get("status") == "failed"]
+
+    if args.doc:
+        wanted = {doc_id for doc_id, _ in _resolve_doc_ids(args.doc, docs_repo, store)}
+        selected = [row for row in failed if row["_id"] in wanted]
+        not_failed = wanted - {row["_id"] for row in selected}
+        for doc_id in sorted(not_failed):
+            print(f"bỏ qua {doc_id}: không phải doc `failed`")
+    elif args.all_failed:
+        selected = failed
+    else:
+        raise ValueError("retry cần --doc hoặc --all-failed")
+
+    skipped_attempts = [row for row in selected if row.get("attempts", 0) >= args.max_attempts]
+    selected = [row for row in selected if row.get("attempts", 0) < args.max_attempts]
+    for row in skipped_attempts:
+        print(
+            f"bỏ qua {row['_id']}: đã thử {row.get('attempts', 0)} lần >= "
+            f"--max-attempts {args.max_attempts}"
+        )
+
+    if not selected:
+        print("không có doc nào để retry")
+        return 0
+
+    print(f"retry {len(selected)} doc (từ stage lỗi"
+          f"{f', ép --from-stage {args.from_stage}' if args.from_stage else ''})")
+    if not _confirm("Chạy retry?", yes=args.yes):
+        print("đã huỷ")
+        return 0
+
+    # Trước khi chạy (các doc sẽ qua stage embed): kiểm tra embed server.
+    # Không với tới được -> dừng sớm, KHÔNG đánh fail từng doc.
+    try:
+        await runner.preflight_embed()
+    except Exception as exc:
+        print(f"STOPPED: embed server không sẵn sàng: {exc}")
+        print("  không đánh fail doc nào; sửa server rồi chạy lại `ami-rag retry`")
+        return 2
+
+    ok = failed_n = 0
+    for row in selected:
+        doc_id = row["_id"]
+        try:
+            outcome = await runner.run(doc_id, from_stage=args.from_stage)
+        except Exception as exc:
+            failed_n += 1
+            print(f"FAILED {doc_id}: {str(exc)[:200]}")
+            continue
+        if outcome.ok:
+            ok += 1
+            print(f"indexed {doc_id} chunks={outcome.chunk_count}")
+        else:
+            failed_n += 1
+            print(f"FAILED {doc_id} (stage={outcome.stage}): {outcome.error[:200]}")
+
+    print(f"retry xong: thành công={ok} thất bại={failed_n} bỏ qua={len(skipped_attempts)}")
+    return 1 if failed_n else 0
+
+
+# --------------------------------------------------------------------------
+# reindex
+# --------------------------------------------------------------------------
+async def cmd_reindex(args, *, settings=None, store=None, runner=None) -> int:
+    """Xử lý lại thủ công: chunk -> embed từ dữ liệu parse + mô tả modal đã lưu."""
+    from ami_rag.core.lockfile import Lockfile, LockHeld
+    from ami_rag.core.pipeline import validate_stage
+    from ami_rag.storage.doc_status import STATUS_STALE, effective_status
+
+    settings = settings or get_settings()
+    store = store or _build_status_store(settings)
+    runner = runner or _build_runner(settings)
+    _apply_embed_overrides(args, settings)
+    from_stage = validate_stage(args.from_stage) or "chunk"
+
+    rows = await asyncio.to_thread(store.all_rows)
+    for row in rows:
+        row["effective"] = effective_status(
+            row, settings.EMBED_MODEL, settings.CHUNKER_VERSION
+        )
+
+    if args.doc:
+        resolved = _resolve_doc_ids(args.doc, _build_docs_repo(settings), store)
+        by_id = {row["_id"]: row for row in rows}
+        selected = [by_id[doc_id] for doc_id, _ in resolved if doc_id in by_id]
+        missing = [doc_id for doc_id, _ in resolved if doc_id not in by_id]
+        for doc_id in missing:
+            print(f"bỏ qua {doc_id}: không có bản ghi trạng thái (pending)")
+    elif args.all:
+        selected = list(rows)
+    else:  # --stale (mặc định)
+        selected = [row for row in rows if row["effective"] == STATUS_STALE]
+
+    if not selected:
+        print("không có doc nào cần reindex")
+        return 0
+
+    if args.dry_run:
+        total_chunks = total_cache_hits = 0
+        for row in selected:
+            outcome = await runner.run(row["_id"], from_stage=from_stage, dry_run=True)
+            total_chunks += outcome.chunk_count
+            total_cache_hits += outcome.cache_hits
+        print(
+            f"dry-run: {len(selected)} doc, {total_chunks} chunk cần embed, "
+            f"{total_cache_hits} trúng cache (không gọi embed, không ghi gì)"
+        )
+        return 0
+
+    try:
+        await runner.preflight_embed()
+    except Exception as exc:
+        print(f"STOPPED: embed server không sẵn sàng: {exc}")
+        print("  không đánh fail doc nào; sửa server rồi chạy lại `ami-rag reindex`")
+        return 2
+
+    if not _confirm(f"Reindex {len(selected)} doc (chunk -> embed)?", yes=args.yes):
+        print("đã huỷ")
+        return 0
+
+    lock = Lockfile(LOCK_PATH)
+    try:
+        lock.acquire()
+    except LockHeld as exc:
+        print(f"STOPPED: {exc}")
+        return 2
+
+    ok = failed_n = 0
+    try:
+        for row in selected:
+            try:
+                outcome = await runner.run(row["_id"], from_stage=from_stage)
+            except Exception as exc:
+                failed_n += 1
+                print(f"FAILED {row['_id']}: {str(exc)[:200]}")
+                continue
+            if outcome.ok:
+                ok += 1
+                print(f"indexed {row['_id']} chunks={outcome.chunk_count}")
+            else:
+                failed_n += 1
+                print(f"FAILED {row['_id']} (stage={outcome.stage}): {outcome.error[:200]}")
     finally:
-        await close_rag()
+        lock.release()
+
+    print(f"reindex xong: thành công={ok} thất bại={failed_n}")
+    return 1 if failed_n else 0
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="ami-rag", description="AMI RAG maintenance CLI")
+    parser = argparse.ArgumentParser(
+        prog="ami-rag",
+        description="AMI RAG maintenance CLI: status / retry / reindex",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_reindex = sub.add_parser("reindex", help="publish ingest events for existing documents")
-    p_reindex.add_argument("--all", action="store_true", help="reindex every active document")
-    p_reindex.add_argument("--doc-ids", nargs="*", default=[], help="specific document ids")
-    p_reindex.add_argument(
-        "--type",
+    p_status = sub.add_parser(
+        "status", help="trạng thái doc (mặc định chỉ đọc local, 0 model call)"
+    )
+    p_status.add_argument("--failed", action="store_true", help="chỉ hiện doc failed")
+    p_status.add_argument("--stale", action="store_true", help="chỉ hiện doc stale")
+    p_status.add_argument("--doc", default=None, help="xem chi tiết một doc (id hoặc path)")
+    p_status.add_argument(
+        "--check-embed-server",
+        action="store_true",
+        help="gọi /health + /info kiểm tra embed server (máy B) có sẵn sàng và đúng model",
+    )
+
+    p_retry = sub.add_parser("retry", help="chạy lại doc failed từ stage lỗi")
+    p_retry.add_argument("--doc", nargs="*", default=[], help="id hoặc path cụ thể")
+    p_retry.add_argument("--all-failed", action="store_true", help="chạy lại mọi doc failed")
+    p_retry.add_argument(
+        "--from-stage",
+        choices=list(STAGES[:-1]),
         default=None,
-        help="comma-separated document types (pdf,docx,text,crawl)",
+        help="ép làm lại từ stage này (mặc định: tiếp tục từ stage lỗi)",
     )
-    p_reindex.add_argument("--limit", type=int, default=None)
-    p_reindex.add_argument("--batch-size", type=int, default=100)
-    p_reindex.add_argument(
-        "--force", action="store_true", help="re-ingest even if already processed"
+    p_retry.add_argument("--max-attempts", type=int, default=3)
+    p_retry.add_argument("--yes", action="store_true", help="bỏ qua xác nhận")
+    p_retry.add_argument("--embed-server-url", default=None, help="override EMBED_SERVER_URL")
+    p_retry.add_argument("--embed-batch-size", type=int, default=None, help="override EMBED_BATCH_SIZE")
+
+    p_reindex = sub.add_parser(
+        "reindex", help="xử lý lại thủ công: chunk -> embed từ dữ liệu đã lưu"
     )
     p_reindex.add_argument(
-        "--dry-run", action="store_true", help="list what would be ingested and exit"
-    )
-    p_reindex.add_argument(
-        "--direct",
+        "--stale",
         action="store_true",
-        help="ingest in-process instead of publishing events",
+        default=True,
+        help="chỉ doc stale (mặc định)",
     )
-
+    p_reindex.add_argument("--doc", nargs="*", default=[], help="id hoặc path cụ thể")
+    p_reindex.add_argument("--all", action="store_true", help="xử lý lại mọi doc có bản ghi")
     p_reindex.add_argument(
-        "--repair",
+        "--from-stage",
+        choices=list(STAGES[:-1]),
+        default=None,
+        help="ép làm lại từ stage này (mặc định: chunk -> embed, không gọi lại parse/mô tả)",
+    )
+    p_reindex.add_argument(
+        "--dry-run",
         action="store_true",
-        help="processed docs only: re-run missing chunk vectors/entities from stored chunk text",
+        help="in số doc, số chunk cần embed, số chunk trúng cache; không gọi embed, không ghi",
     )
-
-    p_verify = sub.add_parser(
-        "verify", help="count chunks/vectors/entities that really exist per document"
-    )
-    p_verify.add_argument("--doc-ids", nargs="*", default=[], help="specific document ids")
-    p_verify.add_argument("--type", default=None, help="comma-separated document types")
-    p_verify.add_argument("--limit", type=int, default=None)
-    p_verify.add_argument("--batch-size", type=int, default=100)
-    p_verify.add_argument(
-        "--all", action="store_true", help="print every document, not only incomplete"
-    )
-
-    sub.add_parser("status", help="show rag document status, queue depth and failed docs")
-
-    p_purge = sub.add_parser(
-        "purge-doc", help="delete one document from the RAG index, assets and registry"
-    )
-    p_purge.add_argument("--doc-id", required=True)
+    p_reindex.add_argument("--yes", action="store_true", help="bỏ qua xác nhận")
+    p_reindex.add_argument("--embed-server-url", default=None, help="override EMBED_SERVER_URL")
+    p_reindex.add_argument("--embed-batch-size", type=int, default=None, help="override EMBED_BATCH_SIZE")
 
     args = parser.parse_args()
     import logging
@@ -551,16 +463,20 @@ def main() -> None:
     )
     for noisy in ("httpx", "httpcore", "pymongo"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
-    if args.command == "reindex" and not (args.all or args.doc_ids):
-        parser.error("reindex requires --all or --doc-ids")
-    if args.command == "reindex":
+
+    if args.command == "retry" and not (args.doc or args.all_failed):
+        parser.error("retry cần --doc hoặc --all-failed")
+    if args.command == "status":
+        asyncio.run(cmd_status(args))
+    elif args.command == "retry":
+        rc = asyncio.run(cmd_retry(args))
+        if rc:
+            raise SystemExit(rc)
+    elif args.command == "reindex":
         rc = asyncio.run(cmd_reindex(args))
         if rc:
             raise SystemExit(rc)
-    elif args.command == "verify":
-        if not asyncio.run(cmd_verify(args)):
-            raise SystemExit(1)
-    elif args.command == "status":
-        asyncio.run(cmd_status(args))
-    elif args.command == "purge-doc":
-        asyncio.run(cmd_purge(args))
+
+
+if __name__ == "__main__":
+    main()
