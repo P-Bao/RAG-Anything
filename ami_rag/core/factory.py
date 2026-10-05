@@ -21,23 +21,38 @@ def _inject_storage_env(settings: Settings) -> None:
 
 
 def _build_llm_func(settings: Settings) -> Callable:
+    # LightRAG calls `llm_model_func(prompt, system_prompt=..., ...)`, but the lightrag
+    # `*_complete_if_cache` helpers take `model` as their FIRST positional argument, so a
+    # `partial(..., model=...)` binds the prompt to `model` ("multiple values for 'model'").
     if settings.LLM_PROFILE == "gemini":
         from lightrag.llm.gemini import gemini_complete_if_cache
 
-        return partial(
-            gemini_complete_if_cache,
-            model=settings.GEMINI_LLM_MODEL,
-            api_key=settings.GEMINI_API_KEY or None,
-        )
+        async def gemini_llm(prompt, system_prompt=None, history_messages=None, **kwargs):
+            return await gemini_complete_if_cache(
+                settings.GEMINI_LLM_MODEL,
+                prompt,
+                system_prompt=system_prompt,
+                history_messages=history_messages,
+                api_key=settings.GEMINI_API_KEY or None,
+                **kwargs,
+            )
+
+        return gemini_llm
 
     from lightrag.llm.openai import openai_complete_if_cache
 
-    return partial(
-        openai_complete_if_cache,
-        model=settings.QWEN_LLM_MODEL,
-        base_url=settings.QWEN_LLM_BASE_URL,
-        api_key=settings.QWEN_LLM_API_KEY or None,
-    )
+    async def qwen_llm(prompt, system_prompt=None, history_messages=None, **kwargs):
+        return await openai_complete_if_cache(
+            settings.QWEN_LLM_MODEL,
+            prompt,
+            system_prompt=system_prompt,
+            history_messages=history_messages,
+            base_url=settings.QWEN_LLM_BASE_URL,
+            api_key=settings.QWEN_LLM_API_KEY or None,
+            **kwargs,
+        )
+
+    return qwen_llm
 
 
 def _image_mime(data: bytes) -> str:
@@ -64,7 +79,10 @@ def _openai_style_messages(
         mime = _image_mime(base64.b64decode(image_data))
         content = [
             {"type": "text", "text": prompt},
-            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_data}"}},
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{mime};base64,{image_data}"},
+            },
         ]
     else:
         content = prompt
@@ -170,17 +188,45 @@ def _build_vision_func(settings: Settings) -> Callable:
     return qwen_vision
 
 
+_GEMINI_EMBED_CONCURRENCY = 8
+
+
+async def _gemini_embed_one_per_text(texts: list[str], **kwargs):
+    """Embed each text in its own request.
+
+    `gemini-embedding-2` is multimodal: a `contents` list is merged into ONE embedding,
+    so a batch of N texts returns 1 vector and LightRAG fails with "Vector count
+    mismatch". One request per text keeps the 1:1 text -> vector contract.
+    """
+    import asyncio
+
+    import numpy as np
+    from lightrag.llm.gemini import gemini_embed
+
+    sem = asyncio.Semaphore(_GEMINI_EMBED_CONCURRENCY)
+
+    async def embed(text: str):
+        async with sem:
+            vectors = await gemini_embed.func([text], **kwargs)
+        if len(vectors) != 1:
+            raise RuntimeError(f"Gemini returned {len(vectors)} vectors for 1 text")
+        return vectors[0]
+
+    return np.stack(await asyncio.gather(*(embed(t) for t in texts)))
+
+
 def _build_embedding_func(settings: Settings):
     from lightrag.utils import EmbeddingFunc
 
     if settings.LLM_PROFILE == "gemini":
-        from lightrag.llm.gemini import gemini_embed
-
         return EmbeddingFunc(
             embedding_dim=settings.EMBEDDING_DIM,
             max_token_size=2048,
+            # Without it Gemini returns its native 3072 dims (EMBEDDING_DIM=1536 is never
+            # requested) and LightRAG reads one text as "2 vectors".
+            send_dimensions=True,
             func=partial(
-                gemini_embed.func,
+                _gemini_embed_one_per_text,
                 model=settings.GEMINI_EMBEDDING_MODEL,
                 api_key=settings.GEMINI_API_KEY or None,
             ),

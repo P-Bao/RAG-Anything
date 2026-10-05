@@ -4,6 +4,7 @@
 # uv, ruff, pytest, docker compose, kubectl.
 #
 # Override: make logs SERVICE=ami-rag-worker | make health PORT=8009
+# CLI trong Docker: make cli verify | make cli reindex --all --dry-run (xem target `cli`)
 
 SHELL = /bin/bash
 
@@ -11,10 +12,12 @@ PORT    ?= 8009
 WORKER_METRICS_PORT ?= 9109
 COMPOSE_FILE ?= docker-compose.ami.yml
 SERVICE ?=
+CLI_SERVICE ?= ami-rag-worker
+CLI_LOG_DIR ?= /app/output/cli
 NETWORK ?= ami-network
 
 .PHONY: help setup style lint test test-lib start_backend start_worker \
-	network build start_docker restart down logs ps health docker-clean \
+	network build start_docker restart down logs ps health cli cli-logs cli-ps cli-stop docker-clean \
 	dashboard-configmap dashboard-apply metrics-scrape-apply clean
 
 # In danh sach lenh thuong dung.
@@ -34,6 +37,11 @@ help:
 	@echo "  make logs             - Theo doi log (SERVICE=ten-service tuy chon)"
 	@echo "  make ps               - Trang thai container"
 	@echo "  make health           - Goi /healthz va dem metric o /metrics"
+	@echo "  make cli <lenh> ...   - Chay 'ami-rag <lenh> ...' trong container $(CLI_SERVICE) (vd: make cli verify)"
+	@echo "  make cli BG=1 -- ...  - Nhu tren nhung chay nen (log: $(CLI_LOG_DIR)/latest.log trong container)"
+	@echo "  make cli-logs         - Theo doi log lenh cli chay nen gan nhat"
+	@echo "  make cli-ps           - Liet ke lenh ami-rag dang chay trong container"
+	@echo "  make cli-stop         - Dung lenh chay nen gan nhat (hoac PID=<pid> tu cli-ps)"
 	@echo "  make docker-clean     - Xoa container/volume/image local cua project nay"
 	@echo "  make dashboard-configmap  - Sinh ConfigMap dashboard cho Grafana sidecar"
 	@echo "  make dashboard-apply      - Apply dashboard ConfigMap + ServiceMonitor + PrometheusRule len cluster"
@@ -103,6 +111,50 @@ health:
 	@curl -fsS http://localhost:$(PORT)/metrics | grep -c '^multimodal_rag_retrieval_'
 	@echo -n "multimodal_rag_ingest_* series (worker :$(WORKER_METRICS_PORT)): "
 	@curl -fsS http://localhost:$(WORKER_METRICS_PORT)/metrics | grep -c '^multimodal_rag_ingest_'
+
+# Chay CLI ami-rag trong container dang chay (mac dinh $(CLI_SERVICE); doi bang CLI_SERVICE=ami-rag-api).
+#   make cli status
+#   make cli -- reindex --all --dry-run     (cac co `--xxx` can dau `--` de make khong tu parse)
+#   make cli ARGS="reindex --all --repair --type text --limit 20"
+# Tham so dang vi tri duoc nhan qua MAKECMDGOALS; rule `%` chi bat khi goal dau la `cli`
+# de go sai ten target khac van bao loi.
+ifeq ($(firstword $(MAKECMDGOALS)),cli)
+CLI_ARGS = $(if $(ARGS),$(ARGS),$(filter-out cli,$(MAKECMDGOALS)))
+.PHONY: $(filter-out cli,$(MAKECMDGOALS))
+$(filter-out cli,$(MAKECMDGOALS)):
+	@:
+endif
+
+cli:
+	@test -n "$(CLI_ARGS)" || { echo "usage: make cli [BG=1] <status|verify|reindex|purge-doc> [...]  (hoac ARGS=\"...\")"; exit 2; }
+ifeq ($(BG),1)
+	@f=$$(docker compose -f $(COMPOSE_FILE) exec -T $(CLI_SERVICE) sh -c '\
+		d=$(CLI_LOG_DIR); mkdir -p $$d; f=$$d/cli-$$(date +%Y%m%d-%H%M%S).log; : > $$f; ln -sf $$f $$d/latest.log; \
+		echo $$f') || exit 1; \
+	docker compose -f $(COMPOSE_FILE) exec -d $(CLI_SERVICE) sh -c \
+		'{ echo "# ami-rag $(CLI_ARGS)"; PYTHONUNBUFFERED=1 ami-rag $(CLI_ARGS) & echo $$! > '$$f'.pid; wait $$!; rc=$$?; rm -f '$$f'.pid; echo "# exit=$$rc"; } > '$$f' 2>&1'; \
+	echo "started in background: $$f (container $(CLI_SERVICE))"; \
+	echo "  follow: make cli-logs | list: make cli-ps | stop: make cli-stop"
+else
+	docker compose -f $(COMPOSE_FILE) exec $$([ -t 0 ] || echo -T) $(CLI_SERVICE) ami-rag $(CLI_ARGS)
+endif
+
+# Theo doi log cua lenh `make cli BG=1 ...` gan nhat (Ctrl-C chi dung tail, lenh van chay).
+cli-logs:
+	docker compose -f $(COMPOSE_FILE) exec $$([ -t 0 ] || echo -T) $(CLI_SERVICE) tail -n 100 -f $(CLI_LOG_DIR)/latest.log
+
+# Lenh ami-rag dang chay (khong tinh ami-rag-worker/ami-rag-api).
+cli-ps:
+	@docker compose -f $(COMPOSE_FILE) exec -T $(CLI_SERVICE) sh -c "ps -eo pid,etime,args | grep '[b]in/ami-rag ' || echo 'no ami-rag command running'"
+
+# Dung lenh chay nen gan nhat (hoac PID=<pid> lay tu cli-ps). Chi kill dung tien trinh do, khong dung
+# worker/API va khong dung lenh ami-rag khac (vd. phien --repair mo tay). Doc dang xu ly do dang: chay lai
+# `make cli verify` / `reindex --repair` (idempotent).
+cli-stop:
+	@docker compose -f $(COMPOSE_FILE) exec -T $(CLI_SERVICE) sh -c '\
+		p="$(PID)"; \
+		if [ -z "$$p" ]; then f=$$(readlink -f $(CLI_LOG_DIR)/latest.log 2>/dev/null); p=$$(cat "$$f.pid" 2>/dev/null); fi; \
+		if [ -n "$$p" ] && kill "$$p" 2>/dev/null; then echo "stopped pid $$p"; else echo "nothing to stop (lenh chay nen gan nhat khong con chay; xem make cli-ps)"; fi'
 
 # Chi xoa container/volume/image local cua project nay (KHONG dung `system prune -a`
 # nhu repo langchain vi lenh do xoa ca image/volume cua project khac tren may).

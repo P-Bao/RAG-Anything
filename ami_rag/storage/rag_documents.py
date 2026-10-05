@@ -21,7 +21,10 @@ class RagDocumentsRepo:
     """
 
     def __init__(
-        self, mongo_uri: str, db_name: str, collection_name: str = "multimodal_rag_documents"
+        self,
+        mongo_uri: str,
+        db_name: str,
+        collection_name: str = "multimodal_rag_documents",
     ):
         self._client: MongoClient = MongoClient(mongo_uri, tz_aware=True)
         self._col = self._client[db_name][collection_name]
@@ -46,7 +49,11 @@ class RagDocumentsRepo:
             {
                 "$set": {"updated_at": now, "last_hash": source_hash or ""},
                 "$inc": {"attempts": 1},
-                "$setOnInsert": {"created_at": now, "status": STATUS_PROCESSING, "error": ""},
+                "$setOnInsert": {
+                    "created_at": now,
+                    "status": STATUS_PROCESSING,
+                    "error": "",
+                },
             },
             upsert=True,
             return_document=ReturnDocument.AFTER,
@@ -94,6 +101,8 @@ class RagDocumentsRepo:
                     "counts": counts or {},
                     "page_count": page_count,
                     "error": "",
+                    "error_code": "",
+                    "error_stage": "",
                     "attempts": 0,
                     "updated_at": datetime.now(timezone.utc),
                 }
@@ -101,13 +110,25 @@ class RagDocumentsRepo:
             upsert=True,
         )
 
-    def mark_failed(self, document_id: str, error: str, source_hash: str | None = None) -> None:
+    def mark_failed(
+        self,
+        document_id: str,
+        error: str,
+        source_hash: str | None = None,
+        *,
+        error_code: str = "OTHER",
+        error_stage: str = "",
+        retryable: bool = True,
+    ) -> None:
         self._col.update_one(
             {"_id": document_id},
             {
                 "$set": {
                     "status": STATUS_FAILED,
                     "error": error[:2000],
+                    "error_code": error_code,
+                    "error_stage": error_stage,
+                    "error_retryable": retryable,
                     # fresh delivery budget for a later reprocess/reindex
                     "attempts": 0,
                     "updated_at": datetime.now(timezone.utc),
@@ -115,6 +136,51 @@ class RagDocumentsRepo:
             },
             upsert=True,
         )
+
+    def mark_repaired(self, document_id: str, index_stats: dict) -> None:
+        """Index completed in place from stored chunks: failed/processed row -> processed."""
+        self._col.update_one(
+            {"_id": document_id},
+            {
+                "$set": {
+                    "status": STATUS_PROCESSED,
+                    "index_stats": index_stats,
+                    "error": "",
+                    "error_code": "",
+                    "error_stage": "",
+                    "error_retryable": False,
+                    "attempts": 0,
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            },
+            upsert=True,
+        )
+
+    def get_repairable_hashes(self) -> dict[str, str]:
+        """{document_id: source_hash} of processed AND failed rows (both can be repaired
+        in place from the chunk text already stored in Mongo)."""
+        return {
+            doc["_id"]: doc.get("source_hash") or ""
+            for doc in self._col.find(
+                {"status": {"$in": [STATUS_PROCESSED, STATUS_FAILED]}},
+                {"source_hash": 1},
+            )
+        }
+
+    def failed_by_code(self, sample: int = 3) -> dict[str, dict]:
+        """{error_code: {"count": n, "ids": [first ids], "error": sample message}}."""
+        from ami_rag.index_check import classify_error
+
+        out: dict[str, dict] = {}
+        for doc in self._col.find(
+            {"status": STATUS_FAILED}, {"error": 1, "error_code": 1, "error_stage": 1}
+        ):
+            code = doc.get("error_code") or classify_error(doc.get("error", ""))
+            entry = out.setdefault(code, {"count": 0, "ids": [], "error": doc.get("error", "")})
+            entry["count"] += 1
+            if len(entry["ids"]) < sample:
+                entry["ids"].append(doc["_id"])
+        return out
 
     def mark_stale(self, document_ids: list[str] | None = None) -> int:
         """Force re-ingest: processed rows become `stale` so the hash check no longer skips."""
@@ -128,6 +194,19 @@ class RagDocumentsRepo:
 
     def get_processed_ids(self) -> set[str]:
         return {doc["_id"] for doc in self._col.find({"status": STATUS_PROCESSED}, {"_id": 1})}
+
+    def get_processed_hashes(self) -> dict[str, str]:
+        """{document_id: source_hash} of processed rows, to skip unchanged docs on reindex."""
+        return {
+            doc["_id"]: doc.get("source_hash") or ""
+            for doc in self._col.find({"status": STATUS_PROCESSED}, {"source_hash": 1})
+        }
+
+    def set_index_stats(self, document_id: str, stats: dict) -> None:
+        self._col.update_one(
+            {"_id": document_id},
+            {"$set": {"index_stats": stats, "updated_at": datetime.now(timezone.utc)}},
+        )
 
     def delete(self, document_id: str) -> None:
         self._col.delete_one({"_id": document_id})

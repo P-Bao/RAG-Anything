@@ -40,7 +40,21 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="AMI RAG API", version="0.1.0", lifespan=lifespan)
+    # Tracing is limited to the manual `rag.retrieval` span of /v2/rag (init_telemetry +
+    # observability.track_retrieval). Disable FastAPI >=0.142 native telemetry: it would
+    # trace every route (/metrics, /admin, ...) and push metrics/logs to /v1/metrics and
+    # /v1/logs of the OTLP endpoint (Tempo: 404) plus a duplicate traces exporter.
+    app = FastAPI(
+        title="AMI RAG API",
+        version="0.1.0",
+        lifespan=lifespan,
+        telemetry={
+            "auto_configure": False,
+            "tracing": False,
+            "metrics": False,
+            "logs": False,
+        },
+    )
     app.include_router(rag_routes.router, prefix="/v2/rag")
     app.include_router(admin_routes.router, prefix="/admin")
     app.include_router(metrics_routes.router)

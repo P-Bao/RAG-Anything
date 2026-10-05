@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     # A failed message is re-delivered once it has been pending this long (ms)
     WORKER_RETRY_IDLE_MS: int = 600000
     WORKER_METRICS_PORT: int = 9109
+    # After insert, check chunk vectors (and entities) really exist; else retry/fail the
+    # document instead of recording it as processed.
+    INGEST_VERIFY: bool = True
+    INGEST_REQUIRE_ENTITIES: bool = True
 
     RERANK_BASE_URL: str = "http://localhost:8010"
     RERANK_TOP_K: int = 5
@@ -79,6 +83,10 @@ class Settings(BaseSettings):
 
     RETRIEVAL_TOP_K: int = 40
     RETRIEVAL_CHUNK_TOP_K: int = 40
+    # candidates fetched = final top_k * RETRIEVAL_OVERFETCH, so filters/rerank still leave top_k docs
+    RETRIEVAL_OVERFETCH: int = 4
+    # docs repaired in parallel by `reindex --repair` (low: avoids provider 429)
+    REPAIR_CONCURRENCY: int = 2
 
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"

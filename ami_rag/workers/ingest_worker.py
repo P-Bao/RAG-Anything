@@ -7,8 +7,16 @@ import uuid
 from functools import partial
 from pathlib import Path
 
-from opentelemetry.trace import Status, StatusCode
-
+from ami_rag.index_check import (
+    ERR_INCOMPLETE,
+    ERR_OTHER,
+    ERROR_HINTS,
+    FATAL_ERROR_CODES,
+    IngestIncompleteError,
+    classify_error,
+    inspect_document,
+    short_error,
+)
 from ami_rag.observability import (
     INGEST_ASSET_UPLOAD_FAILURES_TOTAL,
     INGEST_DOCUMENTS,
@@ -21,7 +29,6 @@ from ami_rag.observability import (
     INGEST_STREAM_LAG,
     INGEST_STREAM_PENDING,
     observe_ingest_stage,
-    tracer,
 )
 from ami_rag.queue.events import EVENT_DELETED, RagEvent
 from ami_rag.queue.streams import RagStreamQueue
@@ -97,6 +104,30 @@ class IngestWorker:
             await self.rag_anything.lightrag.adelete_by_doc_id(doc_id)
             await asyncio.to_thread(self.asset_store.delete_doc_assets, doc_id)
 
+    async def _verify_index(self, doc_id: str) -> dict | None:
+        """Check the document really landed in the index (chunk vectors, entities).
+
+        LightRAG swallows embedding/LLM failures, so an insert that returned normally can
+        still leave no vectors/entities. Raises IngestIncompleteError (-> retry, then
+        `failed`) instead of recording the document as processed.
+        """
+        if not getattr(self.settings, "INGEST_VERIFY", True):
+            return None
+        lightrag = getattr(self.rag_anything, "lightrag", None)
+        if getattr(lightrag, "chunks_vdb", None) is None:
+            return None
+        require_entities = getattr(self.settings, "INGEST_REQUIRE_ENTITIES", True)
+        with observe_ingest_stage("verify"):
+            stats = await inspect_document(lightrag, doc_id)
+        problems = stats.problems(require_entities)
+        if problems:
+            self.log.warning("index check failed: %s", stats.line(require_entities))
+            raise IngestIncompleteError(
+                f"document {doc_id} index incomplete: {'; '.join(problems)}"
+            )
+        self.log.info("index check: %s", stats.line(require_entities))
+        return stats.as_dict()
+
     async def _upload_assets(self, doc_id: str, content_list: list[dict]) -> list[str]:
         try:
             with observe_ingest_stage("upload_assets"):
@@ -134,7 +165,12 @@ class IngestWorker:
                 self.log.warning("crawl image %s for %s not fetched: %s", url, doc_id, exc)
                 continue
             items.append(
-                {"type": "image", "img_path": str(local), "image_caption": [], "page_idx": 0}
+                {
+                    "type": "image",
+                    "img_path": str(local),
+                    "image_caption": [],
+                    "page_idx": 0,
+                }
             )
         return items
 
@@ -211,6 +247,7 @@ class IngestWorker:
                 await self.rag_anything.insert_content_list(
                     content_list, file_path=file_path, doc_id=doc_id
                 )
+            index_stats = await self._verify_index(doc_id)
 
         counts, page_count = count_content_list(content_list)
         for modality, n in counts.items():
@@ -233,7 +270,10 @@ class IngestWorker:
             "assets": assets,
             "counts": counts,
             "page_count": page_count,
-            "meta": doc_link_fields(doc),
+            "meta": {
+                **doc_link_fields(doc),
+                **({"index_stats": index_stats} if index_stats else {}),
+            },
         }
 
     async def _process_message(self, message_id: str, event: RagEvent) -> None:
@@ -243,51 +283,53 @@ class IngestWorker:
         INGEST_IN_FLIGHT.inc()
         started = time.perf_counter()
         source = "none"
-        with tracer.start_as_current_span(
-            "ingest_document",
-            attributes={"document_id": event.document_id, "event": event.event},
-        ) as span:
+        try:
             try:
-                try:
-                    result = await self.handle_event(event)
-                except Exception as exc:
-                    span.record_exception(exc)
-                    span.set_status(Status(StatusCode.ERROR, str(exc)))
-                    self.log.error(
-                        "failed to process event %s for document %s: %s",
-                        event.event,
-                        event.document_id,
-                        exc,
-                    )
-                    if attempts >= self.settings.WORKER_MAX_DELIVERY:
-                        INGEST_EVENTS_TOTAL.labels(event=event.event, result="failed").inc()
-                        await asyncio.to_thread(
+                result = await self.handle_event(event)
+            except Exception as exc:
+                code = classify_error(exc)
+                self.log.error(
+                    "failed to process event %s for document %s [%s]: %s",
+                    event.event,
+                    event.document_id,
+                    code,
+                    short_error(exc),
+                )
+                if code in FATAL_ERROR_CODES:
+                    self.log.error("%s: %s", code, ERROR_HINTS.get(code, ""))
+                if attempts >= self.settings.WORKER_MAX_DELIVERY:
+                    INGEST_EVENTS_TOTAL.labels(event=event.event, result="failed").inc()
+                    await asyncio.to_thread(
+                        partial(
                             self.state_repo.mark_failed,
                             event.document_id,
                             str(exc),
                             event.content_hash,
+                            error_code=code,
+                            error_stage="verify" if code == ERR_INCOMPLETE else "ingest",
+                            retryable=code != ERR_OTHER,
                         )
-                        await self.queue.ack(message_id)
-                        self.log.error(
-                            "document %s marked failed after %s attempts",
-                            event.document_id,
-                            attempts,
-                        )
-                    else:
-                        INGEST_EVENTS_TOTAL.labels(event=event.event, result="retry").inc()
-                    return
-                if result:
-                    source = result.get("source") or "none"
-                    span.set_attribute("source", source)
-                    INGEST_EVENTS_TOTAL.labels(event=event.event, result="processed").inc()
-                    await self.mark_processed(event.document_id, result)
+                    )
+                    await self.queue.ack(message_id)
+                    self.log.error(
+                        "document %s marked failed after %s attempts",
+                        event.document_id,
+                        attempts,
+                    )
                 else:
-                    INGEST_EVENTS_TOTAL.labels(event=event.event, result="skipped").inc()
-                    await asyncio.to_thread(self.state_repo.release_attempt, event.document_id)
-                await self.queue.ack(message_id)
-            finally:
-                INGEST_DURATION_SECONDS.labels(source=source).observe(time.perf_counter() - started)
-                INGEST_IN_FLIGHT.dec()
+                    INGEST_EVENTS_TOTAL.labels(event=event.event, result="retry").inc()
+                return
+            if result:
+                source = result.get("source") or "none"
+                INGEST_EVENTS_TOTAL.labels(event=event.event, result="processed").inc()
+                await self.mark_processed(event.document_id, result)
+            else:
+                INGEST_EVENTS_TOTAL.labels(event=event.event, result="skipped").inc()
+                await asyncio.to_thread(self.state_repo.release_attempt, event.document_id)
+            await self.queue.ack(message_id)
+        finally:
+            INGEST_DURATION_SECONDS.labels(source=source).observe(time.perf_counter() - started)
+            INGEST_IN_FLIGHT.dec()
 
     async def mark_processed(self, doc_id: str, result: dict) -> None:
         """Persist the outcome returned by handle_event into the registry."""
@@ -385,7 +427,13 @@ def _build_default_deps(settings: Settings):
             prefix=settings.CRAWL_IMAGES_PREFIX,
             secure=settings.MINIO_SECURE,
         )
-    redis_client = aioredis_from_url(settings.REDIS_URL)
+    # XREADGROUP BLOCK holds the connection for WORKER_POLL_BLOCK_MS; redis-py>=8 defaults
+    # socket_timeout to 5s, which would fire first on an idle stream.
+    redis_client = aioredis_from_url(
+        settings.REDIS_URL,
+        socket_timeout=settings.WORKER_POLL_BLOCK_MS / 1000 + 5,
+        health_check_interval=30,
+    )
     queue = RagStreamQueue(
         redis_client=redis_client,
         stream=settings.RAG_STREAM,
@@ -396,10 +444,10 @@ def _build_default_deps(settings: Settings):
     return docs_repo, state_repo, queue, get_asset_store(), image_worker
 
 
-def aioredis_from_url(url: str):
+def aioredis_from_url(url: str, **kwargs):
     import redis.asyncio as aioredis
 
-    return aioredis.from_url(url, decode_responses=True)
+    return aioredis.from_url(url, decode_responses=True, **kwargs)
 
 
 async def run_worker(settings: Settings | None = None) -> None:

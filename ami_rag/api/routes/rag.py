@@ -143,17 +143,45 @@ async def _presign_asset(asset_store, asset_key: str | None) -> str | None:
     return url
 
 
+async def _resolve_chunks(chunks: list[dict], resolver) -> dict[int, dict | None]:
+    """Resolve each chunk's source document once, keyed by id(chunk)."""
+    resolved_by_chunk: dict[int, dict | None] = {}
+    for chunk in chunks:
+        try:
+            with observe_stage("resolve"):
+                resolved_by_chunk[id(chunk)] = await resolver.resolve(chunk.get("file_path"))
+        except Exception:
+            resolved_by_chunk[id(chunk)] = None
+    return resolved_by_chunk
+
+
+def _apply_filters(
+    chunks: list[dict], resolved_by_chunk: dict[int, dict | None], payload: RAGRequest
+) -> list[dict]:
+    """Drop chunks failing the v2 org/document_type filters. Runs BEFORE rerank so the final
+    `top_k` is filled from the remaining candidates instead of being cut afterwards."""
+    if payload.version < 2 or payload.filters is None:
+        return chunks
+    kept = []
+    for chunk in chunks:
+        if _passes_filters(resolved_by_chunk.get(id(chunk)), payload.filters):
+            kept.append(chunk)
+        else:
+            DOCS_FILTERED_TOTAL.inc()
+    return kept
+
+
 async def _build_documents(
-    scored, resolver, payload: RAGRequest, entity_list: list[dict] | None = None, asset_store=None
+    scored,
+    resolved_by_chunk: dict[int, dict | None],
+    payload: RAGRequest,
+    entity_list: list[dict] | None = None,
+    asset_store=None,
 ) -> list:
     documents = []
     for chunk, score in scored:
         file_path = chunk.get("file_path")
-        try:
-            with observe_stage("resolve"):
-                resolved = await resolver.resolve(file_path)
-        except Exception:
-            resolved = None
+        resolved = resolved_by_chunk.get(id(chunk))
         modality = _chunk_modality(chunk)
         metadata = {
             "source": file_path,
@@ -164,9 +192,6 @@ async def _build_documents(
         }
         text = chunk.get("content") or ""
         if payload.version >= 2:
-            if not _passes_filters(resolved, payload.filters):
-                DOCS_FILTERED_TOTAL.inc()
-                continue
             documents.append(
                 RetrievedDocV2(
                     text=text,
@@ -188,11 +213,16 @@ async def _build_documents(
     return documents
 
 
+def _final_top_k(payload: RAGRequest, settings) -> int:
+    """Number of documents returned to the caller (client `top_k`, else RERANK_TOP_K)."""
+    return payload.top_k or settings.RERANK_TOP_K
+
+
 async def _search(payload: RAGRequest, rag, rerank_func, resolver, asset_store=None) -> dict:
     settings = get_settings()
     query = _last_user_message(payload)
     mode = payload.mode if payload.version >= 2 else "mix"
-    top_k = payload.top_k or settings.RETRIEVAL_TOP_K
+    top_k = _final_top_k(payload, settings)
     with track_retrieval(query, mode, payload.version, top_k) as tracker:
         response = await _run_search(
             payload, rag, rerank_func, resolver, asset_store, query, mode, top_k
@@ -202,16 +232,27 @@ async def _search(payload: RAGRequest, rag, rerank_func, resolver, asset_store=N
 
 
 async def _run_search(
-    payload: RAGRequest, rag, rerank_func, resolver, asset_store, query: str, mode: str, top_k: int
+    payload: RAGRequest,
+    rag,
+    rerank_func,
+    resolver,
+    asset_store,
+    query: str,
+    mode: str,
+    top_k: int,
 ) -> dict:
+    """`top_k` is the number of documents finally returned. LightRAG is asked for
+    `top_k * RETRIEVAL_OVERFETCH` candidates (never below RETRIEVAL_*_TOP_K) so modality /
+    org / type filters and reranking still leave `top_k` results when enough exist."""
     settings = get_settings()
     started = time.perf_counter()
+    candidates_wanted = top_k * max(1, settings.RETRIEVAL_OVERFETCH)
     with observe_stage("raganything_query"):
         result = await rag.aquery_data(
             query,
             mode=mode,
-            top_k=top_k,
-            chunk_top_k=settings.RETRIEVAL_CHUNK_TOP_K,
+            top_k=max(settings.RETRIEVAL_TOP_K, candidates_wanted),
+            chunk_top_k=max(settings.RETRIEVAL_CHUNK_TOP_K, candidates_wanted),
             enable_rerank=False,
         )
     if result.get("status") != "success":
@@ -226,7 +267,10 @@ async def _run_search(
     modalities = payload.filters.modality if payload.filters else None
     if modalities:
         chunks = [chunk for chunk in chunks if _chunk_modality(chunk) in modalities]
-    scored = await _rerank_chunks(rerank_func, query, chunks, settings.RERANK_TOP_K)
+    resolved_by_chunk = await _resolve_chunks(chunks, resolver)
+    chunks = _apply_filters(chunks, resolved_by_chunk, payload)
+    candidates = len(chunks)
+    scored = (await _rerank_chunks(rerank_func, query, chunks, top_k))[:top_k]
     entity_list = None
     if payload.version >= 2 and payload.include_kg:
         entity_list = [
@@ -237,7 +281,7 @@ async def _run_search(
             }
             for entity in (data.get("entities") or [])[:20]
         ]
-    documents = await _build_documents(scored, resolver, payload, entity_list, asset_store)
+    documents = await _build_documents(scored, resolved_by_chunk, payload, entity_list, asset_store)
     if payload.version >= 2:
         return RetrievalResponseV2(
             query=query,
@@ -247,6 +291,9 @@ async def _run_search(
             meta={
                 "keywords": result_metadata.get("keywords"),
                 "latency_ms": int((time.perf_counter() - started) * 1000),
+                "requested_top_k": top_k,
+                "returned": len(documents),
+                "candidates": candidates,
             },
         ).model_dump()
     return RetrievalResponse(query=query, documents=documents).model_dump()
