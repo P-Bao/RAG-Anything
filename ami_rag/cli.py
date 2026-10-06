@@ -47,15 +47,9 @@ def _build_runner(settings):
 
 
 def _build_embedder(settings):
-    from ami_rag.core.remote_embedder import RemoteEmbedder
+    from ami_rag.core.factory import build_embedder
 
-    return RemoteEmbedder(
-        base_url=settings.EMBED_SERVER_URL,
-        model=settings.EMBED_MODEL,
-        expected_dim=settings.EMBED_DIM,
-        token=settings.EMBED_SERVER_TOKEN,
-        timeout=settings.EMBED_TIMEOUT,
-    )
+    return build_embedder(settings)
 
 
 def _build_mongo_db(settings):
@@ -230,7 +224,10 @@ async def _check_embed_server(settings, embedder=None) -> None:
     try:
         async with httpx.AsyncClient(timeout=5) as client:
             resp = await client.get(f"{settings.EMBED_SERVER_URL.rstrip('/')}/health")
-            body = resp.json() if resp.status_code == 200 else {}
+            try:
+                body = resp.json() if resp.status_code == 200 else {}
+            except ValueError:
+                body = {}
             health_line = (
                 f"embed server /health: {'ok' if resp.status_code == 200 else resp.status_code}"
                 f"  model={body.get('model', '-')} device={body.get('device', '-')}"
@@ -238,15 +235,16 @@ async def _check_embed_server(settings, embedder=None) -> None:
     except Exception as exc:
         health_line = f"embed server /health: unreachable ({settings.EMBED_SERVER_URL}): {exc}"
     print(health_line)
-    # Dù /health unreachable, vẫn thử handshake /info để báo lỗi rõ hơn.
+    # Dù /health unreachable, vẫn thử handshake để báo lỗi rõ hơn.
     try:
-        info = await embedder.verify()
+        await embedder.verify()
         print(
-            f"embed server /info: model={info.get('model_name')} dim={info.get('dim')} "
+            f"embed server handshake: model={getattr(embedder, 'model', settings.EMBED_MODEL)} "
+            f"dim={embedder.dim} "
             f"khớp config (EMBED_MODEL={settings.EMBED_MODEL}, EMBED_DIM={settings.EMBED_DIM})"
         )
     except Exception as exc:
-        print(f"embed server /info: LỆCH hoặc lỗi: {exc}")
+        print(f"embed server handshake: LỆCH hoặc lỗi: {exc}")
 
 
 # --------------------------------------------------------------------------
@@ -550,7 +548,7 @@ def main() -> None:
     p_status.add_argument(
         "--check-embed-server",
         action="store_true",
-        help="gọi /health + /info kiểm tra embed server (máy B) có sẵn sàng và đúng model",
+        help="gọi /health + handshake kiểm tra embed server (máy B) có sẵn sàng và đúng model",
     )
 
     p_retry = sub.add_parser("retry", help="chạy lại doc failed từ stage lỗi")

@@ -34,8 +34,8 @@ Hệ thống AI ──POST /v2/rag──▶ ami_rag API: embed_query (máy B) �
 - Pipeline (`ami_rag/core/vector_pipeline.py`): 5 stage `parse → describe → chunk → embed → indexed`, mỗi stage ghi trạng thái vào DocStatusStore. Kết quả trung gian lưu MinIO (`content_list.json`, `descriptions.json`, `chunks.json`) nên retry chạy tiếp từ stage lỗi, không cần parse lại.
 - Embed: stage duy nhất gọi mạng thật; luôn `delete_by_doc` trước khi upsert (idempotent) rồi verify count. Describe là stage duy nhất có thể gọi LLM (tuỳ chọn).
 - Retry: `WORKER_MAX_DELIVERY` lần; quá ngưỡng thì dòng registry được đánh dấu `failed` và message được ack. Event lỗi chưa đủ ngưỡng được để pending và tự giao lại (XAUTOCLAIM) sau `WORKER_RETRY_IDLE_MS` (mặc định 10 phút; cần Redis ≥ 6.2) — đặt đủ lớn hơn thời gian parse MinerU dài nhất để worker khác không "cướp" message đang xử lý. Khi `failed`, `attempts` được reset nên `reprocess_failed`/`retry --all-failed` có đủ ngân sách thử lại.
-- LLM (describe): profile `qwen-selfhost` (vLLM, OpenAI-compatible) qua `QWEN_LLM_*`. Gemini không còn được hỗ trợ (đã gỡ). Rerank là service ngoài `POST {RERANK_BASE_URL}/rerank`; lỗi rerank thì trả chunk không điểm (fallback).
-- Embedding: model `Qwen/Qwen3-VL-Embedding-2B` chạy trên server riêng (máy B, thư mục `qwen-embedding-server`, repo ngoài RAG-Anything, port 8007). Máy A chỉ gọi HTTP qua `RemoteEmbedder` (`ami_rag/core/remote_embedder.py`) — không cài torch/transformers, không cần GPU cho embed.
+- LLM (describe): profile `qwen-selfhost` (vLLM, OpenAI-compatible) qua `QWEN_LLM_*`. Gemini không còn được hỗ trợ (đã gỡ). Rerank là service ngoài `POST {RERANK_BASE_URL}/rerank` (mặc định vLLM `nvidia/llama-nemotron-rerank-vl-1b-v2`, multimodal: chunk image/table/equation kèm ảnh + text; lỗi rerank thì trả chunk không điểm (fallback)).
+- Embedding: mặc định `nvidia/llama-nemotron-embed-vl-1b-v2` serve bằng vLLM (máy B, endpoint OpenAI-compatible `/v1/embeddings` với `messages`, role `query`/`document`); client `OpenAIEmbedder` (`ami_rag/core/openai_embedder.py`). Còn hỗ trợ `Qwen/Qwen3-VL-Embedding-2B` trên `qwen-embedding-server` (port 8007) qua backend `custom` (`RemoteEmbedder`, `ami_rag/core/remote_embedder.py`). Chọn qua `EMBED_BACKEND` (`auto`: prefix `Qwen/` → custom, còn lại → openai). Máy A chỉ gọi HTTP — không cài torch/transformers, không cần GPU cho embed. Chunk image/table/equation có asset_key được embed dạng image+text (ảnh asset từ MinIO).
 
 ## 2. Quyết định nguồn nội dung
 
@@ -58,7 +58,7 @@ Doc `minio_parse` không có `file_path` thì lỗi (`ValueError`). Ảnh crawl 
 |---|---|---|
 | Mongo DB | `RAG_DB` = `organization_db` | dùng chung DB với backend ami_data |
 | Registry / DocStatusStore | `organization_db.multimodal_rag_documents` (`RAG_DOCUMENTS_COLLECTION`) | một dòng/doc, `_id` = ObjectId dạng string, ghi bởi worker/CLI/admin |
-| Qdrant | `QDRANT_URL` | vector chunk, collection `{WORKSPACE}__{embed_model_slug}__{CHUNKER_VERSION}` (ví dụ `multimodal__qwen3-vl-embedding-2b__v1`) |
+| Qdrant | `QDRANT_URL` | vector chunk, collection `{WORKSPACE}__{embed_model_slug}__{CHUNKER_VERSION}` (ví dụ `multimodal__llama-nemotron-embed-vl-1b-v2__v1`) |
 | MinIO asset | `{ASSET_PREFIX}/{doc_id}/` (`rag-assets/…`) trong `MINIO_BUCKET` | ảnh/bảng/công thức (tên `sha256[:16]` + ext), `content_list.json`, `descriptions.json`, `chunks.json` |
 | Nguồn doc | `organization_db.documents` (`ORG_DB`/`DOC_COLLECTION`) | **chỉ đọc**, lọc `status: "active"` khi duyệt toàn bộ |
 
@@ -141,12 +141,13 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 |---|---|---|---|
 | LLM | `QWEN_LLM_BASE_URL` / `QWEN_LLM_MODEL` / `QWEN_LLM_API_KEY` | `http://vllm:8000/v1` / `Qwen/Qwen3-32B` / rỗng | qwen-selfhost (OpenAI-compatible), dùng cho `describe_func` |
 | | `QWEN_VLM_MODEL` | rỗng | rỗng = dùng `QWEN_LLM_MODEL` |
-| Embed server | `EMBED_SERVER_URL` | `http://localhost:8007` | |
+| Embed server | `EMBED_SERVER_URL` | `http://localhost:8007` | trỏ đúng server tương ứng `EMBED_BACKEND` |
 | | `EMBED_SERVER_TOKEN` | rỗng | **chỉ từ env**, không ghi vào file trong git |
-| | `EMBED_MODEL` | `Qwen/Qwen3-VL-Embedding-2B` | dùng để xác minh với server lúc handshake |
+| | `EMBED_MODEL` | `nvidia/llama-nemotron-embed-vl-1b-v2` | dùng để xác minh với server lúc handshake |
+| | `EMBED_BACKEND` | `auto` | `auto` / `custom` (qwen-embedding-server: `/info` + `/embed`) / `openai` (vLLM: `/v1/models` + `/v1/embeddings`); auto: prefix `Qwen/` → custom, còn lại → openai |
 | | `EMBED_DIM` | `2048` | để xác minh (dim thực tế do server quyết định) |
 | | `EMBED_TIMEOUT` | `60` | giây |
-| | `EMBED_BATCH_SIZE` | `32` | số item mỗi request |
+| | `EMBED_BATCH_SIZE` | `32` | số item mỗi request (chỉ backend `custom`; backend `openai` gửi 1 item/request) |
 | | `EMBED_MAX_CONCURRENCY` | `4` | số request đồng thời |
 | | `EMBED_RETRIES` | `3` | retry cho lỗi tạm thời (timeout/5xx/429) |
 | | `EMBED_CACHE_ENABLED` | `true` | cache embedding SQLite ở máy A |
@@ -178,6 +179,9 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `WORKER_RETRY_IDLE_MS` | `600000` | Sau bao lâu (ms) message pending lỗi được giao lại |
 | | `WORKER_METRICS_PORT` | `9109` | `/metrics` của `ami-rag-worker` |
 | Rerank | `RERANK_BASE_URL` | `http://localhost:8010` | |
+| | `RERANK_MODEL` | `nvidia/llama-nemotron-rerank-vl-1b-v2` | rỗng hoặc chứa `bge` → legacy BGE (documents text-only) |
+| | `RERANK_BACKEND` | `auto` | `auto` / `legacy` (BGE) / `vllm` (Nemotron VL, multimodal) |
+| | `RERANK_MULTIMODAL` | `true` | chỉ với backend `vllm`: chunk image/table/equation có asset_key kèm ảnh (data URI từ MinIO) + text |
 | | `RERANK_TOP_K` | `5` | số tài liệu trả về mặc định khi request không chỉ định `top_k` |
 | | `RERANK_TIMEOUT` | `60` | giây |
 | Retrieval | `RETRIEVAL_CHUNK_TOP_K` | `40` | số chunk tối thiểu lấy từ Qdrant trước khi rerank |
@@ -255,8 +259,12 @@ Khuyến nghị:
 
 ### 5.2 Embed server (máy B) và Redis (đã gặp thực tế)
 
-- Embedding chạy trên **server riêng** (`qwen-embedding-server/`, repo ngoài RAG-Anything, port 8007). Model `Qwen/Qwen3-VL-Embedding-2B`: dim 2048 (MRL 64–2048), last-token pooling + L2 normalize, instruction qua system message, `transformers>=4.57`/`qwen-vl-utils>=0.0.14`. Tổng quan: `docs/qwen_embedding_notes.md`.
-- `RemoteEmbedder` handshake lúc khởi tạo: gọi `/info`, so `model_name`/`dim` với config; lệch thì dừng với lỗi rõ ràng (không ghi vector khi chưa xác minh). Mỗi response `/embed` được kiểm tra `model_name`/`dim` để phát hiện server bị đổi model giữa chừng.
+- Embedding chạy trên **server riêng** ở máy B, chọn qua `EMBED_BACKEND`:
+  - **`openai` (mặc định)**: vLLM serve `nvidia/llama-nemotron-embed-vl-1b-v2` (model card, vLLM ≥ 0.17.0) — endpoint OpenAI-compatible `/v1/embeddings` với `messages` (role `query`/`document` tự prepend prefix `query:`/`passage:` qua chat template), hỗ trợ text + ảnh (image_url data URI). Serve kèm template override (`nemotron_embed_vl.jinja` từ repo vLLM — template bundled của model không dùng được cho embeddings API):
+    `vllm serve nvidia/llama-nemotron-embed-vl-1b-v2 --trust-remote-code --chat-template nemotron_embed_vl.jinja --max-model-len 10240`. Client `OpenAIEmbedder` (`ami_rag/core/openai_embedder.py`): handshake `GET /v1/models` + probe embed 1 lần lấy dim, 1 item/request, throughput qua `EMBED_MAX_CONCURRENCY`.
+  - **`custom`**: `qwen-embedding-server/` (repo ngoài RAG-Anything, port 8007), model `Qwen/Qwen3-VL-Embedding-2B`: dim 2048 (MRL 64–2048), last-token pooling + L2 normalize, instruction qua system message, `transformers>=4.57`/`qwen-vl-utils>=0.0.14`. Tổng quan: `docs/qwen_embedding_notes.md`.
+- Rerank mặc định vLLM serve `nvidia/llama-nemotron-rerank-vl-1b-v2` (endpoint `/rerank`, documents text hoặc multimodal `{"content": [text/image_url parts]}`): `vllm serve nvidia/llama-nemotron-rerank-vl-1b-v2 --runner pooling --trust-remote-code --chat-template nemotron-vl-rerank.jinja --max-model-len 10240` (template override lấy từ repo vLLM). Chunk image/table/equation có `asset_key` được kèm ảnh render từ MinIO (`RERANK_MULTIMODAL`); thiếu ảnh thì rơi về text. Score là logit (có thể âm), giống legacy BGE.
+- `OpenAIEmbedder`/`RemoteEmbedder` handshake lúc khởi tạo: so model (và dim — probe embed 1 lần với `OpenAIEmbedder`); lệch thì dừng với lỗi rõ ràng (không ghi vector khi chưa xác minh). Mỗi response được kiểm tra model để phát hiện server bị đổi model giữa chừng.
 - Retry chỉ cho lỗi tạm thời (timeout, 5xx, 429, mất kết nối), backoff + jitter; **không retry** 4xx. Circuit breaker: 5 lô liên tiếp không với tới server thì dừng cả lô sớm (doc chưa xử lý không bị đánh fail hàng loạt). Lỗi `embed server unreachable` trong một doc không làm hỏng doc khác.
 - Cache embedding SQLite ở máy A (`EMBED_CACHE_ENABLED`, key = `model|dim|instruction_ns|sha256(text)`); `reindex --dry-run` dùng `count_cache_hits` để báo trước số chunk trúng cache, không gọi HTTP.
 - Hết credit/quota hay model quá tải trên server (5xx sau retry) → doc ở stage `embed` thành `failed` với lý do rõ ràng; chạy lại `retry` sau khi server ổn định.
@@ -348,7 +356,7 @@ In workspace, config đang dùng (`embed_model`/`embed_dim`/`chunker_version`), 
 | `--failed` | chỉ hiện doc `failed` (kèm stage lỗi, error, attempts, updated_at) |
 | `--stale` | chỉ hiện doc `stale` (lệch embed_model/chunker_version, file đổi hash, pipeline cũ `processed`) |
 | `--doc <id\|path>` | xem chi tiết một doc |
-| `--check-embed-server` | gọi `/health` + `/info` của embed server: sẵn sàng không, đúng model/dim theo config không |
+| `--check-embed-server` | gọi `/health` + handshake của embed server: sẵn sàng không, đúng model/dim theo config không |
 
 ### `retry` — chạy lại doc `failed` từ stage lỗi (bằng dữ liệu trung gian đã lưu)
 
@@ -497,7 +505,7 @@ Mục tiêu: nạp toàn bộ doc có sẵn trong `organization_db.documents` v�
 
 Chi tiết triển khai: [`monitoring/README.md`](../monitoring/README.md).
 
-Tracing (OTLP/HTTP): chỉ truy vấn `POST /v2/rag` được trace — span `rag.retrieval` (input: attribute `input.query`/`input.mode`/`input.top_k`; output: danh sách document đầy đủ trong event `documents_json`) cùng span con theo stage (`embed_query`/`vector_search`/`rerank`/`resolve`). Worker không trace (ingest chỉ có metric Prometheus) và FastAPI telemetry tự động bị tắt (`FastAPI(telemetry={"auto_configure": False, ...})` trong `ami_rag/api/main.py`), nếu không FastAPI ≥ 0.142 đọc `OTEL_EXPORTER_OTLP_ENDPOINT` rồi trace mọi route và đẩy metrics/logs tới `/v1/metrics`, `/v1/logs` (Tempo trả `404`: log `Failed to export metrics batch code: 404`). Tempo dùng riêng cho service này: release helm `tempo-multimodal-rag` (`monitoring/helm/tempo-multimodal-rag-values.yaml`, chart `grafana/tempo` 1.24.4, tách khỏi Tempo của conversational-agent); datasource Grafana uid `multimodal_rag_log` nạp qua sidecar bằng ConfigMap `monitoring/helm/grafana-datasource-tempo-multimodal-rag.yaml`; URL Grafana `http://tempo-multimodal-rag.monitoring.svc.cluster.local:3200`; `OTEL_EXPORTER_OTLP_ENDPOINT` trỏ tới NodePort OTLP/HTTP 4318 của service (`kubectl get svc tempo-multimodal-rag -n monitoring`).
+Tracing (OTLP/HTTP): chỉ truy vấn `POST /v2/rag` được trace — span `rag.retrieval` (input: attribute `input.query`/`input.mode`/`input.top_k`; output: danh sách document đầy đủ trong event `documents_json`) cùng span con theo stage (`embed_query`/`vector_search`/`rerank`). Worker không trace (ingest chỉ có metric Prometheus) và FastAPI telemetry tự động bị tắt (`FastAPI(telemetry={"auto_configure": False, ...})` trong `ami_rag/api/main.py`), nếu không FastAPI ≥ 0.142 đọc `OTEL_EXPORTER_OTLP_ENDPOINT` rồi trace mọi route và đẩy metrics/logs tới `/v1/metrics`, `/v1/logs` (Tempo trả `404`: log `Failed to export metrics batch code: 404`). Tempo dùng riêng cho service này: release helm `tempo-multimodal-rag` (`monitoring/helm/tempo-multimodal-rag-values.yaml`, chart `grafana/tempo` 1.24.4, tách khỏi Tempo của conversational-agent); datasource Grafana uid `multimodal_rag_log` nạp qua sidecar bằng ConfigMap `monitoring/helm/grafana-datasource-tempo-multimodal-rag.yaml`; URL Grafana `http://tempo-multimodal-rag.monitoring.svc.cluster.local:3200`; `OTEL_EXPORTER_OTLP_ENDPOINT` trỏ tới NodePort OTLP/HTTP 4318 của service (`kubectl get svc tempo-multimodal-rag -n monitoring`).
 
 Metric API (`GET :8009/metrics`, prefix `multimodal_rag_retrieval_`):
 
@@ -506,10 +514,10 @@ Metric API (`GET :8009/metrics`, prefix `multimodal_rag_retrieval_`):
 | `requests_total`, `errors_total` | Counter | `mode` (`vector`) |
 | `requests_by_day_total` / `_by_hour_of_day_total` / `_by_day_hour_total` | Counter | `day` / `hod` / `day,hod` (Asia/Ho_Chi_Minh) |
 | `duration_seconds` | Histogram | `mode` |
-| `stage_duration_seconds` | Histogram | `stage` = `embed_query` / `vector_search` / `rerank` / `resolve` |
+| `stage_duration_seconds` | Histogram | `stage` = `embed_query` / `vector_search` / `rerank` |
 | `docs_returned`, `chunks_retrieved` | Histogram | |
 | `requests_in_flight` | Gauge | |
-| `docs_filtered_total`, `presign_failures_total` | Counter | |
+| `presign_failures_total` | Counter | |
 | `rerank_fallback_total` | Counter | `reason` = `error` / `empty` |
 | `docs_by_modality_total` | Counter | `modality` |
 
