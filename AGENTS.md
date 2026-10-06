@@ -50,7 +50,7 @@ This project is indexed by GitNexus as **RAG-Anything** (5926 symbols, 11096 rel
 - **Backend dispatch**: `EMBED_BACKEND` (`auto|custom|openai`, auto: prefix `Qwen/` → custom) + `RERANK_BACKEND` (`auto|legacy|vllm`, auto: rỗng/chứa `bge` → legacy) + `RERANK_MULTIMODAL` (default True). Resolver: `settings.resolve_embed_backend`/`resolve_rerank_backend`; factory `build_embedder`; cli `_build_embedder` qua factory.
 - **Multimodal embed**: `_prepare_embed_items` gắn ảnh asset cho modality image/**table**/equation (trước chỉ image) — image+text cho cả 2 backend.
 - Settings: `EMBED_MODEL` default → nemotron (`EMBED_DIM` 2048 giữ nguyên, trùng với Qwen); `RERANK_MODEL` default → nemotron.
-- Tests: `tests/test_openai_embedder.py` (14), `tests/test_rerank_client.py` (8); suite 471 pass / 1 skip (reportlab pre-existing); ruff sạch `ami_rag` + `tests/ami_service`.
+- Tests: `tests/test_openai_embedder.py` (14), `tests/test_rerank_client.py` (8), `tests/test_gateway_parity.py` (4 — chạy mã gateway thật qua ASGI, skip nếu repo không có); suite 476 pass / 1 skip (reportlab pre-existing); ruff sạch `ami_rag` + `tests/ami_service`.
 
 ## Lưu ý
 - Đổi `EMBED_MODEL` → collection mới `multimodal__llama-nemotron-embed-vl-1b-v2__v1` → **phải `ami-rag reindex --scan`**.
