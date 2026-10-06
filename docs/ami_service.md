@@ -330,12 +330,13 @@ Khác: `GET /healthz`, `GET /readyz`, `GET /metrics`.
 
 ## 7. CLI `ami-rag`
 
-CLI chỉ phục vụ 3 việc: xem trạng thái doc, chạy lại doc lỗi/hỏng, reindex thủ công.
+CLI phục vụ 4 việc: xem trạng thái doc, chạy lại doc lỗi/hỏng, reindex thủ công, dọn collection legacy.
 
 ```bash
 ami-rag status [--failed] [--stale] [--doc <id|path>] [--check-embed-server]
 ami-rag retry (--doc <id|path> [...] | --all-failed) [--from-stage S] [--max-attempts N] [--yes]
 ami-rag reindex [--stale | --all | --doc <id|path> [...]] [--scan] [--from-stage S] [--dry-run] [--yes]
+ami-rag cleanup [--dry-run] [--mongo-only | --qdrant-only] [--yes]
 ```
 
 ### `status` — xem trạng thái (mặc định chỉ đọc local: 0 LLM, 0 embed, 0 model call)
@@ -380,6 +381,32 @@ In workspace, config đang dùng (`embed_model`/`embed_dim`/`chunker_version`), 
 - Khoá bất đồng bộ: lệnh từ chối chạy nếu một `retry`/`reindex` khác đang giữ lockfile.
 
 Mã thoát: `0` xong, `1` một số doc thất bại, `2` dừng sớm (preflight embed server, lockfile, validation).
+
+### `cleanup` — kiểm tra + xoá collection legacy của pipeline LightRAG cũ
+
+Sau migration, các collection của LightRAG không còn được đọc/ghi nhưng vẫn chiếm chỗ. Lệnh dò và xoá chúng (`ami_rag/core/legacy_cleanup.py`):
+
+- **Mongo** (`RAG_DB`): mọi collection `{WORKSPACE}_*` trừ registry `RAG_DOCUMENTS_COLLECTION` — tức `multimodal_full_docs`, `multimodal_text_chunks`, `multimodal_llm_response_cache`, `multimodal_doc_status`, `multimodal_chunk_entity_relation`(+`_edges`), `multimodal_parse_cache`, ... Registry được giữ nguyên vì DocStatusStore còn đọc dòng legacy `processed` (như `stale`) để `reindex --scan`.
+- **Qdrant**: mọi collection `{WORKSPACE}_*` **một gạch** (`multimodal_chunks`, `multimodal_entities`, `multimodal_relationships`, ...). Các collection `{WORKSPACE}__*` (hai gạch — quy ước vector pipeline, gồm cả embed model/chunker version cũ để rollback) luôn giữ.
+- Collection ngoài tiền tố workspace (dịch vụ khác dùng chung Mongo/Qdrant) không bao giờ bị đụng.
+
+| Cờ | Ý nghĩa |
+|---|---|
+| `--dry-run` | chỉ liệt kê collection legacy kèm số document/points, không xoá |
+| `--yes` | bỏ qua xác nhận (mặc định hỏi trước khi xoá — không hoàn tác được) |
+| `--mongo-only` / `--qdrant-only` | giới hạn dò/xoá một loại DB |
+
+Mã thoát: `0` xong (hoặc không có gì xoá), `1` một số collection xoá lỗi, `2` không kết nối được Mongo/Qdrant.
+
+Ví dụ:
+
+```bash
+ami-rag cleanup --dry-run       # xem cái gì sẽ bị xoá
+ami-rag cleanup --yes           # xoá hết legacy (sau khi reindex --scan thành công)
+ami-rag cleanup --qdrant-only   # chỉ xoá collection Qdrant legacy
+```
+
+Lưu ý: MinIO `rag-assets/` và cache embedding SQLite **không thuộc** cleanup — assets/content_list.json vẫn dùng cho resume, cache embedding key theo model nên tự vô hiệu khi đổi model. Thư mục local `rag_storage/` của LightRAG cũ (nếu còn trên đĩa) xoá tay.
 
 ### 7.1 Chạy CLI khi dùng Docker
 
@@ -464,6 +491,7 @@ Mục tiêu: nạp toàn bộ doc có sẵn trong `organization_db.documents` v�
     - doc không cần nữa: xoá qua event `deleted` trong queue hoặc xoá dòng registry + asset thủ công (CLI không còn lệnh purge).
 9. Kiểm tra index: `ami-rag status` (đếm theo status/stage; `--check-embed-server` khi nghi ngờ máy B). Doc lỗi nằm ở `failed` với lý do trong `error` + `error_stage`.
 10. Hoàn tất khi không còn `processing`/`failed`/`pending` trong `ami-rag status`, số doc `indexed` xấp xỉ số doc active.
+11. Dọn collection legacy của LightRAG: `ami-rag cleanup --dry-run` rồi `ami-rag cleanup --yes` (xem mục 7 `cleanup`). Chỉ chạy sau khi đã xác nhận retrieval trên index mới hoạt động tốt.
 
 ## 9. Monitoring
 

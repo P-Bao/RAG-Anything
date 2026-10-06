@@ -1,14 +1,15 @@
-"""Test CLI (status / retry / reindex) với fake runner + fake repos - 0 mạng thật.
+"""Test CLI (status / retry / reindex / cleanup) với fake runner + fake repos - 0 mạng thật.
 
 Phủ: status mặc định 0 lời gọi embed, --doc chi tiết, --check-embed-server;
 retry chọn doc failed / --max-attempts / preflight dừng sớm / một lỗi không dừng lô;
-reindex --stale mặc định / --dry-run không ghi / preflight / lockfile.
+reindex --stale mặc định / --dry-run không ghi / preflight / lockfile;
+cleanup dò + xoá collection legacy LightRAG (giữ registry + collection vector pipeline).
 """
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from ami_rag.cli import cmd_reindex, cmd_retry, cmd_status
+from ami_rag.cli import cmd_cleanup, cmd_reindex, cmd_retry, cmd_status
 from ami_rag.core.embedder import EmbedModelMismatch, EmbedServerUnreachable
 from ami_rag.core.pipeline import StageOutcome
 from ami_rag.settings import Settings
@@ -159,6 +160,8 @@ class _Args:
         self.from_stage = None
         self.embed_server_url = None
         self.embed_batch_size = None
+        self.mongo_only = False
+        self.qdrant_only = False
         for key, value in kwargs.items():
             setattr(self, key, value)
 
@@ -538,3 +541,211 @@ async def test_reindex_scan_does_not_select_indexed_or_failed():
     assert rc == 0
     # chỉ doc-3 (legacy stale); indexed + failed không reindex
     assert [doc_id for doc_id, _, _ in runner.runs] == ["doc-3"]
+
+
+# --------------------------------------------------------------------------
+# cleanup
+# --------------------------------------------------------------------------
+class FakeMongoLegacyCollection:
+    def __init__(self, count: int):
+        self._count = count
+
+    def estimated_document_count(self) -> int:
+        return self._count
+
+
+class FakeMongoDB:
+    """Mô phỏng `Database`: list_collection_names / drop_collection."""
+
+    def __init__(self, collections: dict[str, int], fail_drop=frozenset()):
+        self.counts = dict(collections)
+        self.fail_drop = set(fail_drop)
+        self.dropped: list[str] = []
+
+    def list_collection_names(self):
+        return list(self.counts)
+
+    def __getitem__(self, name):
+        if name not in self.counts:
+            raise KeyError(name)
+        return FakeMongoLegacyCollection(self.counts[name])
+
+    def drop_collection(self, name):
+        if name in self.fail_drop:
+            raise RuntimeError(f"cannot drop {name}")
+        del self.counts[name]
+        self.dropped.append(name)
+
+
+class _FakeCollInfo:
+    def __init__(self, name: str):
+        self.name = name
+
+
+class _FakeCollections:
+    def __init__(self, names: list[str]):
+        self.collections = [_FakeCollInfo(n) for n in names]
+
+
+class _FakeCountResult:
+    def __init__(self, count: int):
+        self.count = count
+
+
+class FakeQdrantClient:
+    """Mô phỏng QdrantClient: get_collections / count / delete_collection."""
+
+    def __init__(self, collections: dict[str, int], fail_delete=frozenset()):
+        self.counts = dict(collections)
+        self.fail_delete = set(fail_delete)
+        self.deleted: list[str] = []
+
+    def get_collections(self):
+        return _FakeCollections(list(self.counts))
+
+    def count(self, collection_name, exact=True):
+        if collection_name not in self.counts:
+            raise ValueError(collection_name)
+        return _FakeCountResult(self.counts[collection_name])
+
+    def delete_collection(self, collection_name):
+        if collection_name in self.fail_delete:
+            raise RuntimeError(f"cannot delete {collection_name}")
+        del self.counts[collection_name]
+        self.deleted.append(collection_name)
+
+
+# registry + vector pipeline hiện tại phải sống sót trong mọi test
+_KEEP_MONGO = "multimodal_rag_documents"
+_KEEP_QDRANT = "multimodal__qwen3-vl-embedding-2b__v1"
+
+
+def _make_legacy_dbs():
+    mongo = FakeMongoDB(
+        {
+            _KEEP_MONGO: 120,  # registry (DocStatusStore) -> giữ
+            "multimodal_full_docs": 80,  # LightRAG KV -> xoá
+            "multimodal_doc_status": 120,  # LightRAG doc status -> xoá
+            "multimodal_chunk_entity_relation": 500,  # LightRAG graph -> xoá
+            "some_other_db_collection": 10,  # ngoài workspace -> không đụng
+        }
+    )
+    qdrant = FakeQdrantClient(
+        {
+            _KEEP_QDRANT: 900,  # collection vector pipeline hiện tại -> giữ
+            "multimodal__old-model__v1": 400,  # model cũ, quy ước 2 gạch -> giữ
+            "multimodal_chunks": 900,  # LightRAG -> xoá
+            "multimodal_entities": 700,  # LightRAG -> xoá
+            "other_service_collection": 50,  # ngoài workspace -> không đụng
+        }
+    )
+    return mongo, qdrant
+
+
+async def test_cleanup_dry_run_lists_legacy_deletes_nothing(capsys):
+    mongo, qdrant = _make_legacy_dbs()
+    rc = await cmd_cleanup(
+        _Args(dry_run=True), settings=_make_settings(),
+        mongo_db=mongo, qdrant_client=qdrant,
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "multimodal_full_docs" in out
+    assert "multimodal_chunks" in out
+    assert "dry-run: 5 collection legacy" in out
+    # không xoá gì, không đụng collection ngoài workspace
+    assert not mongo.dropped and not qdrant.deleted
+    assert _KEEP_MONGO in mongo.counts and _KEEP_QDRANT in qdrant.counts
+    assert "some_other_db_collection" in mongo.counts
+    assert "other_service_collection" in qdrant.counts
+
+
+async def test_cleanup_yes_deletes_all_legacy(capsys):
+    mongo, qdrant = _make_legacy_dbs()
+    rc = await cmd_cleanup(
+        _Args(yes=True), settings=_make_settings(),
+        mongo_db=mongo, qdrant_client=qdrant,
+    )
+    assert rc == 0
+    assert sorted(mongo.dropped) == [
+        "multimodal_chunk_entity_relation",
+        "multimodal_doc_status",
+        "multimodal_full_docs",
+    ]
+    assert sorted(qdrant.deleted) == ["multimodal_chunks", "multimodal_entities"]
+    # registry + vector pipeline + ngoài workspace sống sót
+    assert set(mongo.counts) == {_KEEP_MONGO, "some_other_db_collection"}
+    assert set(qdrant.counts) == {_KEEP_QDRANT, "multimodal__old-model__v1", "other_service_collection"}
+
+
+async def test_cleanup_confirm_declined_deletes_nothing(monkeypatch, capsys):
+    mongo, qdrant = _make_legacy_dbs()
+    monkeypatch.setattr("builtins.input", lambda *_: "n")
+    rc = await cmd_cleanup(
+        _Args(yes=False, dry_run=False), settings=_make_settings(),
+        mongo_db=mongo, qdrant_client=qdrant,
+    )
+    assert rc == 0
+    assert "đã huỷ" in capsys.readouterr().out
+    assert not mongo.dropped and not qdrant.deleted
+
+
+async def test_cleanup_mongo_only_and_qdrant_only():
+    mongo, qdrant = _make_legacy_dbs()
+    rc = await cmd_cleanup(
+        _Args(yes=True, mongo_only=True), settings=_make_settings(),
+        mongo_db=mongo, qdrant_client=qdrant,
+    )
+    assert rc == 0
+    assert len(mongo.dropped) == 3 and not qdrant.deleted
+
+    mongo2, qdrant2 = _make_legacy_dbs()
+    rc = await cmd_cleanup(
+        _Args(yes=True, qdrant_only=True), settings=_make_settings(),
+        mongo_db=mongo2, qdrant_client=qdrant2,
+    )
+    assert rc == 0
+    assert len(qdrant2.deleted) == 2 and not mongo2.dropped
+
+
+async def test_cleanup_no_legacy_returns_zero(capsys):
+    mongo = FakeMongoDB({_KEEP_MONGO: 5})
+    qdrant = FakeQdrantClient({_KEEP_QDRANT: 5})
+    rc = await cmd_cleanup(
+        _Args(yes=True), settings=_make_settings(),
+        mongo_db=mongo, qdrant_client=qdrant,
+    )
+    assert rc == 0
+    assert "không có collection legacy nào cần xoá" in capsys.readouterr().out
+    assert not mongo.dropped and not qdrant.deleted
+
+
+async def test_cleanup_connection_error_returns_2(capsys):
+    class BrokenMongo:
+        def list_collection_names(self):
+            raise RuntimeError("mongo down")
+
+    rc = await cmd_cleanup(
+        _Args(yes=True), settings=_make_settings(),
+        mongo_db=BrokenMongo(), qdrant_client=FakeQdrantClient({}),
+    )
+    assert rc == 2
+    assert "STOPPED" in capsys.readouterr().out
+
+
+async def test_cleanup_partial_delete_failure_returns_1(capsys):
+    mongo = FakeMongoDB({_KEEP_MONGO: 1, "multimodal_full_docs": 2})
+    qdrant = FakeQdrantClient(
+        {_KEEP_QDRANT: 1, "multimodal_chunks": 2, "multimodal_entities": 2},
+        fail_delete={"multimodal_entities"},
+    )
+    rc = await cmd_cleanup(
+        _Args(yes=True), settings=_make_settings(),
+        mongo_db=mongo, qdrant_client=qdrant,
+    )
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "LỖI xoá: multimodal_entities" in out
+    assert "đã xoá 2/3" in out
+    assert mongo.dropped == ["multimodal_full_docs"]
+    assert qdrant.deleted == ["multimodal_chunks"]

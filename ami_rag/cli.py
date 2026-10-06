@@ -1,8 +1,9 @@
-"""AMI RAG maintenance CLI - 3 lệnh: status, retry, reindex.
+"""AMI RAG maintenance CLI - 4 lệnh: status, retry, reindex, cleanup.
 
 - `status`: xem trạng thái doc (mặc định chỉ đọc local: 0 LLM, 0 embed, 0 model call).
 - `retry`: chạy lại doc `failed`, tiếp tục từ stage lỗi bằng dữ liệu trung gian đã lưu.
 - `reindex`: xử lý lại thủ công (chunk -> embed từ dữ liệu parse + mô tả modal đã lưu).
+- `cleanup`: kiểm tra + xoá collection Mongo/Qdrant legacy của pipeline LightRAG cũ.
 
 Pipeline thật (chunk -> embed -> upsert Qdrant) được cắm qua `PipelineRunner`
 (triển khai ở giai đoạn chuyển pipeline); CLI chỉ orchestrate và đọc DocStatusStore.
@@ -55,6 +56,18 @@ def _build_embedder(settings):
         token=settings.EMBED_SERVER_TOKEN,
         timeout=settings.EMBED_TIMEOUT,
     )
+
+
+def _build_mongo_db(settings):
+    from pymongo import MongoClient
+
+    return MongoClient(settings.MONGO_URI, tz_aware=True)[settings.RAG_DB]
+
+
+def _build_qdrant_client(settings):
+    from qdrant_client import QdrantClient
+
+    return QdrantClient(url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY or None)
 
 
 def _resolve_doc_ids(raw_ids: list[str], docs_repo, store) -> list[tuple[str, str]]:
@@ -434,10 +447,97 @@ def _from_stage_for(row: dict, from_stage: str | None, runner) -> str | None:
     return None
 
 
+# --------------------------------------------------------------------------
+# cleanup
+# --------------------------------------------------------------------------
+async def cmd_cleanup(args, *, settings=None, mongo_db=None, qdrant_client=None) -> int:
+    """Kiểm tra + xoá collection Mongo/Qdrant legacy của pipeline LightRAG cũ.
+
+    Chỉ đọc để dò (list + count); xoá sau khi có xác nhận. Không đụng:
+    registry `RAG_DOCUMENTS_COLLECTION`, collection Qdrant `{WORKSPACE}__*`
+    (vector pipeline, gồm cả model/chunker version cũ), collection ngoài workspace.
+    """
+    from ami_rag.core.embedder import collection_name
+    from ami_rag.core.legacy_cleanup import (
+        delete_mongo_collections,
+        delete_qdrant_collections,
+        find_legacy_mongo,
+        find_legacy_qdrant,
+    )
+
+    settings = settings or get_settings()
+    do_mongo = not args.qdrant_only
+    do_qdrant = not args.mongo_only
+
+    targets = []
+    try:
+        if do_mongo:
+            mongo_db = mongo_db or _build_mongo_db(settings)
+            targets.extend(
+                await asyncio.to_thread(
+                    find_legacy_mongo,
+                    mongo_db,
+                    settings.WORKSPACE,
+                    settings.RAG_DOCUMENTS_COLLECTION,
+                )
+            )
+        if do_qdrant:
+            qdrant_client = qdrant_client or _build_qdrant_client(settings)
+            targets.extend(
+                await asyncio.to_thread(find_legacy_qdrant, qdrant_client, settings.WORKSPACE)
+            )
+    except Exception as exc:
+        print(f"STOPPED: không dò được collection legacy: {exc}")
+        return 2
+
+    current = collection_name(settings.WORKSPACE, settings.EMBED_MODEL, settings.CHUNKER_VERSION)
+    print(f"workspace: {settings.WORKSPACE}")
+    print(
+        f"giữ lại: Mongo `{settings.RAG_DOCUMENTS_COLLECTION}` (registry/DocStatusStore), "
+        f"Qdrant `{current}` và mọi `{settings.WORKSPACE}__*` (vector pipeline)"
+    )
+    if not targets:
+        print("không có collection legacy nào cần xoá")
+        return 0
+
+    for t in targets:
+        size = f"{t.count:,}" if t.count >= 0 else "?"
+        print(f"  legacy [{t.db}] {t.name}  ({size} documents/points)")
+    if args.dry_run:
+        print(f"dry-run: {len(targets)} collection legacy sẽ bị xoá (không ghi gì)")
+        return 0
+
+    if not _confirm(f"Xoá {len(targets)} collection legacy (KHÔNG THỂ HOÀN TÁC)?", yes=args.yes):
+        print("đã huỷ")
+        return 0
+
+    deleted: list[str] = []
+    failed: list[str] = []
+    try:
+        if do_mongo:
+            names = [t.name for t in targets if t.db == "mongo"]
+            ok, err = await asyncio.to_thread(delete_mongo_collections, mongo_db, names)
+            deleted.extend(ok)
+            failed.extend(err)
+        if do_qdrant:
+            names = [t.name for t in targets if t.db == "qdrant"]
+            ok, err = await asyncio.to_thread(delete_qdrant_collections, qdrant_client, names)
+            deleted.extend(ok)
+            failed.extend(err)
+    except Exception as exc:
+        print(f"STOPPED: lỗi khi xoá: {exc}")
+        return 2
+
+    for name in failed:
+        print(f"LỖI xoá: {name}")
+    print(f"cleanup xong: đã xoá {len(deleted)}/{len(targets)} collection legacy")
+    return 1 if failed else 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="ami-rag",
-        description="AMI RAG maintenance CLI: status / retry / reindex",
+        description="AMI RAG maintenance CLI: status / retry / reindex / cleanup",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -500,6 +600,27 @@ def main() -> None:
     p_reindex.add_argument("--embed-server-url", default=None, help="override EMBED_SERVER_URL")
     p_reindex.add_argument("--embed-batch-size", type=int, default=None, help="override EMBED_BATCH_SIZE")
 
+    p_cleanup = sub.add_parser(
+        "cleanup",
+        help="kiểm tra + xoá collection Mongo/Qdrant legacy của pipeline LightRAG cũ",
+    )
+    p_cleanup.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="chỉ liệt kê collection legacy (kèm số document/points), không xoá",
+    )
+    p_cleanup.add_argument("--yes", action="store_true", help="bỏ qua xác nhận")
+    p_cleanup.add_argument(
+        "--mongo-only",
+        action="store_true",
+        help="chỉ dò/xoá collection Mongo legacy (bỏ qua Qdrant)",
+    )
+    p_cleanup.add_argument(
+        "--qdrant-only",
+        action="store_true",
+        help="chỉ dò/xoá collection Qdrant legacy (bỏ qua Mongo)",
+    )
+
     args = parser.parse_args()
     import logging
 
@@ -519,6 +640,10 @@ def main() -> None:
             raise SystemExit(rc)
     elif args.command == "reindex":
         rc = asyncio.run(cmd_reindex(args))
+        if rc:
+            raise SystemExit(rc)
+    elif args.command == "cleanup":
+        rc = asyncio.run(cmd_cleanup(args))
         if rc:
             raise SystemExit(rc)
 
