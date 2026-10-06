@@ -23,6 +23,7 @@ Data giữa các stage nằm trong MinIO: `{doc_id}/content_list.json`,
 """
 
 import asyncio
+import base64
 import hashlib
 import logging
 import re
@@ -496,6 +497,39 @@ class VectorPipeline(PipelineRunner):
         return self._build_chunks(doc_id, content_list, descriptions, source_path=source_path)
 
     # ------------------------------------------------------------------
+    async def _prepare_embed_items(
+        self, chunks: list[Chunk]
+    ) -> list[str | dict]:
+        """Chuẩn bị payload cho embedder: nạp ảnh từ asset_store với chunk multimodal ảnh."""
+        image_chunks = [c for c in chunks if c.modality == "image" and c.asset_key]
+        asset_images: dict[str, str] = {}
+        if image_chunks and hasattr(self.asset_store, "get_bytes"):
+            unique_keys = {c.asset_key for c in image_chunks if c.asset_key}
+
+            async def _fetch(key: str) -> tuple[str, str | None]:
+                try:
+                    data = await asyncio.to_thread(self.asset_store.get_bytes, key)
+                    if data:
+                        return key, base64.b64encode(data).decode("ascii")
+                except Exception as exc:
+                    logger.warning("fetch asset %s failed: %s", key, exc)
+                return key, None
+
+            results = await asyncio.gather(*(_fetch(k) for k in unique_keys))
+            asset_images = {k: b64 for k, b64 in results if b64}
+
+        items: list[str | dict] = []
+        for c in chunks:
+            if c.modality == "image" and c.asset_key and c.asset_key in asset_images:
+                items.append({
+                    "text": c.content,
+                    "image_b64": asset_images[c.asset_key],
+                })
+            else:
+                items.append(c.content)
+        return items
+
+    # ------------------------------------------------------------------
     # Stage: embed (máy B qua RemoteEmbedder) + verify (idempotent)
     # ------------------------------------------------------------------
     async def _stage_embed(
@@ -510,8 +544,8 @@ class VectorPipeline(PipelineRunner):
             seen_ids.add(c.id)
         # idempotency: xoá vector cũ của doc trước khi upsert
         await self.vector_store.delete_by_doc(self.collection, doc_id)
-        texts = [c.content for c in chunks]
-        vectors = await self.embedder.embed_documents(texts)  # [N x dim]
+        items = await self._prepare_embed_items(chunks)
+        vectors = await self.embedder.embed_documents(items)  # [N x dim]
         if len(vectors) != len(chunks):
             raise RuntimeError("embed server trả số vector không khớp số chunk")
         records = [
@@ -658,13 +692,13 @@ class VectorPipeline(PipelineRunner):
         else:
             logger.info("doc %s: không có trung gian (content_list/chunks), dry_run trả 0", doc_id)
             chunks = []
-        texts = [c.content for c in chunks]
+        items = await self._prepare_embed_items(chunks)
         return StageOutcome(
             doc_id=doc_id,
             stage=from_stage or "chunk",
             ok=True,
             chunk_count=len(chunks),
-            cache_hits=self.embedder.count_cache_hits(texts),
+            cache_hits=self.embedder.count_cache_hits(items),
         )
 
     # ------------------------------------------------------------------
