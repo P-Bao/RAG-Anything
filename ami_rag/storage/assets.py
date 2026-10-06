@@ -156,6 +156,20 @@ class MinioAssetStore:
         except Exception:
             return None
 
+    def get_bytes(self, key: str | None) -> bytes | None:
+        """Đọc raw bytes của một asset từ MinIO."""
+        if not key:
+            return None
+        try:
+            response = self._get_client().get_object(self._bucket, key)
+        except Exception:
+            return None
+        try:
+            return response.read()
+        finally:
+            response.close()
+            response.release_conn()
+
     def delete_doc_assets(self, doc_id: str) -> int:
         client = self._get_client()
         removed = 0
@@ -165,3 +179,4 @@ class MinioAssetStore:
             client.remove_object(self._bucket, obj.object_name)
             removed += 1
         return removed
+
