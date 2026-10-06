@@ -43,8 +43,8 @@ class Embedder(Protocol):
     model_name: str
     dim: int
 
-    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        """Embed danh sách văn bản (document embedding, có cache)."""
+    async def embed_documents(self, texts: list[str | dict]) -> list[list[float]]:
+        """Embed danh sách văn bản / multimodal items (document embedding, có cache)."""
         ...
 
     async def embed_query(self, text: str) -> list[float]:

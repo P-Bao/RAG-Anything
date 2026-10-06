@@ -138,28 +138,31 @@ class RemoteEmbedder:
     # ------------------------------------------------------------------
     # Embed
     # ------------------------------------------------------------------
-    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        """Embed danh sách văn bản (type=document, có cache). Giữ thứ tự đầu vào."""
-        if not texts:
+    async def embed_documents(self, items: list[str | dict]) -> list[list[float]]:
+        """Embed danh sách văn bản / multimodal items (type=document, có cache). Giữ thứ tự đầu vào."""
+        if not items:
             return []
         await self._ensure_verified()
 
-        vectors: list[list[float] | None] = [None] * len(texts)
-        keys: list[str] = [self._cache_key(t) for t in texts]
-        pending: list[int] = list(range(len(texts)))
+        vectors: list[list[float] | None] = [None] * len(items)
+        keys: list[str] = [self._cache_key(it) for it in items]
+        pending: list[int] = list(range(len(items)))
         if self.cache is not None:
             cached = await asyncio.to_thread(self.cache.get_many, keys)
-            pending = [i for i in range(len(texts)) if keys[i] not in cached]
+            pending = [i for i in range(len(items)) if keys[i] not in cached]
             for i, key in enumerate(keys):
                 if key in cached:
                     vectors[i] = cached[key]
 
         if pending:
-            batches = self._split_batches(texts, pending)
+            batches = self._split_batches(items, pending)
             unreachable: EmbedServerUnreachable | None = None
             for group in self._groups(batches, self.max_concurrency):
                 results = await asyncio.gather(
-                    *(self._post_embed([{"type": "document", "text": texts[i]} for i in b]) for b in group),
+                    *(
+                        self._post_embed([self._to_embed_payload(items[i]) for i in b])
+                        for b in group
+                    ),
                     return_exceptions=True,
                 )
                 for batch_indices, result in zip(group, results):
@@ -188,7 +191,7 @@ class RemoteEmbedder:
         missing = [i for i, v in enumerate(vectors) if v is None]
         if missing:
             raise EmbedderError(
-                f"embed_documents thiếu vector cho {len(missing)}/{len(texts)} item"
+                f"embed_documents thiếu vector cho {len(missing)}/{len(items)} item"
             )
         return vectors
 
@@ -202,14 +205,14 @@ class RemoteEmbedder:
     # ------------------------------------------------------------------
     # Cache (không HTTP)
     # ------------------------------------------------------------------
-    def count_cache_hits(self, texts: list[str]) -> int:
-        """Đếm số text đã có trong cache (lookup SQLite, KHÔNG gọi HTTP).
+    def count_cache_hits(self, items: list[str | dict]) -> int:
+        """Đếm số item đã có trong cache (lookup SQLite, KHÔNG gọi HTTP).
 
         Yêu cầu đã verify (dim + instruction_ns từ handshake); cache tắt -> 0.
         """
-        if not texts or self.cache is None or not self._verified:
+        if not items or self.cache is None or not self._verified:
             return 0
-        keys = [self._cache_key(t) for t in texts]
+        keys = [self._cache_key(it) for it in items]
         cached = self.cache.get_many(keys)
         return sum(1 for k in keys if k in cached)
 
@@ -281,15 +284,32 @@ class RemoteEmbedder:
             )
 
     # ------------------------------------------------------------------
-    # Batching / cache key
+    # Batching / cache key / payload builder
     # ------------------------------------------------------------------
-    def _split_batches(self, texts: list[str], pending: list[int]) -> list[list[int]]:
+    @staticmethod
+    def _to_embed_payload(item: str | dict) -> dict:
+        if isinstance(item, dict):
+            p = {"type": item.get("type") or "document"}
+            if "text" in item:
+                p["text"] = item["text"]
+            if item.get("image_b64"):
+                p["image_b64"] = item["image_b64"]
+            return p
+        return {"type": "document", "text": item}
+
+    def _split_batches(self, items: list[str | dict], pending: list[int]) -> list[list[int]]:
         """Chia batch theo số item VÀ theo byte payload (ảnh/text rất lớn tách riêng)."""
         batches: list[list[int]] = []
         current: list[int] = []
         current_bytes = 0
         for idx in pending:
-            item_bytes = len(texts[idx].encode("utf-8")) + 128
+            item = items[idx]
+            if isinstance(item, dict):
+                t_bytes = len((item.get("text") or "").encode("utf-8"))
+                img_bytes = len((item.get("image_b64") or "").encode("ascii"))
+                item_bytes = t_bytes + img_bytes + 128
+            else:
+                item_bytes = len(item.encode("utf-8")) + 128
             if current and (
                 len(current) >= self.batch_size
                 or current_bytes + item_bytes > self.max_payload_bytes
@@ -309,11 +329,14 @@ class RemoteEmbedder:
         while group := list(islice(iterator, size)):
             yield group
 
-    def _cache_key(self, text: str) -> str:
-        return (
-            f"{self.model}|{self.dim}|{self._instruction_ns}|"
-            f"{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
-        )
+    def _cache_key(self, item: str | dict) -> str:
+        if isinstance(item, dict):
+            t = item.get("text") or ""
+            img = item.get("image_b64") or ""
+            content_hash = hashlib.sha256(f"{t}|{img}".encode()).hexdigest()
+        else:
+            content_hash = hashlib.sha256(item.encode("utf-8")).hexdigest()
+        return f"{self.model}|{self.dim}|{self._instruction_ns}|{content_hash}"
 
     def _backoff(self, attempt: int) -> float:
         return self.backoff_base * (2 ** (attempt - 1)) + random.uniform(0, 0.1)
