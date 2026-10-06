@@ -4,6 +4,8 @@ Phủ: status mặc định 0 lời gọi embed, --doc chi tiết, --check-embed
 retry chọn doc failed / --max-attempts / preflight dừng sớm / một lỗi không dừng lô;
 reindex --stale mặc định / --dry-run không ghi / preflight / lockfile.
 """
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from ami_rag.cli import cmd_reindex, cmd_retry, cmd_status
@@ -13,24 +15,31 @@ from ami_rag.settings import Settings
 from ami_rag.storage.doc_status import (
     LEGACY_PROCESSED,
     STATUS_FAILED,
-    STATUS_INDEXED,
+    STATUS_PENDING,
     STATUS_PROCESSING,
     DocStatusStore,
 )
-from datetime import datetime, timedelta, timezone
 from tests.ami_service.fakes import FakeMongoCollection
 
 MODEL = "Qwen/Qwen3-VL-Embedding-2B"
 
 
 class FakeRunner:
-    def __init__(self, fail_ids=None, chunks=10, cache_hits=3, preflight_error=None):
+    def __init__(
+        self,
+        fail_ids=None,
+        chunks=10,
+        cache_hits=3,
+        preflight_error=None,
+        asset_store=None,
+    ):
         self.fail_ids = set(fail_ids or [])
         self.chunks = chunks
         self.cache_hits = cache_hits
         self.preflight_error = preflight_error
         self.preflight_calls = 0
         self.runs: list[tuple] = []
+        self.asset_store = asset_store
 
     async def preflight_embed(self):
         self.preflight_calls += 1
@@ -47,6 +56,38 @@ class FakeRunner:
             chunk_count=self.chunks,
             cache_hits=self.cache_hits,
         )
+
+
+class FakeCLIAssetStore:
+    """load_content_list trả content_list hoặc None (mô phỏng MinIO)."""
+
+    def __init__(self, with_content_list: bool):
+        self.with_content_list = with_content_list
+
+    def load_content_list(self, doc_id):
+        return [{"type": "text", "text": "x"}] if self.with_content_list else None
+
+
+class FakeScanDocsRepo:
+    """iter_all cho scan (mô phỏng MongoDocumentRepo)."""
+
+    def __init__(self, docs: dict):
+        self.docs = docs
+
+    def find_by_id(self, doc_id):
+        return self.docs.get(doc_id)
+
+    def find_by_file_path(self, file_path):
+        for doc in self.docs.values():
+            if doc.get("file_path") == file_path:
+                return doc
+        return None
+
+    def iter_all(self, batch_size=100, document_types=None):
+        return iter(list(self.docs.values()))
+
+    def count(self):
+        return len(self.docs)
 
 
 class FakeEmbedder:
@@ -113,6 +154,7 @@ class _Args:
         self.max_attempts = 3
         self.yes = True
         self.all = False
+        self.scan = False
         self.dry_run = False
         self.from_stage = None
         self.embed_server_url = None
@@ -437,3 +479,62 @@ async def test_reindex_from_stage_invalid_raises():
             _Args(from_stage="indexed"), settings=settings, store=store,
             runner=FakeRunner(),
         )
+
+
+# --------------------------------------------------------------------------
+# reindex --scan (Phase 5)
+# --------------------------------------------------------------------------
+async def test_reindex_scan_creates_pending_and_selects_candidates():
+    settings = _make_settings()
+    store = _make_store()
+    _seed(store)
+    # doc-3: legacy `processed` (stale); doc-9: chưa có bản ghi -> scan tạo pending
+    docs = {
+        "doc-3": {"_id": "doc-3", "file_path": "old.pdf", "content": "x"},
+        "doc-9": {"_id": "doc-9", "file_path": "new.pdf", "content": "y"},
+    }
+    runner = FakeRunner(asset_store=FakeCLIAssetStore(with_content_list=False))
+    rc = await cmd_reindex(
+        _Args(scan=True), settings=settings, store=store,
+        runner=runner, docs_repo=FakeScanDocsRepo(docs),
+    )
+    assert rc == 0
+    # candidates = pending (doc-9) + stale (doc-3); indexed/failed loại trừ
+    assert sorted(doc_id for doc_id, _, _ in runner.runs) == ["doc-3", "doc-9"]
+    assert store.get("doc-9")["status"] == STATUS_PENDING
+    # content_list thiếu trong MinIO -> from_stage None (full parse)
+    assert all(fs is None for _, fs, _ in runner.runs)
+
+
+async def test_reindex_scan_content_list_present_uses_chunk_stage():
+    settings = _make_settings()
+    store = _make_store()
+    _seed(store)
+    docs = {
+        "doc-3": {"_id": "doc-3", "file_path": "old.pdf", "content": "x"},
+        "doc-9": {"_id": "doc-9", "file_path": "new.pdf", "content": "y"},
+    }
+    runner = FakeRunner(asset_store=FakeCLIAssetStore(with_content_list=True))
+    rc = await cmd_reindex(
+        _Args(scan=True), settings=settings, store=store,
+        runner=runner, docs_repo=FakeScanDocsRepo(docs),
+    )
+    assert rc == 0
+    assert sorted(doc_id for doc_id, _, _ in runner.runs) == ["doc-3", "doc-9"]
+    # content_list đã có -> from_stage "chunk" (không gọi lại parse/LLM)
+    assert all(fs == "chunk" for _, fs, _ in runner.runs)
+
+
+async def test_reindex_scan_does_not_select_indexed_or_failed():
+    settings = _make_settings()
+    store = _make_store()
+    _seed(store)  # doc-1/doc-2 indexed, doc-3 legacy, doc-4 failed
+    docs = {"doc-1": {"_id": "doc-1", "file_path": "a.pdf"}, "doc-4": {"_id": "doc-4", "content": "x"}}
+    runner = FakeRunner(asset_store=FakeCLIAssetStore(with_content_list=True))
+    rc = await cmd_reindex(
+        _Args(scan=True), settings=settings, store=store,
+        runner=runner, docs_repo=FakeScanDocsRepo(docs),
+    )
+    assert rc == 0
+    # chỉ doc-3 (legacy stale); indexed + failed không reindex
+    assert [doc_id for doc_id, _, _ in runner.runs] == ["doc-3"]

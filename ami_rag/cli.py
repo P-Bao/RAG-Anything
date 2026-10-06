@@ -310,8 +310,8 @@ async def cmd_retry(args, *, settings=None, store=None, docs_repo=None, runner=N
 # --------------------------------------------------------------------------
 # reindex
 # --------------------------------------------------------------------------
-async def cmd_reindex(args, *, settings=None, store=None, runner=None) -> int:
-    """Xử lý lại thủ công: chunk -> embed từ dữ liệu parse + mô tả modal đã lưu."""
+async def cmd_reindex(args, *, settings=None, store=None, runner=None, docs_repo=None) -> int:
+    """Xử lý lại: chunk -> embed từ dữ liệu parse đã lưu; --scan quét docs cũ."""
     from ami_rag.core.lockfile import Lockfile, LockHeld
     from ami_rag.core.pipeline import validate_stage
     from ami_rag.storage.doc_status import STATUS_STALE, effective_status
@@ -319,8 +319,9 @@ async def cmd_reindex(args, *, settings=None, store=None, runner=None) -> int:
     settings = settings or get_settings()
     store = store or _build_status_store(settings)
     runner = runner or _build_runner(settings)
+    docs_repo = docs_repo or _build_docs_repo(settings)
     _apply_embed_overrides(args, settings)
-    from_stage = validate_stage(args.from_stage) or "chunk"
+    from_stage = validate_stage(args.from_stage)
 
     rows = await asyncio.to_thread(store.all_rows)
     for row in rows:
@@ -329,12 +330,32 @@ async def cmd_reindex(args, *, settings=None, store=None, runner=None) -> int:
         )
 
     if args.doc:
-        resolved = _resolve_doc_ids(args.doc, _build_docs_repo(settings), store)
+        resolved = _resolve_doc_ids(args.doc, docs_repo, store)
         by_id = {row["_id"]: row for row in rows}
         selected = [by_id[doc_id] for doc_id, _ in resolved if doc_id in by_id]
         missing = [doc_id for doc_id, _ in resolved if doc_id not in by_id]
         for doc_id in missing:
             print(f"bỏ qua {doc_id}: không có bản ghi trạng thái (pending)")
+    elif args.scan:
+        # Scan backend docs -> tạo pending records cho docs thiếu bản ghi,
+        # rồi chọn pending + stale (bao gồm legacy `processed`).
+        from ami_rag.core.scan import reindex_candidates, scan_pending
+
+        summary = await scan_pending(store, docs_repo)
+        print(
+            f"scan: tạo mới {summary['created']} pending, "
+            f"{summary['existing']} đã có bản ghi"
+        )
+        rows = await asyncio.to_thread(store.all_rows)
+        for row in rows:
+            row["effective"] = effective_status(
+                row, settings.EMBED_MODEL, settings.CHUNKER_VERSION
+            )
+        selected = reindex_candidates(
+            rows,
+            embed_model=settings.EMBED_MODEL,
+            chunker_version=settings.CHUNKER_VERSION,
+        )
     elif args.all:
         selected = list(rows)
     else:  # --stale (mặc định)
@@ -347,7 +368,9 @@ async def cmd_reindex(args, *, settings=None, store=None, runner=None) -> int:
     if args.dry_run:
         total_chunks = total_cache_hits = 0
         for row in selected:
-            outcome = await runner.run(row["_id"], from_stage=from_stage, dry_run=True)
+            outcome = await runner.run(
+                row["_id"], from_stage=_from_stage_for(row, from_stage, runner), dry_run=True
+            )
             total_chunks += outcome.chunk_count
             total_cache_hits += outcome.cache_hits
         print(
@@ -378,7 +401,9 @@ async def cmd_reindex(args, *, settings=None, store=None, runner=None) -> int:
     try:
         for row in selected:
             try:
-                outcome = await runner.run(row["_id"], from_stage=from_stage)
+                outcome = await runner.run(
+                    row["_id"], from_stage=_from_stage_for(row, from_stage, runner)
+                )
             except Exception as exc:
                 failed_n += 1
                 print(f"FAILED {row['_id']}: {str(exc)[:200]}")
@@ -394,6 +419,19 @@ async def cmd_reindex(args, *, settings=None, store=None, runner=None) -> int:
 
     print(f"reindex xong: thành công={ok} thất bại={failed_n}")
     return 1 if failed_n else 0
+
+
+def _from_stage_for(row: dict, from_stage: str | None, runner) -> str | None:
+    """Per-doc from_stage: None (full parse) khi content_list thiếu trong MinIO;
+    "chunk" khi đã có (reindex không gọi lại parse/LLM)."""
+    if from_stage is not None:
+        return from_stage
+    try:
+        if runner.asset_store.load_content_list(row["_id"]) is not None:
+            return "chunk"
+    except Exception:
+        pass
+    return None
 
 
 def main() -> None:
@@ -438,13 +476,20 @@ def main() -> None:
         default=True,
         help="chỉ doc stale (mặc định)",
     )
+    p_reindex.add_argument(
+        "--scan",
+        action="store_true",
+        help="quét backend docs -> tạo pending records cho docs thiếu bản ghi, "
+        "rồi reindex pending + stale (bao gồm legacy `processed` của pipeline cũ)",
+    )
     p_reindex.add_argument("--doc", nargs="*", default=[], help="id hoặc path cụ thể")
     p_reindex.add_argument("--all", action="store_true", help="xử lý lại mọi doc có bản ghi")
     p_reindex.add_argument(
         "--from-stage",
         choices=list(STAGES[:-1]),
         default=None,
-        help="ép làm lại từ stage này (mặc định: chunk -> embed, không gọi lại parse/mô tả)",
+        help="ép làm lại từ stage này (mặc định: chunk nếu content_list đã có "
+        "trong MinIO, full parse nếu thiếu)",
     )
     p_reindex.add_argument(
         "--dry-run",
