@@ -58,7 +58,7 @@ Mỗi lần đổi metric trong `ami_rag/observability.py` cần cập nhật da
 | `multimodal_rag_ingest_stream_pending` / `_stream_lag` | Gauge | |
 | `multimodal_rag_ingest_documents` | Gauge | `status` |
 
-Metric API mới so với bản cũ: `multimodal_rag_retrieval_docs_by_modality_total{modality}`, `_presign_failures_total`, `_chunks_retrieved`, `_rerank_fallback_total{reason}`, `_docs_filtered_total`, `_lightrag_failures_total`. Danh sách đầy đủ: `docs/ami_service.md` mục 9.
+Metric API mới so với bản cũ: `multimodal_rag_retrieval_docs_by_modality_total{modality}`, `_presign_failures_total`, `_chunks_retrieved`, `_rerank_fallback_total{reason}`, `_docs_filtered_total`. Danh sách đầy đủ: `docs/ami_service.md` mục 9.
 
 ## Alert (`helm/prometheusrule.yaml`)
 

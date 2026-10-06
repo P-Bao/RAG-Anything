@@ -22,7 +22,6 @@ classifiers = [
 ]
 dependencies = [
     "huggingface_hub",
-    "lightrag-hku>=1.4.9,<1.5",
     "mineru[core]>=3.4.1,<4",
     "tqdm",
 ]
@@ -135,5 +134,4 @@ target-version = "py310"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test*.py"]
-norecursedirs = ["examples"]
 asyncio_mode = "auto"

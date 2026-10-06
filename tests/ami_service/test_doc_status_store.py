@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from ami_rag.core.lockfile import LockHeld, Lockfile
+from ami_rag.core.lockfile import Lockfile, LockHeld
 from ami_rag.storage.doc_status import (
     LEGACY_PROCESSED,
     STATUS_FAILED,
@@ -123,9 +123,8 @@ def test_lockfile_acquire_release(tmp_path):
 
 
 def test_lockfile_blocks_second_acquire(tmp_path):
-    with Lockfile(tmp_path / "cli.lock"):
-        with pytest.raises(LockHeld):
-            Lockfile(tmp_path / "cli.lock").acquire()
+    with Lockfile(tmp_path / "cli.lock"), pytest.raises(LockHeld):
+        Lockfile(tmp_path / "cli.lock").acquire()
 
 
 def test_lockfile_steals_dead_pid(tmp_path):

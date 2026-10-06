@@ -33,7 +33,6 @@ class Settings(BaseSettings):
 
     MONGO_URI: str = "mongodb://localhost:27017/?directConnection=true"
     # Shares organization_db with the backend; every RAG collection is prefixed `multimodal_`
-    # (LightRAG names Mongo collections "{WORKSPACE}_{namespace}").
     RAG_DB: str = "organization_db"
     RAG_DOCUMENTS_COLLECTION: str = "multimodal_rag_documents"
     ORG_DB: str = "organization_db"
@@ -43,7 +42,6 @@ class Settings(BaseSettings):
     QDRANT_API_KEY: str = ""
 
     WORKSPACE: str = "multimodal"
-    WORKING_DIR: str = "./rag_storage"
 
     PARSER: str = "mineru"
     PARSE_METHOD: str = "auto"
@@ -62,8 +60,6 @@ class Settings(BaseSettings):
 
     CHUNK_SIZE: int = 1200
     CHUNK_OVERLAP: int = 100
-    MAX_GLEANING: int = 1
-    SUMMARY_LANGUAGE: str = "Tiếng Việt"
 
     REDIS_URL: str = "redis://localhost:6379/0"
     RAG_STREAM: str = "rag:ingest"
@@ -76,10 +72,6 @@ class Settings(BaseSettings):
     # A failed message is re-delivered once it has been pending this long (ms)
     WORKER_RETRY_IDLE_MS: int = 600000
     WORKER_METRICS_PORT: int = 9109
-    # After insert, check chunk vectors (and entities) really exist; else retry/fail the
-    # document instead of recording it as processed.
-    INGEST_VERIFY: bool = True
-    INGEST_REQUIRE_ENTITIES: bool = True
 
     # --- Pipeline / CLI ---
     # Quy ước collection: {WORKSPACE}__{embed_model_slug}__{CHUNKER_VERSION}
@@ -91,9 +83,8 @@ class Settings(BaseSettings):
     RERANK_TOP_K: int = 5
     RERANK_TIMEOUT: int = 60
 
-    RETRIEVAL_TOP_K: int = 40
+    # candidates fetched = final top_k * RETRIEVAL_OVERFETCH, so rerank always yields top_k docs
     RETRIEVAL_CHUNK_TOP_K: int = 40
-    # candidates fetched = final top_k * RETRIEVAL_OVERFETCH, so filters/rerank still leave top_k docs
     RETRIEVAL_OVERFETCH: int = 4
     # docs repaired in parallel by `reindex --repair` (low: avoids provider 429)
 

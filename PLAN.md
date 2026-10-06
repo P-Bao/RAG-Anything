@@ -18,7 +18,7 @@
 | 3 | CLI + DocStatusStore + lockfile + PipelineRunner protocol | ✅ commit `32bf44c` |
 | 4 | VectorPipeline + wiring factory/worker/API + strip LightRAG | ✅ commit `b2f8828` |
 | 5 | Reindex docs cũ (scan legacy → pending) | ✅ commit `787ff0d` |
-| 6 | Dọn docs + xóa LightRAG còn sót | 🔴 **CÒN LẠI** |
+| 6 | Dọn docs + xóa LightRAG còn sót | ✅ |
 
 ---
 
@@ -55,11 +55,16 @@
 - CLI: `ami-rag reindex --scan` (scan rồi chọn pending+stale); from_stage per-doc (`_from_stage_for`: "chunk" khi content_list đã có trong MinIO, None=full parse khi thiếu; explicit `--from-stage` override tất).
 - Tests: 3 test scan mới (`test_cli.py` 23 tests). Full suite: 483 pass, 2 skip (pre-existing: reportlab + lightrag); ruff clean trên `ami_rag`.
 
-## Phase 6 — 🔴 CÒN LẠI
-- Xóa `reproduce/` + LightRAG examples (`examples/`), deps lightrag còn sót (pyproject `[project.optional-dependencies]`?), code dead (`raganything/batch.py`, `resilience.py`, callback paths còn dùng?, `notebooks/`?).
-- Kiểm tra còn import `lightrag` ở đâu: `rg "lightrag" raganything/ ami_rag/` (parser.py? batch.py?).
-- Cập nhật `docs/ami_service.md` cuối cùng (kiến trúc vector pipeline, CLI --scan, collection naming, runbook reindex).
-- Sample questions `tests/fixtures/` nếu cần.
+## Phase 6 — ✅
+- Xóa `reproduce/` (4 file, import lightrag) + `examples/` (13 file LightRAG examples) + `notebooks/mineru_vram_check.ipynb` + `env.example` (sample LightRAG server) + `scripts/create_tiktoken_cache.py` (tiktoken chỉ cần cho LightRAG).
+- Dead code: xóa `raganything/batch.py` (BatchMixin LightRAG, không còn ai import) + `raganything/resilience.py` (ami_rag có circuit breaker riêng trong RemoteEmbedder); bỏ export resilience trong `raganything/__init__.py`. Giữ `callbacks.py` (processor.py/query.py dispatch sự kiện trong pipeline mới) + `batch_parser.py` (parse-only, không lightrag).
+- Xóa test file tương ứng: `testbatch_mixin.py`, `test_resilience.py`, `test_lmstudio_integration_example.py`, `test_minimax_integration.py`; `testparser_wiring.py` bỏ `importorskip("lightrag")` (raganything không còn import lightrag) → hết skip lightrag.
+- Deps: bỏ `lightrag-hku` khỏi `pyproject.toml` + `requirements.txt`; bỏ `recursive-include examples` trong MANIFEST.in; bỏ `norecursedirs = ["examples"]`.
+- Settings dead: bỏ `WORKING_DIR`, `RETRIEVAL_TOP_K`, `INGEST_VERIFY`, `INGEST_REQUIRE_ENTITIES`, `MAX_GLEANING`, `SUMMARY_LANGUAGE` (không còn code nào đọc); dọn `.env.ami.example` tương ứng.
+- Observability: bỏ counter dead `LIGHTRAG_FAILURES_TOTAL` (không ai dùng), sửa docstring "LightRAG" → vector; bỏ panel-14 "LightRAG failure rate" khỏi dashboard Grafana + configmap generated; sửa `monitoring/README.md`.
+- Docs: viết lại `docs/ami_service.md` (kiến trúc vector pipeline, API v2-only request messages/top_k/include_references, stage metric embed_query/vector_search/rerank/resolve, registry field theo DocStatusStore, CLI `reindex --scan`, runbook); xóa `docs/offline_setup.md` + `docs/architecture.md` + `docs/api_reference.md` (thuần LightRAG); sửa LightRAG mentions trong `docs/context_aware_processing.md` + `docs/batch_processing.md` (path examples).
+- Comment stale: `docker-compose.ami.yml` (dòng 1), `Makefile` (test-lib).
+- Tests: 435 pass, 1 skip (reportlab pre-existing); ruff clean `ami_rag` + `tests/ami_service` (fix 2 I001 pre-existing).
 
 ---
 

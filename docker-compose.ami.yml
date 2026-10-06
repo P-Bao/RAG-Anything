@@ -1,4 +1,4 @@
-# AMI multimodal RAG: API (/v2/rag) + ingest worker (MinerU parse -> LightRAG).
+# AMI multimodal RAG: API (/v2/rag) + ingest worker (MinerU parse -> chunk -> embed máy B -> Qdrant).
 # Mongo, Qdrant, Redis, MinIO and the rerank service run outside this compose on
 # the external network `ami-network` (hosts in .env are container names there).
 services:

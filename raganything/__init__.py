@@ -16,20 +16,6 @@ except ImportError:
     # Older versions without the custom parser registry: keep base import working.
     pass
 
-# Optional: resilience utilities (may not exist in all installations).
-try:
-    from .resilience import (
-        retry as retry,
-        async_retry as async_retry,
-        CircuitBreaker as CircuitBreaker,
-    )
-except ModuleNotFoundError:
-    # Resilience module not present in this build.
-    pass
-except ImportError:
-    # Symbols not available; ignore to avoid breaking import raganything.
-    pass
-
 # Optional: processing callbacks.
 try:
     from .callbacks import (
@@ -95,15 +81,6 @@ if "register_parser" in globals():
             "unregister_parser",
             "list_parsers",
             "get_supported_parsers",
-        ]
-    )
-
-if "retry" in globals():
-    __all__.extend(
-        [
-            "retry",
-            "async_retry",
-            "CircuitBreaker",
         ]
     )
 

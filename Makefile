@@ -62,7 +62,7 @@ lint:
 	uv run ruff check ami_rag tests/ami_service
 
 # Chay bo test cua service (khong can dich vu ngoai, dung fake).
-# Bo test goc cua RAG-Anything chay rieng: make test-lib (mot so test goc stub `lightrag`).
+# Bo test goc cua RAG-Anything chay rieng: make test-lib.
 test:
 	uv run pytest -v tests/ami_service/
 

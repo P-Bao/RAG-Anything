@@ -28,7 +28,7 @@ The context-aware feature enables RAGAnything to automatically extract and provi
 - **Batch Processing**: Context-aware batch processing for efficient document handling
 
 ### 3. Advanced Token Management
-- **Accurate Token Counting**: Uses LightRAG's tokenizer for precise token calculation
+- **Accurate Token Counting**: Uses the configured tokenizer for precise token calculation
 - **Smart Boundary Preservation**: Truncates at sentence/paragraph boundaries
 - **Backward Compatibility**: Fallback to character truncation when tokenizer unavailable
 
@@ -136,7 +136,7 @@ config = ContextConfig(
 context_extractor = ContextExtractor(config)
 
 # Initialize modal processor with context support
-processor = ImageModalProcessor(lightrag, caption_func, context_extractor)
+processor = ImageModalProcessor(caption_func, context_extractor)
 
 # Set content source
 processor.set_content_source(content_list, "minerU")

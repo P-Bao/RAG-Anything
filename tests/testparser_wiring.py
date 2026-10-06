@@ -13,8 +13,6 @@ def test_batch_parser_uses_paddleocr_parser():
 
 
 def test_raganything_initializes_selected_parser(monkeypatch, tmp_path):
-    pytest.importorskip("lightrag")
-
     import raganything.raganything as rag_module
     from raganything.config import RAGAnythingConfig
 

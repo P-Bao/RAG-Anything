@@ -1,6 +1,6 @@
 # AMI multimodal RAG service (`ami_rag`)
 
-Package `ami_rag/` trong fork RAG-Anything này là service multimodal RAG của hệ thống AMI: một ingest worker (parse tài liệu bằng MinerU, nạp vào RAG-Anything/LightRAG) và một API truy xuất `POST /v2/rag`. Nó thay thế hoàn toàn repo cũ `ami-multimodal-retrieval`.
+Package `ami_rag/` trong fork RAG-Anything này là service multimodal RAG của hệ thống AMI: một ingest worker (parse tài liệu bằng MinerU, chunk + embed bằng vector pipeline thuần) và một API truy xuất `POST /v2/rag`. Nó thay thế hoàn toàn repo cũ `ami-multimodal-retrieval`. Pipeline đã chuyển sang **vector thuần**: không còn LightRAG (không entity, không knowledge graph, không neo4j).
 
 ## 1. Kiến trúc
 
@@ -16,22 +16,26 @@ ami_rag worker  (ami-rag-worker, hoặc nhúng trong API khi WORKER_ENABLED=true
    │    └─ minio_parse: tải file gốc từ MinIO → MinerU parse → content_list (text/image/table/equation)
    ├─ upload ảnh/bảng/công thức lên MinIO  rag-assets/{doc_id}/…  (gắn item["asset_key"])
    ├─ lưu content_list.json vào MinIO
-   ├─ RAGAnything.insert_content_list(doc_id=<mongo id>)
-   └─ index check: chunk vector (Qdrant) + entity (graph) phải có thật, nếu không → retry/`failed`
+   ├─ describe: mô tả modal (LLM, tuỳ chọn) → descriptions.json
+   ├─ chunk: cắt chunk theo token (CHUNK_SIZE/CHUNK_OVERLAP) → chunks.json
+   ├─ embed: RemoteEmbedder (HTTP máy B) → upsert Qdrant (delete_by_doc trước, idempotent)
+   └─ mark_indexed: ghi trạng thái vào DocStatusStore
         ▼
-   LightRAG: Mongo `organization_db` (KV, doc_status, graph; collection `multimodal_*`) + Qdrant (vector), workspace `multimodal`
+   Qdrant (vector, collection `{WORKSPACE}__{embed_model_slug}__{CHUNKER_VERSION}`)
+   MongoDB `organization_db.multimodal_rag_documents` (DocStatusStore, một dòng/doc theo stage)
 
-Hệ thống AI ──POST /v2/rag──▶ ami_rag API: RAGAnything.aquery_data (mix) → rerank service → resolve doc Mongo
-                              → presign MinIO (artifact_url, file_url) → response
+Hệ thống AI ──POST /v2/rag──▶ ami_rag API: embed_query (máy B) → vector search Qdrant → rerank service
+                               → resolve doc Mongo → presign MinIO (artifact_url, file_url) → response
 ```
 
 - Event mỏng: queue chỉ mang `event` (`created`/`updated`/`deleted`), `document_id`, `content_hash`, `document_type`, `org_id`. Worker đọc nội dung từ Mongo/MinIO (`ami_rag/queue/events.py`).
-- Id 1:1: LightRAG doc id = MongoDB ObjectId; `file_path` của chunk = `{doc_id}_{basename}` nên API tra ngược về Mongo (`ami_rag/api/resolver.py`).
-- Update = xoá index cũ rồi insert lại; `deleted` xoá index + asset MinIO + dòng registry. Nguồn không đổi (`source_hash` trùng, status `indexed`) thì bị bỏ qua, cả ở worker lẫn ở CLI `reindex`.
-- Index check: LightRAG nuốt lỗi embedding/LLM (hết quota, 402/429/5xx), nên `insert_content_list` có thể trả về bình thường dù không có vector chunk hay entity nào. Sau mỗi lần insert, worker đếm lại thực tế (`ami_rag/index_check.py::inspect_document`: chunk trong `doc_status`, vector trong Qdrant, entity/relation trong `full_entities`/`full_relations`), ghi log `index check: doc=… chunks=N vectors=N entities=N relations=N OK`. Thiếu vector hoặc không có entity thì ghi `WARNING`, ném `IngestIncompleteError` (đi theo đường retry → `failed`) thay vì ghi `processed`. Kết quả đếm lưu vào registry (`index_stats`). Tắt bằng `INGEST_VERIFY=false`; cho phép doc không có entity bằng `INGEST_REQUIRE_ENTITIES=false`.
+- Doc id = MongoDB ObjectId. Mỗi chunk payload mang `doc_id` trực tiếp nên API tra ngược về Mongo (`ami_rag/api/resolver.py::resolve_doc_id`).
+- `created`/`updated` → `ensure_pending` + chạy pipeline từ stage `parse`; `deleted` → xoá vector Qdrant + asset MinIO + dòng registry. Nguồn không đổi (`content_hash` trùng, status `indexed`, đúng `embed_model`/`chunker_version`) thì bị bỏ qua, cả ở worker lẫn ở CLI `reindex`.
+- Pipeline (`ami_rag/core/vector_pipeline.py`): 5 stage `parse → describe → chunk → embed → indexed`, mỗi stage ghi trạng thái vào DocStatusStore. Kết quả trung gian lưu MinIO (`content_list.json`, `descriptions.json`, `chunks.json`) nên retry chạy tiếp từ stage lỗi, không cần parse lại.
+- Embed: stage duy nhất gọi mạng thật; luôn `delete_by_doc` trước khi upsert (idempotent) rồi verify count. Describe là stage duy nhất có thể gọi LLM (tuỳ chọn).
 - Retry: `WORKER_MAX_DELIVERY` lần; quá ngưỡng thì dòng registry được đánh dấu `failed` và message được ack. Event lỗi chưa đủ ngưỡng được để pending và tự giao lại (XAUTOCLAIM) sau `WORKER_RETRY_IDLE_MS` (mặc định 10 phút; cần Redis ≥ 6.2) — đặt đủ lớn hơn thời gian parse MinerU dài nhất để worker khác không "cướp" message đang xử lý. Khi `failed`, `attempts` được reset nên `reprocess_failed`/`retry --all-failed` có đủ ngân sách thử lại.
-- LLM (describe/answer): chốt profile `qwen-selfhost` (vLLM, OpenAI-compatible) qua `QWEN_LLM_*`. Gemini không còn được hỗ trợ (đã gỡ). Rerank là service ngoài `POST {RERANK_BASE_URL}/rerank`; lỗi rerank thì trả chunk không điểm (fallback).
-- Embedding: model `Qwen/Qwen3-VL-Embedding-2B` chạy trên server riêng (máy B, thư mục `qwen-embedding-server`). Máy A chỉ gọi HTTP qua `RemoteEmbedder` (`ami_rag/core/remote_embedder.py`).
+- LLM (describe): profile `qwen-selfhost` (vLLM, OpenAI-compatible) qua `QWEN_LLM_*`. Gemini không còn được hỗ trợ (đã gỡ). Rerank là service ngoài `POST {RERANK_BASE_URL}/rerank`; lỗi rerank thì trả chunk không điểm (fallback).
+- Embedding: model `Qwen/Qwen3-VL-Embedding-2B` chạy trên server riêng (máy B, thư mục `qwen-embedding-server`, repo ngoài RAG-Anything, port 8007). Máy A chỉ gọi HTTP qua `RemoteEmbedder` (`ami_rag/core/remote_embedder.py`) — không cài torch/transformers, không cần GPU cho embed.
 
 ## 2. Quyết định nguồn nội dung
 
@@ -48,31 +52,17 @@ Hệ thống AI ──POST /v2/rag──▶ ami_rag API: RAGAnything.aquery_data
 
 Doc `minio_parse` không có `file_path` thì lỗi (`ValueError`). Ảnh crawl (tuỳ chọn): `CRAWL_IMAGES_ENABLED=true` thì worker tải ảnh của doc crawl về MinIO prefix `CRAWL_IMAGES_PREFIX` và thêm item `image`.
 
-## 3. Dữ liệu: dùng chung `organization_db`, tách bằng tiền tố `multimodal_`
-
-RAG dùng chung database `organization_db` với backend ami_data. Mọi collection của RAG có tiền tố `multimodal_` nên không đụng collection của backend (`documents`, `users`, ...).
+## 3. Dữ liệu
 
 | Thành phần | Giá trị | Ghi chú |
 |---|---|---|
-| Mongo DB của RAG | `RAG_DB` = `organization_db` | LightRAG KV/doc_status/graph (`MONGO_DATABASE` được set từ `RAG_DB` bằng cách gán trực tiếp `os.environ` trong `ami_rag/core/factory.py::_inject_storage_env`, nên `Settings` luôn thắng biến môi trường `MONGO_DATABASE`/`MONGO_URI` có sẵn) |
-| Registry | `organization_db.multimodal_rag_documents` (`RAG_DOCUMENTS_COLLECTION`) | một dòng/doc, `_id` = ObjectId dạng string |
-| Workspace | `WORKSPACE` = `multimodal` | tiền tố collection LightRAG (`{workspace}_{namespace}`) và phân vùng Qdrant |
-| Qdrant | `QDRANT_URL` | vector, partition theo workspace |
-| MinIO asset | `{ASSET_PREFIX}/{doc_id}/` (`rag-assets/…`) trong `MINIO_BUCKET` | ảnh/bảng/công thức (tên `sha256[:16]` + ext), `content_list.json` |
+| Mongo DB | `RAG_DB` = `organization_db` | dùng chung DB với backend ami_data |
+| Registry / DocStatusStore | `organization_db.multimodal_rag_documents` (`RAG_DOCUMENTS_COLLECTION`) | một dòng/doc, `_id` = ObjectId dạng string, ghi bởi worker/CLI/admin |
+| Qdrant | `QDRANT_URL` | vector chunk, collection `{WORKSPACE}__{embed_model_slug}__{CHUNKER_VERSION}` (ví dụ `multimodal__qwen3-vl-embedding-2b__v1`) |
+| MinIO asset | `{ASSET_PREFIX}/{doc_id}/` (`rag-assets/…`) trong `MINIO_BUCKET` | ảnh/bảng/công thức (tên `sha256[:16]` + ext), `content_list.json`, `descriptions.json`, `chunks.json` |
 | Nguồn doc | `organization_db.documents` (`ORG_DB`/`DOC_COLLECTION`) | **chỉ đọc**, lọc `status: "active"` khi duyệt toàn bộ |
 
-### Các collection `multimodal_*` và ranh giới
-
-LightRAG đặt tên collection Mongo là `{workspace}_{namespace}` (`lightrag/kg/mongo_impl.py`, `final_namespace`). Với `WORKSPACE=multimodal`:
-
-| Collection | Nguồn | Ghi chú |
-|---|---|---|
-| `multimodal_rag_documents` | `ami_rag` (`RAG_DOCUMENTS_COLLECTION`) | registry, ghi bởi worker/CLI/admin |
-| `multimodal_full_docs`, `multimodal_text_chunks`, `multimodal_llm_response_cache`, `multimodal_full_entities`, `multimodal_full_relations`, `multimodal_entity_chunks`, `multimodal_relation_chunks` | LightRAG KV (`lightrag/namespace.py`) | |
-| `multimodal_doc_status` | LightRAG doc status | |
-| `multimodal_chunk_entity_relation`, `multimodal_chunk_entity_relation_edges` | LightRAG graph (`MongoGraphStorage`: node + `_edges`) | |
-| `multimodal_parse_cache`, `multimodal_multimodal_status` | RAGAnything (`raganything/raganything.py`, namespace `parse_cache` / `multimodal_status`) | tên lặp `multimodal_multimodal_status` vì workspace `multimodal` + namespace `multimodal_status` |
-| collection khác | do LightRAG tạo | vector (entities/relationships/chunks) nằm ở Qdrant, không ở Mongo |
+Quy ước collection vector (`ami_rag/core/embedder.py::collection_name`): `{WORKSPACE}__{embed_model_slug}__{CHUNKER_VERSION}` — đổi embed model hoặc `CHUNKER_VERSION` là sang collection mới, không bao giờ trộn vector hai embed model.
 
 Ranh giới:
 
@@ -80,17 +70,16 @@ Ranh giới:
 |---|---|
 | `documents` | chỉ ĐỌC (`ORG_DB`/`DOC_COLLECTION`) |
 | `document_versions`, `organization_units`, `users` | không đọc trong code; chỉ dùng để `$lookup` khi truy vấn/báo cáo từ bên ngoài |
-| `multimodal_*` | GHI (tạo collection, index, upsert/xoá) |
+| `multimodal_rag_documents` | GHI (tạo collection, index, upsert/xoá) |
+| Qdrant collection `multimodal__*` | GHI |
 
 Lưu ý vận hành:
-- Quyền Mongo: user của service RAG cần `createCollection` + `createIndex` + đọc/ghi trên `multimodal_*` trong `organization_db` (`_ensure_indexes` tạo index `status`, `organization_unit_id`, `document_oid`; lỗi chỉ log warning), và chỉ cần `find` trên `documents`.
-- Biến `MONGODB_WORKSPACE` (nếu đặt trong môi trường) sẽ ghi đè workspace trong tên collection Mongo của LightRAG (`mongo_impl.py`, đọc trực tiếp từ môi trường), khiến tên collection không còn theo `WORKSPACE`; đừng đặt biến này trừ khi cố ý.
-- Tên collection phụ thuộc `WORKSPACE`: đổi `WORKSPACE` = tạo bộ collection/partition Qdrant mới (dữ liệu cũ không được dùng nữa, cần backfill lại). `RAG_DOCUMENTS_COLLECTION` không theo `WORKSPACE`, nên registry cũ còn `processed` (pipeline LightRAG trước migration) có thể khiến doc bị đánh `stale`; dùng `reindex --stale`.
-- Backup/restore/drop `organization_db` ảnh hưởng cả backend lẫn RAG; khi chỉ muốn xoá dữ liệu RAG, drop từng collection `multimodal_*` (kèm dữ liệu Qdrant), không drop database.
+- Quyền Mongo: user của service RAG cần `createCollection` + `createIndex` + đọc/ghi trên `multimodal_rag_documents` trong `organization_db` (`_ensure_indexes` tạo index `status`, `stage`; lỗi chỉ log warning), và chỉ cần `find` trên `documents`.
+- Backup/restore/drop `organization_db` ảnh hưởng cả backend lẫn RAG; khi chỉ muốn xoá dữ liệu RAG, drop collection `multimodal_rag_documents` + collection Qdrant + prefix MinIO `rag-assets/`, không drop database.
 
 ### Liên kết với organization_units / users
 
-Mỗi dòng registry được ghi thêm các field liên kết khi `processed` (`ami_rag/sources.py::doc_link_fields`, truyền qua `meta=` vào `mark_processed`; dòng `failed`/`processing` chưa có):
+Mỗi dòng registry được ghi thêm các field liên kết khi `indexed` (`ami_rag/sources.py::doc_link_fields`, truyền qua `meta=` vào `mark_indexed`; dòng `pending`/`processing`/`failed` chưa có):
 
 | Field registry | Kiểu | Liên kết tới |
 |---|---|---|
@@ -104,7 +93,7 @@ Mỗi dòng registry được ghi thêm các field liên kết khi `processed` (
 
 ```javascript
 db.multimodal_rag_documents.aggregate([
-  { $match: { status: "processed" } },
+  { $match: { status: "indexed" } },
   { $lookup: { from: "documents", localField: "document_oid", foreignField: "_id", as: "doc" } },
   { $lookup: { from: "organization_units", localField: "organization_unit_id", foreignField: "_id", as: "unit" } },
   { $lookup: {
@@ -127,20 +116,21 @@ db.multimodal_rag_documents.aggregate([
 
 ### Field của `multimodal_rag_documents`
 
-Các field (`ami_rag/storage/rag_documents.py`):
+Các field (`ami_rag/storage/doc_status.py`):
 
 | Field | Ý nghĩa |
 |---|---|
 | `_id` | document id |
-| `document_oid`, `organization_unit_id`, `owner_id`, `document_type`, `title` | field liên kết (bảng trên), chỉ có sau lần `processed` |
-| `status` | `processing` / `processed` / `failed` / `stale` |
-| `source`, `source_hash` | nguồn (`mongo_text`/`minio_parse`) và vân tay |
-| `file_path` | `{doc_id}_{basename}` dùng cho citation |
+| `document_oid`, `organization_unit_id`, `owner_id`, `document_type`, `title` | field liên kết (bảng trên), chỉ có sau lần `indexed` |
+| `status` | `pending` / `processing` / `indexed` / `failed` / `stale`; legacy `processed` (pipeline cũ) đọc là `stale` |
+| `stage` | stage hiện tại: `parse` / `describe` / `chunk` / `embed` / `indexed` |
+| `source`, `content_hash` | nguồn (`mongo_text`/`minio_parse`) và vân tay nội dung |
+| `source_path`, `file_path` | key MinIO của file gốc và đường dẫn citation |
 | `parser` | giá trị `PARSER` lúc nạp |
 | `assets` | danh sách key MinIO đã upload |
 | `counts`, `page_count` | số item theo modality (`text/image/table/equation/other`), số trang |
-| `index_stats` | `{chunks, vectors, entities, relations}` đếm được ngay sau lần nạp thành công hoặc sau `retry` |
-| `attempts`, `last_hash`, `error` | theo dõi lần thử/lỗi (`error` cắt 2000 ký tự) |
+| `chunk_count`, `embed_model`, `embed_dim`, `chunker_version` | thông tin vector (để kiểm tra tương thích khi reindex) |
+| `attempts`, `error`, `error_stage` | theo dõi lần thử/lỗi (`error` cắt 2000 ký tự) |
 | `created_at`, `updated_at` | thời điểm |
 
 ## 4. Biến môi trường
@@ -149,7 +139,7 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 
 | Nhóm | Biến | Mặc định | Ý nghĩa |
 |---|---|---|---|
-| LLM | `QWEN_LLM_BASE_URL` / `QWEN_LLM_MODEL` / `QWEN_LLM_API_KEY` | `http://vllm:8000/v1` / `Qwen/Qwen3-32B` / rỗng | qwen-selfhost (OpenAI-compatible), dùng cho `describe_func`/`answer_func` |
+| LLM | `QWEN_LLM_BASE_URL` / `QWEN_LLM_MODEL` / `QWEN_LLM_API_KEY` | `http://vllm:8000/v1` / `Qwen/Qwen3-32B` / rỗng | qwen-selfhost (OpenAI-compatible), dùng cho `describe_func` |
 | | `QWEN_VLM_MODEL` | rỗng | rỗng = dùng `QWEN_LLM_MODEL` |
 | Embed server | `EMBED_SERVER_URL` | `http://localhost:8007` | |
 | | `EMBED_SERVER_TOKEN` | rỗng | **chỉ từ env**, không ghi vào file trong git |
@@ -163,11 +153,10 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `EMBED_CACHE_PATH` | `./embed_cache.db` | |
 | Mongo | `MONGO_URI` | `mongodb://localhost:27017/?directConnection=true` | |
 | | `RAG_DB` | `organization_db` | dùng chung DB với backend |
-| | `RAG_DOCUMENTS_COLLECTION` | `multimodal_rag_documents` | registry |
+| | `RAG_DOCUMENTS_COLLECTION` | `multimodal_rag_documents` | registry / DocStatusStore |
 | | `ORG_DB` / `DOC_COLLECTION` | `organization_db` / `documents` | chỉ đọc |
 | Qdrant | `QDRANT_URL` / `QDRANT_API_KEY` | `http://localhost:6333` / rỗng | |
-| Index | `WORKSPACE` | `multimodal` | tiền tố collection LightRAG + phân vùng Qdrant |
-| | `WORKING_DIR` | `./rag_storage` | working dir LightRAG |
+| Index | `WORKSPACE` | `multimodal` | tiền tố collection Qdrant `{WORKSPACE}__{embed_model_slug}__{CHUNKER_VERSION}` |
 | Parser | `PARSER` | `mineru` | |
 | | `PARSE_METHOD` | `auto` | |
 | | `PARSER_OUTPUT_DIR` | `./output` | |
@@ -178,8 +167,6 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `MINERU_SOURCE` | rỗng | nguồn model: `huggingface` / `modelscope` / `local`; rỗng = mặc định |
 | | `MINERU_TIMEOUT` | `1800` | giây/tài liệu; `0` = không giới hạn |
 | Chunking | `CHUNK_SIZE` / `CHUNK_OVERLAP` | `1200` / `100` | token |
-| | `MAX_GLEANING` | `1` | |
-| | `SUMMARY_LANGUAGE` | `Tiếng Việt` | |
 | Queue | `REDIS_URL` | `redis://localhost:6379/0` | |
 | | `RAG_STREAM` | `rag:ingest` | |
 | | `RAG_CONSUMER_GROUP` | `ami-rag` | |
@@ -190,15 +177,12 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `WORKER_MAX_DELIVERY` | `3` | |
 | | `WORKER_RETRY_IDLE_MS` | `600000` | Sau bao lâu (ms) message pending lỗi được giao lại |
 | | `WORKER_METRICS_PORT` | `9109` | `/metrics` của `ami-rag-worker` |
-| | `INGEST_VERIFY` | `true` | kiểm tra index (vector chunk, entity) sau mỗi lần nạp; thiếu thì retry/`failed` |
-| | `INGEST_REQUIRE_ENTITIES` | `true` | `false` = chỉ bắt buộc có vector chunk, cho phép doc không có entity |
 | Rerank | `RERANK_BASE_URL` | `http://localhost:8010` | |
 | | `RERANK_TOP_K` | `5` | số tài liệu trả về mặc định khi request không chỉ định `top_k` |
 | | `RERANK_TIMEOUT` | `60` | giây |
-| Retrieval | `RETRIEVAL_TOP_K` | `40` | số entity/quan hệ trích xuất tối thiểu từ LightRAG |
-| | `RETRIEVAL_CHUNK_TOP_K` | `40` | số chunk tối thiểu lấy từ LightRAG trước khi lọc và rerank |
-| | `RETRIEVAL_OVERFETCH` | `4` | hệ số nhân lấy ứng viên: `chunk_top_k = max(RETRIEVAL_CHUNK_TOP_K, top_k * RETRIEVAL_OVERFETCH)` để sau khi lọc org/type vẫn đủ `top_k` kết quả |
-| Pipeline/CLI | `CHUNKER_VERSION` | `v1` | gắn vào doc để kiểm tra tương thích lúc reindex |
+| Retrieval | `RETRIEVAL_CHUNK_TOP_K` | `40` | số chunk tối thiểu lấy từ Qdrant trước khi rerank |
+| | `RETRIEVAL_OVERFETCH` | `4` | hệ số nhân lấy ứng viên: `max(RETRIEVAL_CHUNK_TOP_K, top_k * RETRIEVAL_OVERFETCH)` để sau khi rerank vẫn đủ `top_k` kết quả |
+| Pipeline/CLI | `CHUNKER_VERSION` | `v1` | gắn vào collection + registry để kiểm tra tương thích lúc reindex |
 | | `CLI_STUCK_PROCESSING_MINUTES` | `60` | doc `processing` quá lâu bị `status` báo là treo |
 | MinIO | `MINIO_ENDPOINT` | `localhost:9000` | |
 | | `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | `minioadmin` / rỗng | |
@@ -217,7 +201,7 @@ Lưu ý: `OTEL_*` và `TRACE_OUTPUT_MAX_LEN` do `observability.py` đọc trực
 
 ## 5. Chạy local và Docker
 
-Local (cần Redis, Mongo, Qdrant, MinIO, rerank service sẵn sàng):
+Local (cần Redis, Mongo, Qdrant, MinIO, rerank service, embed server sẵn sàng):
 
 ```bash
 make setup                    # uv sync --extra service
@@ -231,16 +215,16 @@ make style / make lint        # ruff trên ami_rag và tests/ami_service
 Docker (`docker-compose.ami.yml`, `Dockerfile.ami`, `python:3.12-slim`):
 
 ```bash
-cp .env.ami.example .env      # host Mongo/Qdrant/Redis/MinIO/rerank = tên container trên ami-network
+cp .env.ami.example .env      # host Mongo/Qdrant/Redis/MinIO/rerank/embed = tên container trên ami-network
 make start_docker             # tạo network ami-network nếu thiếu, rồi up --build -d
 make ps && make health        # /healthz + đếm series multimodal_rag_retrieval_* và multimodal_rag_ingest_*
 make logs SERVICE=ami-rag-worker
 make restart | make down | make docker-clean
 ```
 
-- Build image chậm (~20 phút khi đổi code): `Dockerfile.ami` chép `ami_rag/` trước `pip install ".[service]"` nên mỗi lần sửa code `pip` tải lại toàn bộ gói (kể cả CUDA).
+- Build image chậm (~20 phút khi đổi code): `Dockerfile.ami` chép `ami_rag/` trước `pip install ".[service]"` nên mỗi lần sửa code `pip` tải lại toàn bộ gói.
 - Hai service dùng chung image: `ami-rag-api` (port 8009) và `ami-rag-worker` (port 9109 cho `/metrics`). Mongo, Qdrant, Redis, MinIO, rerank chạy ngoài compose trên network external `ami-network`; trong container, host trong `.env` phải là tên container, không phải `localhost`.
-- GPU: `ami-rag-worker` có `deploy.resources.reservations.devices` (nvidia, count 1) cho MinerU. Bỏ khối này để parse bằng CPU (xem 5.1).
+- GPU: `ami-rag-worker` có `deploy.resources.reservations.devices` (nvidia, count 1) cho MinerU. Bỏ khối này để parse bằng CPU (xem 5.1). Embed không cần GPU ở máy A.
 - Cache model MinerU: volume `mineru-models` mount tại `/models` (`HF_HOME=/models/huggingface`, `MINERU_MODEL_SOURCE=huggingface`), tránh tải lại mỗi lần rebuild. Volume `rag-output` mount tại `/app/output`.
 - LibreOffice (`libreoffice-writer`) đã cài trong image để chuyển doc/docx sang PDF trước khi MinerU parse; chạy local cần tự cài LibreOffice.
 - Biến Make ghi đè: `PORT`, `WORKER_METRICS_PORT`, `COMPOSE_FILE`, `SERVICE`, `NETWORK`.
@@ -264,19 +248,17 @@ Số đo trên Colab T4, PDF 10 trang, MinerU 3.x:
 | CPU (3 trang) | 82.7 s (~27 s/trang) | n/a |
 | GPU | ~5 s/trang | |
 
-Reranker `bge-reranker-v2-m3` fp16, batch 40x512: đỉnh ~1.9 GiB, 1.0 s (nếu chạy chung GPU với worker, cộng vào ngân sách VRAM).
-
 Khuyến nghị:
 - `pipeline` dưới 4 GiB VRAM nên chạy GPU trực tiếp (mặc định, `MINERU_DEVICE` rỗng).
 - GPU dùng chung với service khác (reranker, vLLM, ...): đặt `MINERU_VIRTUAL_VRAM_SIZE=4` (đỉnh ~1.1 GiB, chậm hơn nhẹ). Giá trị lớn hơn làm MinerU dùng batch lớn hơn nên tốn thêm VRAM, không nhanh hơn đáng kể.
 - Chạy CPU: đặt `MINERU_DEVICE=cpu` và bỏ khối `deploy.resources.reservations.devices` của `ami-rag-worker` trong `docker-compose.ami.yml`. Chậm ~5 lần (~27 s/trang): tăng `MINERU_TIMEOUT` cho file dài và `WORKER_RETRY_IDLE_MS` cho đủ lớn hơn thời gian parse.
-- Tự đo lại trên GPU của bạn bằng `notebooks/mineru_vram_check.ipynb`.
 
 ### 5.2 Embed server (máy B) và Redis (đã gặp thực tế)
 
-- Embedding chạy trên **server riêng** (`qwen-embedding-server/`, repo ngoài RAG-Anything, kiến trúc theo BGE-M3 server). Model card: dim 2048 (MRL 64–2048), last-token pooling + L2 normalize, instruction qua system message, `transformers>=4.57`/`qwen-vl-utils>=0.0.14`. Tổng quan: `docs/qwen_embedding_notes.md`.
+- Embedding chạy trên **server riêng** (`qwen-embedding-server/`, repo ngoài RAG-Anything, port 8007). Model `Qwen/Qwen3-VL-Embedding-2B`: dim 2048 (MRL 64–2048), last-token pooling + L2 normalize, instruction qua system message, `transformers>=4.57`/`qwen-vl-utils>=0.0.14`. Tổng quan: `docs/qwen_embedding_notes.md`.
 - `RemoteEmbedder` handshake lúc khởi tạo: gọi `/info`, so `model_name`/`dim` với config; lệch thì dừng với lỗi rõ ràng (không ghi vector khi chưa xác minh). Mỗi response `/embed` được kiểm tra `model_name`/`dim` để phát hiện server bị đổi model giữa chừng.
 - Retry chỉ cho lỗi tạm thời (timeout, 5xx, 429, mất kết nối), backoff + jitter; **không retry** 4xx. Circuit breaker: 5 lô liên tiếp không với tới server thì dừng cả lô sớm (doc chưa xử lý không bị đánh fail hàng loạt). Lỗi `embed server unreachable` trong một doc không làm hỏng doc khác.
+- Cache embedding SQLite ở máy A (`EMBED_CACHE_ENABLED`, key = `model|dim|instruction_ns|sha256(text)`); `reindex --dry-run` dùng `count_cache_hits` để báo trước số chunk trúng cache, không gọi HTTP.
 - Hết credit/quota hay model quá tải trên server (5xx sau retry) → doc ở stage `embed` thành `failed` với lý do rõ ràng; chạy lại `retry` sau khi server ổn định.
 - Redis: `redis-py` ≥ 8 mặc định `socket_timeout=5s`, trùng với `XREADGROUP BLOCK` (`WORKER_POLL_BLOCK_MS`) nên worker báo `queue read failed: Timeout reading from redis`. Client của worker đặt `socket_timeout = WORKER_POLL_BLOCK_MS/1000 + 5` và `health_check_interval=30` (`ingest_worker.py::_build_default_deps`).
 
@@ -284,31 +266,17 @@ Khuyến nghị:
 
 Mọi route `/v2/rag/*` và `/admin/*` yêu cầu `Authorization: Bearer <RAG_API_KEY>` khi `RAG_API_KEY` khác rỗng (rỗng = mở; nên chỉ dùng trong mạng nội bộ). `/`, `/healthz`, `/readyz`, `/metrics` không yêu cầu auth; chặn `/metrics` ở reverse proxy nếu cần.
 
-> **Đang đổi (Giai đoạn 4):** bỏ v1 response, bỏ `filters`, `include_kg`, bỏ `mode` (local/global/...). Sau GĐ 4 chỉ còn `POST /v2/rag` + `POST /v2/rag/stream` (v2 response).
+Chỉ còn **v2**: request chỉ gồm `messages`, `top_k`, `include_references`. Đã bỏ v1 response, bỏ `version`/`mode`/`filters`/`include_kg`.
 
-### POST /v2/rag/ — v1 (không đổi)
-
-```json
-// Request
-{ "messages": [{"role": "user", "content": "học phí năm 2026"}], "top_k": 5 }
-// Response
-{ "query": "học phí năm 2026",
-  "documents": [{ "text": "...", "score": 0.91,
-    "metadata": {"source": "<doc_id>_file.pdf", "page": 3, "document_id": "665f...", "chunk_index": null, "global_id": null} }] }
-```
-
-v1 luôn dùng mode `mix`. `metadata.page` lấy từ `page_idx` của chunk (null với chunk text thường); `chunk_index`/`global_id` luôn null.
-
-### POST /v2/rag/ — v2 (`"version": 2`)
+### POST /v2/rag/
 
 Request:
 
 ```json
 {
   "messages": [{"role": "user", "content": "bảng học phí các ngành"}],
-  "top_k": 10, "version": 2, "mode": "mix",
-  "include_kg": false,
-  "filters": {"organization_unit_id": null, "document_type": null, "modality": ["table", "image"]}
+  "top_k": 10,
+  "include_references": true
 }
 ```
 
@@ -317,44 +285,45 @@ Response (rút gọn; mỗi document có đủ các field, giá trị không áp
 ```json
 {
   "query": "bảng học phí các ngành",
-  "mode": "mix",
   "documents": [
     { "text": "Đoạn văn mô tả học phí ...", "score": 0.93, "modality": "text",
       "artifact_url": null, "table_body": null, "page": null, "caption": null,
-      "reference_id": "1", "entities": null,
-      "metadata": {"source": "665f..._hocphi.pdf", "page": null, "document_id": "665f...", "chunk_index": null, "global_id": null},
+      "reference_id": "<chunk_id>",
+      "metadata": {"source": "665f..._hocphi.pdf", "page": null, "document_id": "665f...", "chunk_index": null, "global_id": "<chunk_id>"},
       "doc": {"document_id": "665f...", "title": "Học phí 2026", "document_type": "pdf",
               "organization_unit_id": "...", "file_url": "https://minio/presigned/...", "source_url": null} },
     { "text": "... Asset: rag-assets/665f.../ab12cd34ef567890.png ...", "score": 0.81, "modality": "image",
       "artifact_url": "https://minio/presigned/rag-assets/665f.../ab12cd34ef567890.png",
-      "table_body": null, "page": 2, "caption": "Sơ đồ tổ chức", "reference_id": "1", "doc": {"...": "..."} },
+      "table_body": null, "page": 2, "caption": "Sơ đồ tổ chức", "reference_id": "<chunk_id>", "doc": {"...": "..."} },
     { "text": "...", "score": 0.77, "modality": "table",
       "artifact_url": null, "table_body": "| Ngành | Học phí |\n| --- | --- |\n| CNTT | 30tr |",
-      "page": 4, "caption": "Bảng 1. Học phí", "reference_id": "1", "doc": {"...": "..."} }
+      "page": 4, "caption": "Bảng 1. Học phí", "reference_id": "<chunk_id>", "doc": {"...": "..."} }
   ],
-  "references": [{"reference_id": "1", "file_path": "665f..._hocphi.pdf"}],
-  "meta": {"keywords": {"high_level": ["..."], "low_level": ["..."]}, "latency_ms": 820}
+  "references": [{"reference_id": "<chunk_id>", "file_path": "665f..._hocphi.pdf"}],
+  "meta": {"latency_ms": 820}
 }
 ```
 
+Luồng: `embed_query` (máy B) → vector search Qdrant (`max(RETRIEVAL_CHUNK_TOP_K, top_k * RETRIEVAL_OVERFETCH)` ứng viên) → rerank service → trả `top_k` document đầu.
+
+- `top_k` (1..200) là số document trả về cuối cùng (mặc định `RERANK_TOP_K` khi không gửi).
 - `modality`: `text` | `image` | `table` | `equation` (từ `original_type` của chunk multimodal).
 - `artifact_url`: presigned URL (hết hạn sau `MINIO_PRESIGN_EXPIRES`) của `asset_key`; `null` khi chunk không có asset hoặc presign lỗi (tăng `presign_failures_total`).
-- `filters.modality` lọc chunk trước rerank (áp dụng cả v1/v2); `filters.organization_unit_id` / `filters.document_type` chỉ áp dụng cho v2, đo bằng `docs_filtered_total`.
-- `include_kg: true` thêm `entities` (tối đa 20: `name`, `type`, `description`) vào mỗi document.
-- Mode: `naive`, `local`, `global`, `hybrid`, `mix` (mặc định). `top_k` (1..200) là số document trả về cuối cùng (mặc định `RERANK_TOP_K` khi không gửi). Hệ thống lấy `top_k * RETRIEVAL_OVERFETCH` ứng viên từ LightRAG để đảm bảo sau khi lọc modality / org / document_type và rerank vẫn đủ số tài liệu yêu cầu.
+- `references`: dedup theo document, chỉ có khi `include_references: true`.
+- Lỗi rerank → trả chunk không điểm (fallback, đo `rerank_fallback_total`).
 
 ### POST /v2/rag/stream
 
-Cùng request, trả NDJSON (`application/x-ndjson`): `{"status": "retrieving"}`, rồi mỗi document một dòng `{"documents": [{"text", "metadata", "score", ["modality", "artifact_url"]}]}` (với v2 có thêm `modality`/`artifact_url`; `metadata` bỏ `page`/`source`), cuối cùng `{"status": "done"}`.
+Cùng request, trả NDJSON (`application/x-ndjson`): `{"status": "retrieving"}`, rồi mỗi document một dòng `{"documents": [{"text", "metadata", "score", "modality", "artifact_url"}]}`, cuối cùng `{"status": "done"}`.
 
 ### Admin (`/admin/*`)
 
 | Endpoint | Mô tả |
 |---|---|
-| `GET /admin/pipeline_status` | `{workspace, doc_status_counts (LightRAG), queue_pending}` |
+| `GET /admin/pipeline_status` | `{workspace, doc_status_counts (DocStatusStore), queue_pending}` |
 | `POST /admin/reprocess_failed` | publish lại event `updated` cho mọi doc `failed` trong registry → `{requeued}` |
-| `POST /admin/reindex` | body `{"all": true}` hoặc `{"document_ids": [...]}`; publish event `updated` → `{published}` (không lọc type, không có `force`) |
-| `GET /admin/documents/{id}` | trạng thái registry: `status, source, counts, page_count, parser, document_type, title, organization_unit_id, owner_id, error, updated_at` (4 field `document_type/title/organization_unit_id/owner_id` lấy từ `multimodal_rag_documents`, ObjectId trả về dạng string, `null` nếu dòng chưa `processed`); 404 nếu chưa có |
+| `POST /admin/reindex` | body `{"all": true}` hoặc `{"document_ids": [...]}`; publish event `updated` → `{published}` |
+| `GET /admin/documents/{id}` | trạng thái DocStatusStore: `status, stage, source, counts, page_count, parser, document_type, title, organization_unit_id, owner_id, error, updated_at` (ObjectId trả về dạng string, `null` nếu dòng chưa `indexed`); 404 nếu chưa có |
 | `GET /admin/documents/{id}/content` | từ `content_list.json` trên MinIO: `{document_id, markdown, blocks, tables}` (block có `type`, `page_idx`, `text`/`table_body`/`caption`/`latex`, `asset_url`); 404 nếu chưa có |
 
 Khác: `GET /healthz`, `GET /readyz`, `GET /metrics`.
@@ -366,12 +335,12 @@ CLI chỉ phục vụ 3 việc: xem trạng thái doc, chạy lại doc lỗi/h�
 ```bash
 ami-rag status [--failed] [--stale] [--doc <id|path>] [--check-embed-server]
 ami-rag retry (--doc <id|path> [...] | --all-failed) [--from-stage S] [--max-attempts N] [--yes]
-ami-rag reindex [--stale | --all | --doc <id|path> [...]] [--from-stage S] [--dry-run] [--yes]
+ami-rag reindex [--stale | --all | --doc <id|path> [...]] [--scan] [--from-stage S] [--dry-run] [--yes]
 ```
 
 ### `status` — xem trạng thái (mặc định chỉ đọc local: 0 LLM, 0 embed, 0 model call)
 
-In workspace, config đang dùng (`embed_model`/`embed_dim`/`chunker_version`), collection đang dùng theo quy ước `{WORKSPACE}__{embed_model_slug}__{chunker_version}`, số doc theo trạng thái, doc thiếu bản ghi (báo `pending`), doc `processing` quá lâu (`CLI_STUCK_PROCESSING_MINUTES`, mặc định 60 phút) được báo `TREO`.
+In workspace, config đang dùng (`embed_model`/`embed_dim`/`chunker_version`), collection đang dùng theo quy ước `{WORKSPACE}__{embed_model_slug}__{CHUNKER_VERSION}`, số doc theo trạng thái, doc thiếu bản ghi (báo `pending`), doc `processing` quá lâu (`CLI_STUCK_PROCESSING_MINUTES`, mặc định 60 phút) được báo `TREO`.
 
 | Cờ | Ý nghĩa |
 |---|---|
@@ -400,8 +369,9 @@ In workspace, config đang dùng (`embed_model`/`embed_dim`/`chunker_version`), 
 |---|---|---|
 | `--stale` | **mặc định** | chỉ doc `stale` |
 | `--all` | - | mọi doc có bản ghi |
+| `--scan` | - | quét `organization_db.documents` active: tạo `pending` cho doc chưa có bản ghi, rồi xử lý pending + stale (dùng cho migration từ pipeline cũ — chỉ đọc Mongo, 0 LLM/0 embed) |
 | `--doc <id\|path> [...]` | - | doc cụ thể |
-| `--from-stage` | `chunk` | bắt đầu từ stage này; KHÔNG gọi lại parse hay LLM mô tả mặc định |
+| `--from-stage` | theo từng doc | `chunk` khi `content_list.json` đã có trong MinIO, full parse khi thiếu; giá trị explicit override tất cả |
 | `--dry-run` | - | in số doc, số chunk cần embed, số chunk trúng cache; không gọi embed, không ghi gì |
 | `--yes` | hỏi xác nhận | bỏ qua xác nhận |
 | `--embed-server-url` / `--embed-batch-size` | - | override tối thiểu |
@@ -472,45 +442,46 @@ Lưu ý:
 
 Các lệnh `ami-rag …` dưới đây viết ở dạng ngắn; khi chạy bằng Docker thêm tiền tố `docker compose -f docker-compose.ami.yml exec ami-rag-worker` (mục 7.1).
 
-Mục tiêu: nạp toàn bộ doc có sẵn trong `organization_db.documents` vào index mới (workspace `multimodal`, collection `organization_db.multimodal_*`). Doc đã `processed` từ trước khi có field liên kết (`document_oid`, `organization_unit_id`, `owner_id`, ...) chỉ được bổ sung các field này khi nạp lại (`reindex --all`). Doc cũ chỉ có text/bảng đơn giản trong Mongo vẫn được parse lại từ file MinIO (nếu `original_file_name` không rỗng/`.txt`); text Mongo của pdf/docx **không** được dùng.
+Mục tiêu: nạp toàn bộ doc có sẵn trong `organization_db.documents` vào index mới (collection Qdrant `{WORKSPACE}__{embed_model_slug}__{CHUNKER_VERSION}`, registry `organization_db.multimodal_rag_documents`). Doc cũ của pipeline LightRAG (status `processed` trong registry cũ) được `reindex --scan` quét lại thành `pending` rồi xử lý theo pipeline mới: parse → describe → chunk → embed. Doc cũ chỉ có text/bảng đơn giản trong Mongo vẫn được parse lại từ file MinIO (nếu `original_file_name` không rỗng/`.txt`); text Mongo của pdf/docx **không** được dùng.
 
-1. Chuẩn bị: `.env` đúng, worker chạy (`make start_docker` hoặc `make start_worker`), `make health` OK, `ami-rag status` thấy `rerank service: ok` và `queue pending: 0`. Worker cần GPU/MinerU và model cache sẵn (xem mục 5).
-2. Dry-run toàn bộ, kiểm tra cột `source` (`mongo_text`/`minio_parse`) hợp lý:
+1. Chuẩn bị: `.env` đúng, embed server máy B chạy (`ami-rag status --check-embed-server` OK), worker chạy (`make start_docker` hoặc `make start_worker`), `make health` OK, queue pending 0. Worker cần MinerU + model cache sẵn (xem mục 5).
+2. Quét doc cũ chưa có bản ghi: `ami-rag reindex --scan --dry-run` — in số pending/stale sẽ xử lý.
+3. Dry-run toàn bộ, kiểm tra cột `source` (`mongo_text`/`minio_parse`) hợp lý và số chunk trúng cache:
    `ami-rag reindex --all --dry-run`
-3. Thử text/crawl nhỏ (nhanh, không cần MinerU):
-   `ami-rag reindex --all --type text,crawl --limit 20`
-4. Thử file thật (MinerU, chậm): `ami-rag reindex --all --type pdf,docx --limit 3`. Kiểm tra `GET /admin/documents/{id}` (`counts` có `table`/`image`), `GET /admin/documents/{id}/content`, và một truy vấn `POST /v2/rag/` v2 với `filters.modality`.
-5. Chạy toàn bộ: `ami-rag reindex --all` (doc đã có bản ghi đúng `embed_model`/`chunker_version` thì `stale=0`, chỉ doc stale mới được xử lý; `--all` xử lý hết). Trước đó kiểm tra embed server sẵn sàng bằng `ami-rag status --check-embed-server`, vì embed server chết thì mọi doc ở stage `embed` sẽ thành `failed`.
-6. Theo dõi:
+4. Thử text/crawl nhỏ (nhanh, không cần MinerU):
+   `ami-rag reindex --doc <id> --yes` với vài doc text trước.
+5. Thử file thật (MinerU, chậm): `ami-rag reindex --doc <id> --from-stage parse --yes`. Kiểm tra `GET /admin/documents/{id}` (`counts` có `table`/`image`), `GET /admin/documents/{id}/content`, và một truy vấn `POST /v2/rag/`.
+6. Chạy toàn bộ: `ami-rag reindex --all --yes` (hoặc `--scan --yes` để quét + xử lý). Trước đó kiểm tra embed server sẵn sàng bằng `ami-rag status --check-embed-server`, vì embed server chết thì mọi doc ở stage `embed` sẽ thành `failed`.
+7. Theo dõi:
     - `ami-rag status` (đếm theo status, doc failed, doc treo); queue pending xem qua metric/admin API;
    - `curl -s localhost:8009/admin/pipeline_status` (thêm header `Authorization: Bearer ...` nếu có `RAG_API_KEY`);
    - metric worker `:9109/metrics`: `multimodal_rag_ingest_events_total{result}`, `..._stream_pending`, `..._stream_lag`, `..._documents{status}` (đếm theo `status` trong `organization_db.multimodal_rag_documents`), `..._parse_failures_total`; dashboard row "Ingest pipeline".
    - `make logs SERVICE=ami-rag-worker`.
- 7. Xử lý lỗi:
+8. Xử lý lỗi:
     - doc `failed`: `ami-rag retry --all-failed` (hoặc `ami-rag retry --doc <id>`);
     - nạp lại khi đổi model/chunker: `ami-rag reindex --stale` (doc được đánh `stale` tự động khi lệch `embed_model`/`chunker_version`);
     - ép làm lại toàn bộ từ parse: `ami-rag retry --doc <id> --from-stage parse`;
     - doc không cần nữa: xoá qua event `deleted` trong queue hoặc xoá dòng registry + asset thủ công (CLI không còn lệnh purge).
- 8. Kiểm tra index: `ami-rag status` (đếm theo status/stage; `--check-embed-server` khi nghi ngờ máy B). Doc lỗi nằm ở `failed` với lý do trong `error` + `error_stage`.
- 9. Hoàn tất khi không còn `processing`/`failed` trong `ami-rag status`, số doc `indexed` xấp xỉ số doc active.
+9. Kiểm tra index: `ami-rag status` (đếm theo status/stage; `--check-embed-server` khi nghi ngờ máy B). Doc lỗi nằm ở `failed` với lý do trong `error` + `error_stage`.
+10. Hoàn tất khi không còn `processing`/`failed`/`pending` trong `ami-rag status`, số doc `indexed` xấp xỉ số doc active.
 
 ## 9. Monitoring
 
 Chi tiết triển khai: [`monitoring/README.md`](../monitoring/README.md).
 
-Tracing (OTLP/HTTP): chỉ truy vấn `POST /v2/rag` được trace — span `rag.retrieval` (input: attribute `input.query`/`input.mode`/`input.version`/`input.top_k`; output: danh sách document đầy đủ trong event `documents_json`) cùng span con theo stage (`raganything_query`/`rerank`/`resolve`). Worker không trace (ingest chỉ có metric Prometheus) và FastAPI telemetry tự động bị tắt (`FastAPI(telemetry={"auto_configure": False, "tracing": False, "metrics": False, "logs": False})` trong `ami_rag/api/main.py`), nếu không FastAPI ≥ 0.142 đọc `OTEL_EXPORTER_OTLP_ENDPOINT` rồi trace mọi route và đẩy metrics/logs tới `/v1/metrics`, `/v1/logs` (Tempo trả `404`: log `Failed to export metrics batch code: 404`). Tempo dùng riêng cho service này: release helm `tempo-multimodal-rag` (`monitoring/helm/tempo-multimodal-rag-values.yaml`, chart `grafana/tempo` 1.24.4, tách khỏi Tempo của conversational-agent); datasource Grafana uid `multimodal_rag_log` nạp qua sidecar bằng ConfigMap `monitoring/helm/grafana-datasource-tempo-multimodal-rag.yaml`; URL Grafana `http://tempo-multimodal-rag.monitoring.svc.cluster.local:3200`; `OTEL_EXPORTER_OTLP_ENDPOINT` trỏ tới NodePort OTLP/HTTP 4318 của service (`kubectl get svc tempo-multimodal-rag -n monitoring`).
+Tracing (OTLP/HTTP): chỉ truy vấn `POST /v2/rag` được trace — span `rag.retrieval` (input: attribute `input.query`/`input.mode`/`input.top_k`; output: danh sách document đầy đủ trong event `documents_json`) cùng span con theo stage (`embed_query`/`vector_search`/`rerank`/`resolve`). Worker không trace (ingest chỉ có metric Prometheus) và FastAPI telemetry tự động bị tắt (`FastAPI(telemetry={"auto_configure": False, ...})` trong `ami_rag/api/main.py`), nếu không FastAPI ≥ 0.142 đọc `OTEL_EXPORTER_OTLP_ENDPOINT` rồi trace mọi route và đẩy metrics/logs tới `/v1/metrics`, `/v1/logs` (Tempo trả `404`: log `Failed to export metrics batch code: 404`). Tempo dùng riêng cho service này: release helm `tempo-multimodal-rag` (`monitoring/helm/tempo-multimodal-rag-values.yaml`, chart `grafana/tempo` 1.24.4, tách khỏi Tempo của conversational-agent); datasource Grafana uid `multimodal_rag_log` nạp qua sidecar bằng ConfigMap `monitoring/helm/grafana-datasource-tempo-multimodal-rag.yaml`; URL Grafana `http://tempo-multimodal-rag.monitoring.svc.cluster.local:3200`; `OTEL_EXPORTER_OTLP_ENDPOINT` trỏ tới NodePort OTLP/HTTP 4318 của service (`kubectl get svc tempo-multimodal-rag -n monitoring`).
 
 Metric API (`GET :8009/metrics`, prefix `multimodal_rag_retrieval_`):
 
 | Metric | Loại | Label |
 |---|---|---|
-| `requests_total`, `errors_total` | Counter | `mode` |
+| `requests_total`, `errors_total` | Counter | `mode` (`vector`) |
 | `requests_by_day_total` / `_by_hour_of_day_total` / `_by_day_hour_total` | Counter | `day` / `hod` / `day,hod` (Asia/Ho_Chi_Minh) |
 | `duration_seconds` | Histogram | `mode` |
-| `stage_duration_seconds` | Histogram | `stage` = `raganything_query` / `rerank` / `resolve` |
+| `stage_duration_seconds` | Histogram | `stage` = `embed_query` / `vector_search` / `rerank` / `resolve` |
 | `docs_returned`, `chunks_retrieved` | Histogram | |
 | `requests_in_flight` | Gauge | |
-| `lightrag_failures_total`, `docs_filtered_total`, `presign_failures_total` | Counter | |
+| `docs_filtered_total`, `presign_failures_total` | Counter | |
 | `rerank_fallback_total` | Counter | `reason` = `error` / `empty` |
 | `docs_by_modality_total` | Counter | `modality` |
 
@@ -518,10 +489,10 @@ Metric worker (`:9109/metrics` của `ami-rag-worker`; khi `WORKER_ENABLED=true`
 
 | Metric | Loại | Label |
 |---|---|---|
-| `events_total` | Counter | `event` (created/updated/deleted), `result` (processed/skipped/failed/retry) |
+| `events_total` | Counter | `event` (created/updated/deleted), `result` (indexed/skipped/failed/retry) |
 | `in_flight` | Gauge | |
 | `duration_seconds` | Histogram | `source` (minio_parse/mongo_text/none) |
-| `stage_duration_seconds` | Histogram | `stage` (download/parse/upload_assets/insert/verify/delete) |
+| `stage_duration_seconds` | Histogram | `stage` (đường delete của worker; các stage pipeline tính trong `multimodal_rag_retrieval_*` và log) |
 | `parse_failures_total` | Counter | `document_type` |
 | `asset_upload_failures_total`, `pages_total` | Counter | |
 | `items_total` | Counter | `modality` |
@@ -543,12 +514,12 @@ uv run pytest tests --ignore=tests/ami_service     # test gốc RAG-Anything
 uv run pytest tests/ami_service                    # test của ami_rag (hoặc: make test)
 ```
 
-Một số test gốc stub module `lightrag` trong `sys.modules`, nên các test tích hợp trong `tests/ami_service/test_integration_*.py` tự skip khi chạy chung hai bộ; chạy `tests/ami_service` riêng để chúng chạy với `lightrag` thật. Phần còn lại của `tests/ami_service` dùng fake (không cần dịch vụ ngoài). CLI mới (`test_cli.py`) dùng fake runner + fake Mongo collection nên không cần dịch vụ dịch ngoài. Đường re-embed của worker (`test_index_check.py`) trong giai đoạn chuyển tiếp vẫn phụ thuộc LightRAG.
+Toàn bộ test dùng fake (không cần dịch vụ ngoài, không cần lightrag — đã gỡ). Suite `tests/ami_service` gồm: API/worker/CLI/pipeline (`test_api.py`, `test_worker.py`, `test_cli.py`, `test_vector_pipeline.py`, `test_doc_status_store.py`) với fake embedder/vector store/parser; observability và stream tests. Test gốc (`tests/*.py`) kiểm tra parser, modal processors, prompt, batch_parser của thư viện.
 
 ## 11. Phiên bản
 
-`pyproject.toml` hiện ghim `lightrag-hku>=1.4.9,<1.5` (cài từ PyPI, không dùng checkout local) — LightRAG sẽ được gỡ hoàn toàn khi pipeline chuyển sang vector thuần (Giai đoạn 4-5). Extra `service` thêm FastAPI, uvicorn, pydantic-settings, redis, pymongo, qdrant-client, httpx, minio, prometheus-client, OpenTelemetry, openai. Embedding service nằm ở repo ngoài `qwen-embedding-server`, máy A không cài torch/transformers. Entry point: `ami-rag-api`, `ami-rag-worker`, `ami-rag`.
+`pyproject.toml` không còn `lightrag-hku` — LightRAG đã gỡ hoàn toàn khỏi dependency. Extra `service` thêm FastAPI, uvicorn, pydantic-settings, redis, pymongo, qdrant-client, httpx, minio, prometheus-client, OpenTelemetry, openai. Embedding service nằm ở repo ngoài `qwen-embedding-server` (máy B, port 8007), máy A không cài torch/transformers. Entry point: `ami-rag-api`, `ami-rag-worker`, `ami-rag`.
 
-`mineru[core]>=3.4.1,<4`: MinerU 4.x đổi CLI (`mineru parse <path>`, `-p` = pages) nên không tương thích với lệnh `mineru -p <file> -o <dir> -m ...` mà `raganything/parser.py` gọi; bắt buộc ghim `<4`. MinerU 3.4.x mặc định backend `hybrid-engine` (nặng VRAM) khi không truyền `-b`, và chọn thiết bị bằng biến môi trường `MINERU_DEVICE_MODE` (không có cờ `-d`); `MINERU_VIRTUAL_VRAM_SIZE` (GB) buộc MinerU chọn batch size như thể GPU có chừng đó VRAM. Đo VRAM thực tế bằng `notebooks/mineru_vram_check.ipynb` (Colab).
+`mineru[core]>=3.4.1,<4`: MinerU 4.x đổi CLI (`mineru parse <path>`, `-p` = pages) nên không tương thích với lệnh `mineru -p <file> -o <dir> -m ...` mà `raganything/parser.py` gọi; bắt buộc ghim `<4`. MinerU 3.4.x mặc định backend `hybrid-engine` (nặng VRAM) khi không truyền `-b`, và chọn thiết bị bằng biến môi trường `MINERU_DEVICE_MODE` (không có cờ `-d`); `MINERU_VIRTUAL_VRAM_SIZE` (GB) buộc MinerU chọn batch size như thể GPU có chừng đó VRAM.
 
-Thay đổi liên quan trong thư viện `raganything`: chunk multimodal lưu field có cấu trúc và `RAGAnything.aquery_data` làm giàu chunk; xem `docs/architecture.md` và `docs/api_reference.md`.
+Chunk multimodal: parse-only (`raganything/processor.py`) + mô tả modal (`generate_description_only`/`generate_chunk_sections`); metadata có cấu trúc (`original_type`, `page_idx`, `asset_key`, `table_body`, `caption`) đi thẳng vào chunk payload để API trả về client.

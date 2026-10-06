@@ -58,7 +58,7 @@ Migrate RAG-Anything fork (service `ami_rag`) từ LightRAG KG + Gemini embeddin
 | 3 | CLI + DocStatusStore + lockfile + PipelineRunner protocol | ✅ commit `32bf44c` |
 | 4 | VectorPipeline + wiring factory/worker/API + strip LightRAG | ✅ commit `b2f8828` |
 | 5 | Reindex docs cũ (scan legacy → pending) | ✅ commit `787ff0d` |
-| 6 | Dọn docs + xóa LightRAG còn sót | 🔴 **CÒN LẠI** |
+| 6 | Dọn docs + xóa LightRAG còn sót | ✅ |
 
 ## Phase 4 — ✅ (commit `b2f8828`)
 - `vector_pipeline.py`: run() tuần tự (load row → doc → parse → describe → chunk → embed → mark_indexed); resume từ MinIO artifacts (chunks.json reuse, build lại nếu thiếu); `_stage_parse` raise khi doc None; dry_run không embed/không ghi; junk đã xóa (`ArtifactPaths`, `_load_doc`, `_load_or_build_chunks`).
@@ -74,9 +74,12 @@ Migrate RAG-Anything fork (service `ami_rag`) từ LightRAG KG + Gemini embeddin
 - CLI: `ami-rag reindex --scan`; from_stage per-doc (`_from_stage_for`: chunk khi content_list đã có trong MinIO, None=full parse khi thiếu).
 - Tests: 483 pass, 2 skip (pre-existing: reportlab + lightrag); ruff clean trên `ami_rag`.
 
-## Phase 6 — 🔴 còn lại
-- Xóa `reproduce/` + LightRAG examples (`examples/`), deps lightrag còn sót (pyproject), code dead (batch.py? resilience? callback paths?), docs cũ.
-- Cập nhật `docs/ami_service.md` cuối cùng; sample questions `tests/fixtures/` nếu cần.
+## Phase 6 — ✅
+- Xóa `reproduce/`, `examples/`, `notebooks/`, `env.example`, `scripts/create_tiktoken_cache.py`; dead code `raganything/batch.py` + `raganything/resilience.py` (+ export trong `__init__.py`). Giữ `callbacks.py` (dùng bởi processor/query) + `batch_parser.py` (parse-only).
+- Bỏ dep `lightrag-hku` (pyproject + requirements.txt + MANIFEST.in); bỏ settings dead (`WORKING_DIR`, `RETRIEVAL_TOP_K`, `INGEST_VERIFY`, `INGEST_REQUIRE_ENTITIES`, `MAX_GLEANING`, `SUMMARY_LANGUAGE`).
+- Bỏ metric dead `LIGHTRAG_FAILURES_TOTAL` + panel dashboard Grafana tương ứng; viết lại `docs/ami_service.md`; xóa docs thuần LightRAG (`offline_setup.md`, `architecture.md`, `api_reference.md`).
+- Không còn `import lightrag` nào trong repo (chỉ còn tên param compat `lightrag=None` trong modalprocessors/factory).
+- Tests: 435 pass, 1 skip (reportlab pre-existing); ruff clean `ami_rag` + `tests/ami_service`. Migration HOÀN TẤT.
 
 ## Quy tắc (bắt buộc)
 - **MỖI phase commit riêng, STOP xin duyệt sau mỗi phase.** Trước commit: `gitnexus_detect_changes()`.

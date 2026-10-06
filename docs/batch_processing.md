@@ -136,23 +136,23 @@ print(f"Total processing time: {result['total_processing_time']:.2f} seconds")
 
 ```bash
 # Basic batch processing
-python -m raganything.batch_parser examples/sample_docs/ --output ./output --workers 4
+python -m raganything.batch_parser path/to/docs/ --output ./output --workers 4
 
 # With specific parser
-python -m raganything.batch_parser examples/sample_docs/ --parser mineru --method auto
-python -m raganything.batch_parser examples/sample_docs/ --parser paddleocr --method ocr
+python -m raganything.batch_parser path/to/docs/ --parser mineru --method auto
+python -m raganything.batch_parser path/to/docs/ --parser paddleocr --method ocr
 
 # Without progress bar
-python -m raganything.batch_parser examples/sample_docs/ --output ./output --no-progress
+python -m raganything.batch_parser path/to/docs/ --output ./output --no-progress
 
 # Only process files directly inside the specified directories
-python -m raganything.batch_parser examples/sample_docs/ --output ./output --no-recursive
+python -m raganything.batch_parser path/to/docs/ --output ./output --no-recursive
 
 # Dry run (list supported files without processing)
-python -m raganything.batch_parser examples/sample_docs/ --output ./output --dry-run
+python -m raganything.batch_parser path/to/docs/ --output ./output --dry-run
 
 # Incremental run (skip files unchanged since the last successful batch)
-python -m raganything.batch_parser examples/sample_docs/ --output ./output --incremental
+python -m raganything.batch_parser path/to/docs/ --output ./output --incremental
 
 # Help
 python -m raganything.batch_parser --help

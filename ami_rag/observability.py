@@ -67,7 +67,7 @@ ERRORS_TOTAL = Counter(
 )
 DURATION_SECONDS = Histogram(
     "multimodal_rag_retrieval_duration_seconds",
-    "Full round-trip retrieval duration in seconds (LightRAG query + rerank + resolve).",
+    "Full round-trip retrieval duration in seconds (query + rerank + resolve).",
     ["mode"],
     buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 30),
 )
@@ -88,12 +88,8 @@ STAGE_DURATION_SECONDS = Histogram(
 )
 CHUNKS_RETRIEVED = Histogram(
     "multimodal_rag_retrieval_chunks_retrieved",
-    "Number of chunks returned by LightRAG before reranking.",
+    "Number of chunks returned by vector search before reranking.",
     buckets=(0, 1, 5, 10, 20, 30, 40, 60, 80, 100),
-)
-LIGHTRAG_FAILURES_TOTAL = Counter(
-    "multimodal_rag_retrieval_lightrag_failures_total",
-    "LightRAG aquery_data calls that returned a non-success status.",
 )
 RERANK_FALLBACK_TOTAL = Counter(
     "multimodal_rag_retrieval_rerank_fallback_total",
