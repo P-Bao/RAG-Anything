@@ -44,8 +44,8 @@ This project is indexed by GitNexus as **RAG-Anything** (5926 symbols, 11096 rel
 
 # Handoff — Nemotron VL embed + rerank multimodal (cập nhật: 06/10/2026)
 
-## Đã xong (commits: `663bc12`, `88ae7f7`, `9ab5ce5`, docs commit tiếp theo)
-- **Embed default mới**: `nvidia/llama-nemotron-embed-vl-1b-v2` serve bằng vLLM (máy B, OpenAI-compatible `/v1/embeddings` với `messages`, role `query`/`document`, vLLM ≥ 0.17.0 + template override `nemotron_embed_vl.jinja` từ repo vLLM — template bundled của model KHÔNG dùng được cho embeddings API). Client `OpenAIEmbedder` (`ami_rag/core/openai_embedder.py`): handshake `GET /v1/models` + probe embed lấy dim, 1 item/request + `EMBED_MAX_CONCURRENCY`, retry/circuit breaker/cache như RemoteEmbedder.
+## Đã xong (commits: `663bc12`, `88ae7f7`, `9ab5ce5`, `bd5ad49`, gateway-sync commit tiếp theo)
+- **Embed default mới**: `nvidia/llama-nemotron-embed-vl-1b-v2` serve qua **gateway `nemotron-vl-vllm`** (máy B, repo riêng `D:\Code\Python\Ami\RAG\nemotron-vl-vllm\`: gateway FastAPI :8080 trước 2 vLLM embed + rerank; contract: `/health`, `/v1/embeddings` với `{"input": [items], "input_type": "query"|"document"}` — item `str` | `{"text", "image"=<base64>}` | `{"content": [parts]}`; `/v1/rerank` alias `/rerank` với `{query, documents, top_n}` → `{results: [{index, relevance_score}]}`). Client `OpenAIEmbedder` (`ami_rag/core/openai_embedder.py`): handshake `/health` + probe embed xác minh model + dim, batch `EMBED_BATCH_SIZE` item/request + `EMBED_MAX_CONCURRENCY`, retry/circuit breaker/cache như RemoteEmbedder. Đã đối chiếu contract với gateway `gateway/app.py` — khớp.
 - **Rerank default mới**: `nvidia/llama-nemotron-rerank-vl-1b-v2` (vLLM `--runner pooling` + template override `nemotron-vl-rerank.jinja`): endpoint `/rerank`, documents `str` hoặc `{"content": [text/image_url parts]}`. `build_vllm_rerank_func` + `build_rerank_documents` (`ami_rag/core/rerank_client.py`): chunk image/table/equation có `asset_key` kèm ảnh render MinIO (data URI, bounded concurrency, thiếu → fallback text). Multimodal chỉ với backend `vllm`; legacy BGE (`build_rerank_model_func`) giữ nguyên text-only.
 - **Backend dispatch**: `EMBED_BACKEND` (`auto|custom|openai`, auto: prefix `Qwen/` → custom) + `RERANK_BACKEND` (`auto|legacy|vllm`, auto: rỗng/chứa `bge` → legacy) + `RERANK_MULTIMODAL` (default True). Resolver: `settings.resolve_embed_backend`/`resolve_rerank_backend`; factory `build_embedder`; cli `_build_embedder` qua factory.
 - **Multimodal embed**: `_prepare_embed_items` gắn ảnh asset cho modality image/**table**/equation (trước chỉ image) — image+text cho cả 2 backend.
@@ -56,6 +56,7 @@ This project is indexed by GitNexus as **RAG-Anything** (5926 symbols, 11096 rel
 - Đổi `EMBED_MODEL` → collection mới `multimodal__llama-nemotron-embed-vl-1b-v2__v1` → **phải `ami-rag reindex --scan`**.
 - Query API chỉ text (không đổi schema `RAGRequest`).
 - `_check_embed_server` (cli) backend-agnostic: `/health` + `embedder.verify()`; print dùng `embedder.model`/`dim` (getattr fallback cho FakeEmbedder).
+- URL defaults: `EMBED_SERVER_URL`/`RERANK_BASE_URL` = `http://localhost:8080` (gateway); backend `custom` (Qwen) phải đổi `EMBED_SERVER_URL` về 8007 qua env.
 
 # Handoff — Migration sang vector pipeline thuần (cập nhật: 06/10/2026)
 

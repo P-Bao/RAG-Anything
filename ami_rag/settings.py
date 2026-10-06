@@ -19,9 +19,9 @@ class Settings(BaseSettings):
 
     # --- Remote embedding server (máy B) ---
     # backend "custom": qwen-embedding-server (/info + /embed);
-    # backend "openai": vLLM OpenAI-compatible (/v1/models + /v1/embeddings) cho
-    # nvidia/llama-nemotron-embed-vl-1b-v2 (model card: vllm serve --trust-remote-code).
-    EMBED_SERVER_URL: str = "http://localhost:8007"
+    # backend "openai": gateway nemotron-vl-vllm (máy B) — /health + /v1/embeddings
+    # với {"input", "input_type"} cho nvidia/llama-nemotron-embed-vl-1b-v2.
+    EMBED_SERVER_URL: str = "http://localhost:8080"
     # Chỉ từ env - không ghi token vào file config/commit
     EMBED_SERVER_TOKEN: str = ""
     EMBED_MODEL: str = "nvidia/llama-nemotron-embed-vl-1b-v2"
@@ -84,9 +84,9 @@ class Settings(BaseSettings):
     # doc `processing` quá lâu (tiến trình chết giữa chừng) được `status` báo là treo
     CLI_STUCK_PROCESSING_MINUTES: int = 60
 
-    RERANK_BASE_URL: str = "http://localhost:8010"
-    # vLLM serving nvidia/llama-nemotron-rerank-vl-1b-v2 (model card: vllm serve
-    # --runner pooling --trust-remote-code --chat-template nemotron-vl-rerank.jinja)
+    RERANK_BASE_URL: str = "http://localhost:8080"
+    # Gateway nemotron-vl-vllm (máy B) phục vụ cả embed + rerank; vLLM serving
+    # nvidia/llama-nemotron-rerank-vl-1b-v2 phía sau gateway.
     RERANK_MODEL: str = "nvidia/llama-nemotron-rerank-vl-1b-v2"
     # auto | legacy | vllm (auto: model rỗng hoặc chứa "bge" -> legacy BGE, còn lại -> vllm)
     RERANK_BACKEND: str = "auto"

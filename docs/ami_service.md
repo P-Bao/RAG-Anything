@@ -35,7 +35,7 @@ Hệ thống AI ──POST /v2/rag──▶ ami_rag API: embed_query (máy B) �
 - Embed: stage duy nhất gọi mạng thật; luôn `delete_by_doc` trước khi upsert (idempotent) rồi verify count. Describe là stage duy nhất có thể gọi LLM (tuỳ chọn).
 - Retry: `WORKER_MAX_DELIVERY` lần; quá ngưỡng thì dòng registry được đánh dấu `failed` và message được ack. Event lỗi chưa đủ ngưỡng được để pending và tự giao lại (XAUTOCLAIM) sau `WORKER_RETRY_IDLE_MS` (mặc định 10 phút; cần Redis ≥ 6.2) — đặt đủ lớn hơn thời gian parse MinerU dài nhất để worker khác không "cướp" message đang xử lý. Khi `failed`, `attempts` được reset nên `reprocess_failed`/`retry --all-failed` có đủ ngân sách thử lại.
 - LLM (describe): profile `qwen-selfhost` (vLLM, OpenAI-compatible) qua `QWEN_LLM_*`. Gemini không còn được hỗ trợ (đã gỡ). Rerank là service ngoài `POST {RERANK_BASE_URL}/rerank` (mặc định vLLM `nvidia/llama-nemotron-rerank-vl-1b-v2`, multimodal: chunk image/table/equation kèm ảnh + text; lỗi rerank thì trả chunk không điểm (fallback)).
-- Embedding: mặc định `nvidia/llama-nemotron-embed-vl-1b-v2` serve bằng vLLM (máy B, endpoint OpenAI-compatible `/v1/embeddings` với `messages`, role `query`/`document`); client `OpenAIEmbedder` (`ami_rag/core/openai_embedder.py`). Còn hỗ trợ `Qwen/Qwen3-VL-Embedding-2B` trên `qwen-embedding-server` (port 8007) qua backend `custom` (`RemoteEmbedder`, `ami_rag/core/remote_embedder.py`). Chọn qua `EMBED_BACKEND` (`auto`: prefix `Qwen/` → custom, còn lại → openai). Máy A chỉ gọi HTTP — không cài torch/transformers, không cần GPU cho embed. Chunk image/table/equation có asset_key được embed dạng image+text (ảnh asset từ MinIO).
+- Embedding: mặc định `nvidia/llama-nemotron-embed-vl-1b-v2` serve qua **gateway** `nemotron-vl-vllm` (máy B, repo riêng: gateway FastAPI trước 2 vLLM embed + rerank, port 8080; endpoint `/v1/embeddings` với `{"input", "input_type": "query"|"document"}`, item text/ảnh base64/bảng); client `OpenAIEmbedder` (`ami_rag/core/openai_embedder.py`). Còn hỗ trợ `Qwen/Qwen3-VL-Embedding-2B` trên `qwen-embedding-server` (port 8007) qua backend `custom` (`RemoteEmbedder`, `ami_rag/core/remote_embedder.py`). Chọn qua `EMBED_BACKEND` (`auto`: prefix `Qwen/` → custom, còn lại → openai). Máy A chỉ gọi HTTP — không cài torch/transformers, không cần GPU cho embed. Chunk image/table/equation có asset_key được embed dạng image+text (ảnh asset từ MinIO).
 
 ## 2. Quyết định nguồn nội dung
 
@@ -141,13 +141,13 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 |---|---|---|---|
 | LLM | `QWEN_LLM_BASE_URL` / `QWEN_LLM_MODEL` / `QWEN_LLM_API_KEY` | `http://vllm:8000/v1` / `Qwen/Qwen3-32B` / rỗng | qwen-selfhost (OpenAI-compatible), dùng cho `describe_func` |
 | | `QWEN_VLM_MODEL` | rỗng | rỗng = dùng `QWEN_LLM_MODEL` |
-| Embed server | `EMBED_SERVER_URL` | `http://localhost:8007` | trỏ đúng server tương ứng `EMBED_BACKEND` |
+| Embed server | `EMBED_SERVER_URL` | `http://localhost:8080` | trỏ đúng server tương ứng `EMBED_BACKEND` (gateway nemotron-vl-vllm: 8080; qwen-embedding-server: 8007) |
 | | `EMBED_SERVER_TOKEN` | rỗng | **chỉ từ env**, không ghi vào file trong git |
 | | `EMBED_MODEL` | `nvidia/llama-nemotron-embed-vl-1b-v2` | dùng để xác minh với server lúc handshake |
-| | `EMBED_BACKEND` | `auto` | `auto` / `custom` (qwen-embedding-server: `/info` + `/embed`) / `openai` (vLLM: `/v1/models` + `/v1/embeddings`); auto: prefix `Qwen/` → custom, còn lại → openai |
+| | `EMBED_BACKEND` | `auto` | `auto` / `custom` (qwen-embedding-server: `/info` + `/embed`) / `openai` (gateway nemotron-vl-vllm: `/health` + `/v1/embeddings` với `{"input", "input_type"}`); auto: prefix `Qwen/` → custom, còn lại → openai |
 | | `EMBED_DIM` | `2048` | để xác minh (dim thực tế do server quyết định) |
 | | `EMBED_TIMEOUT` | `60` | giây |
-| | `EMBED_BATCH_SIZE` | `32` | số item mỗi request (chỉ backend `custom`; backend `openai` gửi 1 item/request) |
+| | `EMBED_BATCH_SIZE` | `32` | số item mỗi request |
 | | `EMBED_MAX_CONCURRENCY` | `4` | số request đồng thời |
 | | `EMBED_RETRIES` | `3` | retry cho lỗi tạm thời (timeout/5xx/429) |
 | | `EMBED_CACHE_ENABLED` | `true` | cache embedding SQLite ở máy A |
@@ -178,7 +178,7 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `WORKER_MAX_DELIVERY` | `3` | |
 | | `WORKER_RETRY_IDLE_MS` | `600000` | Sau bao lâu (ms) message pending lỗi được giao lại |
 | | `WORKER_METRICS_PORT` | `9109` | `/metrics` của `ami-rag-worker` |
-| Rerank | `RERANK_BASE_URL` | `http://localhost:8010` | |
+| Rerank | `RERANK_BASE_URL` | `http://localhost:8080` | gateway nemotron-vl-vllm phục vụ cả embed + rerank |
 | | `RERANK_MODEL` | `nvidia/llama-nemotron-rerank-vl-1b-v2` | rỗng hoặc chứa `bge` → legacy BGE (documents text-only) |
 | | `RERANK_BACKEND` | `auto` | `auto` / `legacy` (BGE) / `vllm` (Nemotron VL, multimodal) |
 | | `RERANK_MULTIMODAL` | `true` | chỉ với backend `vllm`: chunk image/table/equation có asset_key kèm ảnh (data URI từ MinIO) + text |
@@ -259,11 +259,10 @@ Khuyến nghị:
 
 ### 5.2 Embed server (máy B) và Redis (đã gặp thực tế)
 
-- Embedding chạy trên **server riêng** ở máy B, chọn qua `EMBED_BACKEND`:
-  - **`openai` (mặc định)**: vLLM serve `nvidia/llama-nemotron-embed-vl-1b-v2` (model card, vLLM ≥ 0.17.0) — endpoint OpenAI-compatible `/v1/embeddings` với `messages` (role `query`/`document` tự prepend prefix `query:`/`passage:` qua chat template), hỗ trợ text + ảnh (image_url data URI). Serve kèm template override (`nemotron_embed_vl.jinja` từ repo vLLM — template bundled của model không dùng được cho embeddings API):
-    `vllm serve nvidia/llama-nemotron-embed-vl-1b-v2 --trust-remote-code --chat-template nemotron_embed_vl.jinja --max-model-len 10240`. Client `OpenAIEmbedder` (`ami_rag/core/openai_embedder.py`): handshake `GET /v1/models` + probe embed 1 lần lấy dim, 1 item/request, throughput qua `EMBED_MAX_CONCURRENCY`.
+- Embedding + rerank chạy trên **server riêng** ở máy B, chọn qua `EMBED_BACKEND`:
+  - **`openai` (mặc định)**: repo `nemotron-vl-vllm` (máy B, port 8080) — gateway FastAPI trước 2 vLLM (`nvidia/llama-nemotron-embed-vl-1b-v2` + `nvidia/llama-nemotron-rerank-vl-1b-v2`, vLLM ≥ 0.17.0 với template override; gateway nhận text/ảnh base64/bảng, fan-out batch song song xuống vLLM). Contract gateway: `GET /health` (200 khi cả hai sẵn sàng), `POST /v1/embeddings` với `{"input": [items], "input_type": "query"|"document"}` (item `str` | `{"text":..., "image": <base64>}` | `{"content": [parts]}`), `POST /v1/rerank` (alias `/rerank`) với `{query, documents, top_n}` → `{results: [{index, relevance_score}]}`. Client `OpenAIEmbedder` (`ami_rag/core/openai_embedder.py`): handshake `/health` + probe embed 1 lần lấy dim, batch `EMBED_BATCH_SIZE` item/request.
   - **`custom`**: `qwen-embedding-server/` (repo ngoài RAG-Anything, port 8007), model `Qwen/Qwen3-VL-Embedding-2B`: dim 2048 (MRL 64–2048), last-token pooling + L2 normalize, instruction qua system message, `transformers>=4.57`/`qwen-vl-utils>=0.0.14`. Tổng quan: `docs/qwen_embedding_notes.md`.
-- Rerank mặc định vLLM serve `nvidia/llama-nemotron-rerank-vl-1b-v2` (endpoint `/rerank`, documents text hoặc multimodal `{"content": [text/image_url parts]}`): `vllm serve nvidia/llama-nemotron-rerank-vl-1b-v2 --runner pooling --trust-remote-code --chat-template nemotron-vl-rerank.jinja --max-model-len 10240` (template override lấy từ repo vLLM). Chunk image/table/equation có `asset_key` được kèm ảnh render từ MinIO (`RERANK_MULTIMODAL`); thiếu ảnh thì rơi về text. Score là logit (có thể âm), giống legacy BGE.
+- Rerank mặc định qua gateway `nemotron-vl-vllm` (documents text hoặc multimodal `{"content": [text/image_url parts]}`): chunk image/table/equation có `asset_key` được kèm ảnh render từ MinIO (`RERANK_MULTIMODAL`); thiếu ảnh thì rơi về text. Score là logit (có thể âm), chỉ dùng so thứ hạng — giống legacy BGE.
 - `OpenAIEmbedder`/`RemoteEmbedder` handshake lúc khởi tạo: so model (và dim — probe embed 1 lần với `OpenAIEmbedder`); lệch thì dừng với lỗi rõ ràng (không ghi vector khi chưa xác minh). Mỗi response được kiểm tra model để phát hiện server bị đổi model giữa chừng.
 - Retry chỉ cho lỗi tạm thời (timeout, 5xx, 429, mất kết nối), backoff + jitter; **không retry** 4xx. Circuit breaker: 5 lô liên tiếp không với tới server thì dừng cả lô sớm (doc chưa xử lý không bị đánh fail hàng loạt). Lỗi `embed server unreachable` trong một doc không làm hỏng doc khác.
 - Cache embedding SQLite ở máy A (`EMBED_CACHE_ENABLED`, key = `model|dim|instruction_ns|sha256(text)`); `reindex --dry-run` dùng `count_cache_hits` để báo trước số chunk trúng cache, không gọi HTTP.

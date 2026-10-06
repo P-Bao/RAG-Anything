@@ -1,17 +1,18 @@
-"""OpenAIEmbedder - client embedding server OpenAI-compatible (vLLM).
+"""OpenAIEmbedder - client cho gateway Nemotron VL (máy B, ``nemotron-vl-vllm``).
 
-Dùng cho ``nvidia/llama-nemotron-embed-vl-1b-v2`` serve bằng vLLM theo model card:
-- POST ``/v1/embeddings`` với ``messages`` (role ``query`` | ``document``,
-  content parts ``text`` / ``image_url`` data URI). Template phía server tự
-  prepend prefix ``query:`` / ``passage:`` theo role.
-- Handshake: ``GET /v1/models`` so model id, rồi probe embed 1 lần để lấy dim
-  thực tế; lệch với config thì dừng, không bao giờ ghi vector khi chưa xác minh.
+Dùng cho ``nvidia/llama-nemotron-embed-vl-1b-v2``: máy B chạy gateway FastAPI
+trước 2 vLLM (embed + rerank, repo ``nemotron-vl-vllm``). Contract gateway:
+- POST ``/v1/embeddings``: ``{"input": [items], "input_type": "query"|"document"}``
+  (model tự động theo gateway; item: ``str`` | ``{"text":..., "image": <URL |
+  data URL | base64>}`` | ``{"content": [parts]}`` pass-through). Gateway fan-out
+  song song xuống vLLM rồi ghép kết quả theo thứ tự input.
+- GET ``/health``: 200 khi cả embed + rerank sẵn sàng (gateway không có
+  ``/v1/models``) - handshake dùng /health + probe embed 1 lần để xác minh model
+  (field ``model`` trong response) và lấy dim thực tế; lệch thì dừng.
 - Retry exponential backoff + jitter CHỈ cho lỗi tạm thời; KHÔNG retry 4xx.
-- 1 item / request (vLLM chat-embeddings); throughput điều khiển bởi
-  ``max_concurrency``.
-- Cache embedding (tuỳ chọn, bật mặc định) theo khoá (model, dim, hash nội dung)
-  - chia sẻ EmbeddingCache với RemoteEmbedder.
-- Circuit breaker: N request liên tiếp mất kết nối -> dừng cả lô sớm.
+- Chia batch theo số item (``EMBED_BATCH_SIZE``) và theo byte payload; cache
+  embedding theo khoá (model, dim, hash nội dung) - chia sẻ EmbeddingCache.
+- Circuit breaker: N lần liên tiếp không với tới server -> dừng cả lô sớm.
 """
 
 import asyncio
@@ -36,7 +37,7 @@ from ami_rag.core.embedder import (
 
 logger = logging.getLogger(__name__)
 
-# N request liên tiếp mất kết nối -> dừng cả lô sớm (thay vì đánh failed hàng loạt)
+# N lần liên tiếp không với tới server -> dừng cả lô sớm (thay vì đánh failed hàng loạt)
 CIRCUIT_THRESHOLD = 5
 
 
@@ -60,21 +61,8 @@ def data_url_from_bytes(data: bytes) -> str:
     return f"data:{_image_mime(data)};base64,{base64.b64encode(data).decode('ascii')}"
 
 
-def _data_url(b64: str) -> str:
-    """base64 -> data URI; đo mime từ magic bytes (decode tối đa 12 byte đầu)."""
-    n = min(len(b64), 16)
-    n -= n % 4
-    mime = "image/jpeg"
-    if n:
-        try:
-            mime = _image_mime(base64.b64decode(b64[:n]))
-        except ValueError:
-            mime = "image/jpeg"
-    return f"data:{mime};base64,{b64}"
-
-
 class OpenAIEmbedder:
-    """Client embedding server OpenAI-compatible (vLLM, Nemotron VL embed)."""
+    """Client gateway Nemotron VL embed (OpenAI-style response, batch qua gateway)."""
 
     def __init__(
         self,
@@ -84,6 +72,8 @@ class OpenAIEmbedder:
         expected_dim: int | None = None,
         token: str = "",
         timeout: float = 60,
+        batch_size: int = 32,
+        max_payload_bytes: int = 32 * 1024 * 1024,
         max_concurrency: int = 4,
         retries: int = 3,
         backoff_base: float = 0.5,
@@ -96,6 +86,8 @@ class OpenAIEmbedder:
         self.expected_dim = expected_dim
         self.dim = expected_dim if expected_dim is not None else 0
         self.timeout = timeout
+        self.batch_size = batch_size
+        self.max_payload_bytes = max_payload_bytes
         self.max_concurrency = max_concurrency
         self.retries = retries
         self.backoff_base = backoff_base
@@ -113,9 +105,9 @@ class OpenAIEmbedder:
     # Handshake
     # ------------------------------------------------------------------
     async def verify(self) -> dict:
-        """GET /v1/models so model id + probe embed lấy dim. Lệch -> dừng."""
+        """GET /health + probe embed 1 lần để xác minh model + dim. Lệch -> dừng."""
         try:
-            resp = await self._client.get(f"{self.base_url}/v1/models")
+            resp = await self._client.get(f"{self.base_url}/health")
         except (httpx.TimeoutException, httpx.TransportError) as exc:
             raise EmbedServerUnreachable(
                 f"embed server không với tới được ({self.base_url}): {exc}"
@@ -124,19 +116,16 @@ class OpenAIEmbedder:
             raise EmbedAuthError(f"embed server từ chối token: {resp.status_code}")
         if resp.status_code != 200:
             raise EmbedServerUnreachable(
-                f"embed server /v1/models trả {resp.status_code}"
+                f"embed server /health trả {resp.status_code}"
             )
-        info = resp.json()
+        try:
+            info = resp.json()
+        except ValueError:
+            info = {}
 
-        ids = [m.get("id") for m in info.get("data") or []]
-        if self.model not in ids:
-            raise EmbedModelMismatch(
-                f"embed server chạy model {ids}, config mong đợi '{self.model}'. "
-                "Không ghi vector khi model chưa xác minh."
-            )
-
-        # Probe 1 lần để lấy dim thực tế (API embeddings không khai báo dim)
-        result = await self._post_embed_one({"text": "probe"}, "document")
+        # Probe 1 lần để xác minh model + dim (gateway không khai báo qua /health)
+        result = await self._post_embed_batch([{"text": "probe"}])
+        self._check_response(result)
         data = result.get("data") or []
         if not data or not data[0].get("embedding"):
             raise EmbedderError("embed server trả response /v1/embeddings rỗng")
@@ -151,9 +140,10 @@ class OpenAIEmbedder:
         self._instruction_ns = hashlib.sha256(self.model.encode()).hexdigest()[:16]
         self._verified = True
         logger.info(
-            "embed server handshake ok: model=%s dim=%s (vLLM OpenAI-compatible)",
+            "embed server handshake ok: model=%s dim=%s (gateway %s)",
             self.model,
             server_dim,
+            self.base_url,
         )
         return info
 
@@ -165,7 +155,7 @@ class OpenAIEmbedder:
     # Embed
     # ------------------------------------------------------------------
     async def embed_documents(self, items: list[str | dict]) -> list[list[float]]:
-        """Embed danh sách văn bản / multimodal items (type=document, có cache). Giữ thứ tự đầu vào."""
+        """Embed danh sách văn bản / multimodal items (input_type=document, có cache). Giữ thứ tự đầu vào."""
         if not items:
             return []
         await self._ensure_verified()
@@ -181,13 +171,17 @@ class OpenAIEmbedder:
                     vectors[i] = cached[key]
 
         if pending:
+            batches = self._split_batches(items, pending)
             unreachable: EmbedServerUnreachable | None = None
-            for group in self._groups(pending, self.max_concurrency):
+            for group in self._groups(batches, self.max_concurrency):
                 results = await asyncio.gather(
-                    *(self._post_embed_one(items[i], "document") for i in group),
+                    *(
+                        self._post_embed_batch([self._to_embed_payload(items[i]) for i in b])
+                        for b in group
+                    ),
                     return_exceptions=True,
                 )
-                for i, result in zip(group, results):
+                for batch_indices, result in zip(group, results):
                     if isinstance(result, EmbedServerUnreachable):
                         # Giữ lỗi đầu tiên; circuit breaker quyết định dừng hay không
                         unreachable = unreachable or result
@@ -195,16 +189,22 @@ class OpenAIEmbedder:
                     if isinstance(result, BaseException):
                         raise result
                     self._check_response(result)
-                    data = result["data"]
-                    if not data or not data[0].get("embedding"):
+                    data = result.get("data") or []
+                    if len(data) != len(batch_indices):
                         raise EmbedderError(
-                            "embed server trả response /v1/embeddings rỗng"
+                            f"embed server trả {len(data)} vector cho "
+                            f"{len(batch_indices)} item trong batch"
                         )
-                    vectors[i] = data[0]["embedding"]
+                    for idx, item in zip(batch_indices, data):
+                        if not item.get("embedding"):
+                            raise EmbedderError(
+                                "embed server trả response /v1/embeddings rỗng"
+                            )
+                        vectors[idx] = item["embedding"]
                 if self._consecutive_unreachable >= CIRCUIT_THRESHOLD:
                     raise EmbedCircuitOpen(
                         f"embed server không với tới {self._consecutive_unreachable} "
-                        "request liên tiếp; dừng lô sớm - các doc còn lại giữ nguyên trạng thái"
+                        "lô liên tiếp; dừng lô sớm - các doc còn lại giữ nguyên trạng thái"
                     )
             if unreachable is not None:
                 raise unreachable
@@ -222,9 +222,9 @@ class OpenAIEmbedder:
         return vectors
 
     async def embed_query(self, text: str) -> list[float]:
-        """Embed một câu hỏi (role=query, không cache)."""
+        """Embed một câu hỏi (input_type=query, không cache)."""
         await self._ensure_verified()
-        result = await self._post_embed_one({"text": text}, "query")
+        result = await self._post_embed_batch([{"text": text}], input_type="query")
         self._check_response(result)
         data = result.get("data") or []
         if not data or not data[0].get("embedding"):
@@ -248,8 +248,10 @@ class OpenAIEmbedder:
     # ------------------------------------------------------------------
     # HTTP
     # ------------------------------------------------------------------
-    async def _post_embed_one(self, item: str | dict, type_: str) -> dict:
-        """Một POST /v1/embeddings (1 item) với retry cho lỗi tạm thời; 4xx raise ngay."""
+    async def _post_embed_batch(
+        self, items: list[str | dict], *, input_type: str = "document"
+    ) -> dict:
+        """Một POST /v1/embeddings (batch items) với retry cho lỗi tạm thời; 4xx raise ngay."""
         if self._semaphore is None:
             self._semaphore = asyncio.Semaphore(self.max_concurrency)
         attempt = 0
@@ -258,13 +260,12 @@ class OpenAIEmbedder:
                 async with self._semaphore:
                     resp = await self._client.post(
                         f"{self.base_url}/v1/embeddings",
-                        json={
-                            "model": self.model,
-                            "messages": self._to_wire(item, type_),
-                        },
+                        json={"input": items, "input_type": input_type},
                     )
             except (httpx.TimeoutException, httpx.TransportError) as exc:
                 if attempt >= self.retries:
+                    # Hết retry: đếm lô này là 1 lần unreachable liên tiếp
+                    # (circuit breaker ở embed_documents quyết định dừng lô)
                     self._consecutive_unreachable += 1
                     raise EmbedServerUnreachable(
                         f"embed server không với tới được sau {attempt + 1} lần thử: {exc}"
@@ -297,25 +298,6 @@ class OpenAIEmbedder:
             raise EmbedderError(f"embed server trả {resp.status_code}: {detail}")
 
     @staticmethod
-    def _to_wire(item: str | dict, type_: str) -> list[dict]:
-        """Item nội bộ -> messages OpenAI-style (1 conversation)."""
-        if isinstance(item, dict):
-            text = item.get("text") or ""
-            img = item.get("image_b64") or ""
-        else:
-            text, img = item, ""
-        parts: list[dict] = []
-        if img:
-            parts.append(
-                {"type": "image_url", "image_url": {"url": _data_url(img)}}
-            )
-        if text:
-            parts.append({"type": "text", "text": text})
-        if not parts:
-            raise EmbedderError("embed item rỗng (thiếu text/image_b64)")
-        return [{"role": type_, "content": parts}]
-
-    @staticmethod
     def _detail(resp: httpx.Response) -> str:
         try:
             return str(resp.json().get("detail", resp.text))[:300]
@@ -332,11 +314,51 @@ class OpenAIEmbedder:
             )
 
     # ------------------------------------------------------------------
-    # Batching / cache key
+    # Batching / cache key / payload builder
     # ------------------------------------------------------------------
     @staticmethod
-    def _groups(indices: list[int], size: int):
-        iterator = iter(indices)
+    def _to_embed_payload(item: str | dict) -> str | dict:
+        """Item nội bộ -> item gateway: {"text", "image"} (gateway tự sniff mime)."""
+        if isinstance(item, dict):
+            p: dict = {}
+            if item.get("text"):
+                p["text"] = item["text"]
+            if item.get("image_b64"):
+                p["image"] = item["image_b64"]
+            if not p:
+                raise EmbedderError("embed item rỗng (thiếu text/image_b64)")
+            return p
+        return item
+
+    def _split_batches(self, items: list[str | dict], pending: list[int]) -> list[list[int]]:
+        """Chia batch theo số item VÀ theo byte payload (ảnh/text rất lớn tách riêng)."""
+        batches: list[list[int]] = []
+        current: list[int] = []
+        current_bytes = 0
+        for idx in pending:
+            item = items[idx]
+            if isinstance(item, dict):
+                t_bytes = len((item.get("text") or "").encode("utf-8"))
+                img_bytes = len((item.get("image_b64") or "").encode("ascii"))
+                item_bytes = t_bytes + img_bytes + 128
+            else:
+                item_bytes = len(item.encode("utf-8")) + 128
+            if current and (
+                len(current) >= self.batch_size
+                or current_bytes + item_bytes > self.max_payload_bytes
+            ):
+                batches.append(current)
+                current = []
+                current_bytes = 0
+            current.append(idx)
+            current_bytes += item_bytes
+        if current:
+            batches.append(current)
+        return batches
+
+    @staticmethod
+    def _groups(batches: list[list[int]], size: int):
+        iterator = iter(batches)
         while group := list(islice(iterator, size)):
             yield group
 
@@ -374,6 +396,7 @@ def build_openai_embedder(settings) -> OpenAIEmbedder:
         expected_dim=settings.EMBED_DIM,
         token=settings.EMBED_SERVER_TOKEN,
         timeout=settings.EMBED_TIMEOUT,
+        batch_size=settings.EMBED_BATCH_SIZE,
         max_concurrency=settings.EMBED_MAX_CONCURRENCY,
         retries=getattr(settings, "EMBED_RETRIES", 3),
         cache=cache,

@@ -1,11 +1,10 @@
-"""Test OpenAIEmbedder (vLLM Nemotron VL embed) với server giả - không gọi mạng thật.
+"""Test OpenAIEmbedder (gateway nemotron-vl-vllm) với server giả - không gọi mạng thật.
 
-Phủ: handshake (/v1/models model id + probe dim), retry đúng lỗi tạm thời /
-không retry 4xx, payload messages (role query/document, image_url data URI),
-kiểm tra response (đổi model giữa chừng), circuit breaker, cache.
+Phủ: handshake (/health + probe model/dim), batch input giữ thứ tự, payload item
+{"text", "image"}, retry đúng lỗi tạm thời / không retry 4xx, kiểm tra response
+(đổi model giữa chừng), circuit breaker, cache, input_type query.
 """
 import base64
-import json
 
 import httpx
 import pytest
@@ -18,7 +17,7 @@ from ami_rag.core.embedder import (
     EmbedServerUnreachable,
 )
 from ami_rag.core.embedding_cache import EmbeddingCache
-from ami_rag.core.openai_embedder import OpenAIEmbedder, _data_url
+from ami_rag.core.openai_embedder import OpenAIEmbedder, data_url_from_bytes
 
 MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2"
 
@@ -30,45 +29,54 @@ def _vec(i: int, dim: int = 8) -> list[float]:
     return [float((i + j) % 7) / 7 for j in range(dim)]
 
 
-def _embed_body(model_name: str = MODEL, dim: int = 8) -> dict:
+def _embed_body(n_items: int, *, model_name: str = MODEL, dim: int = 8) -> dict:
     return {
-        "data": [{"index": 0, "embedding": _vec(0, dim)}],
+        "object": "list",
         "model": model_name,
-        "usage": {"prompt_tokens": 1, "total_tokens": 1},
+        "data": [
+            {"object": "embedding", "index": i, "embedding": _vec(i, dim)}
+            for i in range(n_items)
+        ],
+        "usage": {"prompt_tokens": n_items, "total_tokens": n_items},
     }
 
 
 class FakeServer:
-    """Server giả vLLM (models + embeddings); cấu hình được hành vi lỗi."""
+    """Server giả gateway (health + embeddings); cấu hình được hành vi lỗi."""
 
     def __init__(self, dim: int = 8, model_name: str = MODEL):
-        self.requests: list[dict] = []
+        self.requests: list[list] = []  # danh sách input items mỗi request
         self.dim = dim
         self.model_name = model_name
         self.fail_next: list[int | Exception] = []
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
-        if path == "/v1/models":
+        if path == "/health":
             return httpx.Response(
                 200,
-                json={"object": "list", "data": [{"id": self.model_name}]},
+                json={"status": "ok", "embed": True, "rerank": True},
             )
         if path == "/v1/embeddings":
-            body = json.loads(request.content.decode())
+            body = __import__("json").loads(request.content.decode())
+            items = body["input"] if isinstance(body["input"], list) else [body["input"]]
             # probe của verify(): không ghi, không tiêu fail_next
-            if body["messages"][0]["content"][0].get("text") == "probe":
+            if (
+                len(items) == 1
+                and isinstance(items[0], dict)
+                and items[0].get("text") == "probe"
+            ):
                 return httpx.Response(
-                    200, json=_embed_body(model_name=self.model_name, dim=self.dim)
+                    200, json=_embed_body(1, model_name=self.model_name, dim=self.dim)
                 )
-            self.requests.append(body)
+            self.requests.append(items)
             if self.fail_next:
                 first = self.fail_next.pop(0)
                 if isinstance(first, Exception):
                     raise first
                 return httpx.Response(first, json={"detail": f"fake {first}"})
             return httpx.Response(
-                200, json=_embed_body(model_name=self.model_name, dim=self.dim)
+                200, json=_embed_body(len(items), model_name=self.model_name, dim=self.dim)
             )
         return httpx.Response(404, json={"detail": "not found"})
 
@@ -94,13 +102,13 @@ async def test_handshake_ok_sets_model_and_dim():
     server = FakeServer()
     embedder = _make_embedder(server)
     info = await embedder.verify()
-    assert info["data"][0]["id"] == MODEL
+    assert info["status"] == "ok"
     assert embedder.dim == 8
     # probe của verify() không được ghi vào requests
     assert len(server.requests) == 0
 
 
-async def test_handshake_model_mismatch_stops():
+async def test_handshake_probe_model_mismatch_stops():
     server = FakeServer(model_name="other-model")
     embedder = _make_embedder(server)
     with pytest.raises(EmbedModelMismatch):
@@ -114,7 +122,7 @@ async def test_handshake_dim_mismatch_stops():
         await embedder.verify()
 
 
-async def test_unreachable_on_models():
+async def test_unreachable_on_health():
     def dead(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("refused")
 
@@ -128,18 +136,29 @@ async def test_unreachable_on_models():
         await embedder.verify()
 
 
-async def test_embed_documents_one_request_per_item_preserves_order():
+async def test_embed_documents_batch_preserves_order():
     server = FakeServer()
-    embedder = _make_embedder(server)
+    embedder = _make_embedder(server, batch_size=2)
     texts = [f"text {i}" for i in range(5)]
     vectors = await embedder.embed_documents(texts)
     assert len(vectors) == 5
-    assert len(server.requests) == 5  # 1 request / item
-    sent = [r["messages"][0]["content"][0]["text"] for r in server.requests]
-    assert sent == texts
-    for r in server.requests:
-        assert r["model"] == MODEL
-        assert r["messages"][0]["role"] == "document"
+    # Thứ tự giữ nguyên: gateway trả data theo index trong batch
+    assert len(server.requests) == 3  # 2 + 2 + 1
+    flat = [
+        it if isinstance(it, str) else it["text"]
+        for batch in server.requests
+        for it in batch
+    ]
+    assert flat == texts
+
+
+async def test_batching_by_payload_bytes():
+    server = FakeServer()
+    # 1 text ~1000 byte + overhead -> mỗi batch chỉ chứa 1 text
+    embedder = _make_embedder(server, batch_size=10, max_payload_bytes=2000)
+    texts = ["x" * 1000 for _ in range(3)]
+    await embedder.embed_documents(texts)
+    assert len(server.requests) == 3
 
 
 async def test_retry_on_5xx_then_success():
@@ -186,11 +205,16 @@ async def test_circuit_breaker_stops_batch_early():
     server = FakeServer()
 
     def dead_embed(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/v1/models":
+        if request.url.path == "/health":
             return server.handler(request)
-        body = json.loads(request.content.decode())
-        if body["messages"][0]["content"][0].get("text") == "probe":
-            return httpx.Response(200, json=_embed_body(dim=8))
+        body = __import__("json").loads(request.content.decode())
+        items = body["input"] if isinstance(body["input"], list) else [body["input"]]
+        if (
+            len(items) == 1
+            and isinstance(items[0], dict)
+            and items[0].get("text") == "probe"
+        ):
+            return httpx.Response(200, json=_embed_body(1, dim=8))
         raise httpx.ConnectError("refused")
 
     embedder = OpenAIEmbedder(
@@ -198,6 +222,7 @@ async def test_circuit_breaker_stops_batch_early():
         model=MODEL,
         expected_dim=8,
         http_client=httpx.AsyncClient(transport=httpx.MockTransport(dead_embed)),
+        batch_size=1,
         max_concurrency=1,
         retries=0,
         backoff_base=0.0,
@@ -205,7 +230,7 @@ async def test_circuit_breaker_stops_batch_early():
     await embedder.verify()
     with pytest.raises(EmbedCircuitOpen):
         await embedder.embed_documents([f"t{i}" for i in range(10)])
-    # 5 lần liên tiếp mất kết nối -> dừng cả lô sớm, không thử 10 item
+    # 5 lần liên tiếp không với tới -> dừng cả lô sớm, không thử 10 batch
 
 
 async def test_response_model_change_detected_mid_stream():
@@ -213,8 +238,10 @@ async def test_response_model_change_detected_mid_stream():
 
     def switching(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/v1/embeddings" and len(server.requests) >= 1:
-            # Request sau probe: server đã bị đổi model
-            return httpx.Response(200, json=_embed_body(model_name="other-model"))
+            # Các request sau request đầu: server đã bị đổi model
+            return httpx.Response(
+                200, json=_embed_body(1, model_name="other-model")
+            )
         return server.handler(request)
 
     embedder = OpenAIEmbedder(
@@ -222,6 +249,7 @@ async def test_response_model_change_detected_mid_stream():
         model=MODEL,
         expected_dim=8,
         http_client=httpx.AsyncClient(transport=httpx.MockTransport(switching)),
+        batch_size=1,
         retries=0,
         backoff_base=0.0,
     )
@@ -235,9 +263,9 @@ async def test_cache_only_sends_misses(tmp_path):
     cache = EmbeddingCache(tmp_path / "cache.db")
     embedder = _make_embedder(server, cache=cache)
     await embedder.embed_documents(["doc a", "doc b"])
-    assert len(server.requests) == 2  # 2 item (probe không được ghi)
+    assert len(server.requests) == 1  # 1 batch, 2 items
 
-    # Lần 2: cả hai trúng cache -> 0 request mới (verify đã cached)
+    # Lần 2: cả hai trúng cache -> 0 request mới
     server.requests.clear()
     await embedder.embed_documents(["doc a", "doc b"])
     assert len(server.requests) == 0
@@ -246,20 +274,17 @@ async def test_cache_only_sends_misses(tmp_path):
     server.requests.clear()
     await embedder.embed_documents(["doc a", "doc c"])
     assert len(server.requests) == 1
-    assert server.requests[0]["messages"][0]["content"][0]["text"] == "doc c"
+    assert [i if isinstance(i, str) else i["text"] for i in server.requests[0]] == ["doc c"]
 
 
-async def test_embed_query_uses_query_role():
+async def test_embed_query_uses_query_input_type():
     server = FakeServer()
     embedder = _make_embedder(server)
     await embedder.embed_query("câu hỏi")
-    # requests[0] là query (probe của verify không được ghi)
-    query_req = server.requests[0]
-    assert query_req["messages"][0]["role"] == "query"
-    assert query_req["messages"][0]["content"][0]["text"] == "câu hỏi"
+    assert server.requests[0][0]["text"] == "câu hỏi"
 
 
-async def test_embed_multimodal_sends_image_url_data_uri():
+async def test_embed_multimodal_sends_image_b64():
     server = FakeServer()
     embedder = _make_embedder(server)
     items = [
@@ -268,17 +293,13 @@ async def test_embed_multimodal_sends_image_url_data_uri():
     ]
     vectors = await embedder.embed_documents(items)
     assert len(vectors) == 2
-    sent_text = server.requests[0]["messages"][0]["content"]
-    assert sent_text == [{"type": "text", "text": "plain text"}]
-    sent_img = server.requests[1]["messages"][0]["content"]
-    assert sent_img[0]["type"] == "image_url"
-    assert sent_img[0]["image_url"]["url"].startswith("data:image/png;base64,")
-    assert sent_img[1] == {"type": "text", "text": "caption"}
+    sent = server.requests[0]
+    assert sent[0] == "plain text"
+    # gateway item: {"text", "image"} (base64, gateway tự sniff mime)
+    assert sent[1] == {"text": "caption", "image": PNG_B64}
 
 
-def test_data_url_mime_detection():
-    assert _data_url(PNG_B64).startswith("data:image/png;base64,")
-    jpeg_b64 = base64.b64encode(b"\xff\xd8\xff\xe0rest").decode("ascii")
-    assert _data_url(jpeg_b64).startswith("data:image/jpeg;base64,")
-    # base64 rác -> fallback jpeg, không raise
-    assert _data_url("!!!!").startswith("data:image/jpeg;base64,")
+async def test_data_url_mime_detection():
+    assert data_url_from_bytes(PNG_BYTES).startswith("data:image/png;base64,")
+    jpeg_b64 = b"\xff\xd8\xff\xe0rest"
+    assert data_url_from_bytes(jpeg_b64).startswith("data:image/jpeg;base64,")
