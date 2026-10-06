@@ -278,3 +278,14 @@ def test_build_chunks_with_duplicate_content_assigns_unique_ids(pipeline):
     ids = [c.id for c in chunks]
     assert len(set(ids)) == 4
 
+
+async def test_prepare_embed_items_attaches_image_b64(pipeline, fake_embedder):
+    outcome = await pipeline.run(PDF_ID)
+    assert outcome.ok
+    # Last call to embedder should contain image item with image_b64
+    last_batch = fake_embedder.embedded_texts[-1]
+    image_items = [it for it in last_batch if isinstance(it, dict) and "image_b64" in it]
+    assert len(image_items) >= 1
+    assert image_items[0]["image_b64"]
+
+
