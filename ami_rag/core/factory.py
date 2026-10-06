@@ -174,13 +174,25 @@ def get_asset_store():
     return _asset_store_instance
 
 
-def get_remote_embedder():
-    """Cached RemoteEmbedder built from settings (handshake chạy lười ở lần embed đầu)."""
-    global _remote_embedder_instance
-    if _remote_embedder_instance is None:
+def build_embedder(settings: Settings):
+    """Build embedder theo EMBED_BACKEND: custom (qwen server) | openai (vLLM)."""
+    from ami_rag.settings import resolve_embed_backend
+
+    backend = resolve_embed_backend(settings)
+    if backend == "custom":
         from ami_rag.core.remote_embedder import build_remote_embedder
 
-        _remote_embedder_instance = build_remote_embedder(get_settings())
+        return build_remote_embedder(settings)
+    from ami_rag.core.openai_embedder import build_openai_embedder
+
+    return build_openai_embedder(settings)
+
+
+def get_embedder():
+    """Cached embedder built from settings (handshake chạy lười ở lần embed đầu)."""
+    global _remote_embedder_instance
+    if _remote_embedder_instance is None:
+        _remote_embedder_instance = build_embedder(get_settings())
     return _remote_embedder_instance
 
 
@@ -195,7 +207,6 @@ def build_pipeline(
     modal_processors=None,
 ):
     """Build VectorPipeline wired to AMI infrastructure (test paths can inject deps)."""
-    from ami_rag.core.remote_embedder import build_remote_embedder
     from ami_rag.core.vector_pipeline import VectorPipeline
     from ami_rag.core.vector_store import QdrantVectorStore
     from ami_rag.storage.doc_status import DocStatusStore
@@ -204,7 +215,7 @@ def build_pipeline(
     settings = settings or get_settings()
     return VectorPipeline(
         settings,
-        embedder=embedder or build_remote_embedder(settings),
+        embedder=embedder or build_embedder(settings),
         vector_store=vector_store
         or QdrantVectorStore(
             url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY or None

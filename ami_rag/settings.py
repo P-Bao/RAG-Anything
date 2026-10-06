@@ -17,11 +17,16 @@ class Settings(BaseSettings):
     QWEN_LLM_API_KEY: str = ""
     QWEN_VLM_MODEL: str = ""
 
-    # --- Remote embedding server (máy B, qwen-embedding-server) ---
+    # --- Remote embedding server (máy B) ---
+    # backend "custom": qwen-embedding-server (/info + /embed);
+    # backend "openai": vLLM OpenAI-compatible (/v1/models + /v1/embeddings) cho
+    # nvidia/llama-nemotron-embed-vl-1b-v2 (model card: vllm serve --trust-remote-code).
     EMBED_SERVER_URL: str = "http://localhost:8007"
     # Chỉ từ env - không ghi token vào file config/commit
     EMBED_SERVER_TOKEN: str = ""
-    EMBED_MODEL: str = "Qwen/Qwen3-VL-Embedding-2B"
+    EMBED_MODEL: str = "nvidia/llama-nemotron-embed-vl-1b-v2"
+    # auto | custom | openai (auto: prefix "Qwen/" -> custom, còn lại -> openai)
+    EMBED_BACKEND: str = "auto"
     # Dùng để xác minh với server lúc handshake (dim thực tế do server quyết định)
     EMBED_DIM: int = 2048
     EMBED_TIMEOUT: int = 60
@@ -101,6 +106,24 @@ class Settings(BaseSettings):
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8009
     RAG_API_KEY: str = ""
+
+
+def resolve_embed_backend(settings) -> str:
+    """Resolve EMBED_BACKEND: explicit value, else auto-infer từ EMBED_MODEL.
+
+    - EMBED_BACKEND đặt rõ -> dùng luôn (custom | openai).
+    - auto: model prefix "Qwen/" -> "custom" (qwen-embedding-server contract),
+      còn lại -> "openai" (vLLM OpenAI-compatible, Nemotron VL embed).
+    """
+    backend = (getattr(settings, "EMBED_BACKEND", "auto") or "auto").lower()
+    if backend != "auto":
+        if backend not in ("custom", "openai"):
+            raise ValueError(
+                f"EMBED_BACKEND không hợp lệ: {backend} (custom | openai | auto)"
+            )
+        return backend
+    model = getattr(settings, "EMBED_MODEL", "")
+    return "custom" if model.startswith("Qwen/") else "openai"
 
 
 def parser_kwargs(settings) -> dict:
