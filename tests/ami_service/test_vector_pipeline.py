@@ -243,3 +243,49 @@ async def test_mark_stage_meta_preserved_through_mark_indexed(
     assert row["file_path"] == "documents/HV/a.pdf"
     assert row["page_count"] == 3
     assert row["counts"]["image"] == 1
+
+
+async def test_qdrant_vector_store_upsert_batching():
+    from unittest.mock import MagicMock
+
+    from ami_rag.core.vector_store import ChunkRecord, QdrantVectorStore
+
+    store = QdrantVectorStore("http://fake:6333")
+    store._client = MagicMock()
+    chunks = [
+        ChunkRecord(id=f"c_{i}", vector=[0.1] * 8, payload={"idx": i})
+        for i in range(150)
+    ]
+    await store.upsert("test_col", chunks, batch_size=64)
+    assert store._client.upsert.call_count == 3
+    call1_points = store._client.upsert.call_args_list[0].kwargs["points"]
+    call2_points = store._client.upsert.call_args_list[1].kwargs["points"]
+    call3_points = store._client.upsert.call_args_list[2].kwargs["points"]
+    assert len(call1_points) == 64
+    assert len(call2_points) == 64
+    assert len(call3_points) == 22
+
+
+def test_build_chunks_with_duplicate_content_assigns_unique_ids(pipeline):
+    content_list = [
+        {"type": "text", "text": "Đại học Bách Khoa", "page_idx": 1},
+        {"type": "text", "text": "Đại học Bách Khoa", "page_idx": 2},
+        {"type": "image", "img_path": "img1.png", "page_idx": 3},
+        {"type": "image", "img_path": "img2.png", "page_idx": 4},
+    ]
+    chunks = pipeline._build_chunks("doc_test", content_list, descriptions=[])
+    assert len(chunks) == 4
+    ids = [c.id for c in chunks]
+    assert len(set(ids)) == 4
+
+
+async def test_prepare_embed_items_attaches_image_b64(pipeline, fake_embedder):
+    outcome = await pipeline.run(PDF_ID)
+    assert outcome.ok
+    # Last call to embedder should contain image item with image_b64
+    last_batch = fake_embedder.embedded_texts[-1]
+    image_items = [it for it in last_batch if isinstance(it, dict) and "image_b64" in it]
+    assert len(image_items) >= 1
+    assert image_items[0]["image_b64"]
+
+

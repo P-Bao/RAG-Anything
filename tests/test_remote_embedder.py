@@ -298,3 +298,50 @@ async def test_embed_query_uses_query_type():
     embedder = _make_embedder(server)
     await embedder.embed_query("câu hỏi")
     assert server.requests[0][0]["type"] == "query"
+
+
+async def test_embed_multimodal_sends_image_b64():
+    server = FakeServer()
+    embedder = _make_embedder(server)
+    items = [
+        "plain text",
+        {"text": "caption", "image_b64": "aW1hZ2UtZGF0YQ=="},
+    ]
+    vectors = await embedder.embed_documents(items)
+    assert len(vectors) == 2
+    sent = server.requests[0]
+    assert sent[0] == {"type": "document", "text": "plain text"}
+    assert sent[1] == {
+        "type": "document",
+        "text": "caption",
+        "image_b64": "aW1hZ2UtZGF0YQ==",
+    }
+
+
+async def test_cache_isolates_text_with_and_without_image(tmp_path):
+    server = FakeServer()
+    cache = EmbeddingCache(tmp_path / "cache.db")
+    embedder = _make_embedder(server, cache=cache)
+
+    # Embed text without image
+    await embedder.embed_documents(["same text"])
+    assert len(server.requests) == 1
+    server.requests.clear()
+
+    # Embed same text with image -> must be a cache miss because image differs
+    await embedder.embed_documents([{"text": "same text", "image_b64": "aW1n"}])
+    assert len(server.requests) == 1
+    server.requests.clear()
+
+    # Re-embed both -> both hit cache, 0 network requests
+    hits = embedder.count_cache_hits([
+        "same text",
+        {"text": "same text", "image_b64": "aW1n"},
+    ])
+    assert hits == 2
+    await embedder.embed_documents([
+        "same text",
+        {"text": "same text", "image_b64": "aW1n"},
+    ])
+    assert len(server.requests) == 0
+

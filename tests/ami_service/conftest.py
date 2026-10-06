@@ -80,6 +80,11 @@ class FakeAssetStore:
             return None
         return f"https://minio/presigned/{key}"
 
+    def get_bytes(self, key):
+        if not key or key in self.deleted_assets:
+            return None
+        return b"\x89PNG-fake-bytes"
+
     def delete_doc_assets(self, doc_id):
         self.calls.append(("delete_assets", doc_id))
         self.deleted_assets.append(doc_id)

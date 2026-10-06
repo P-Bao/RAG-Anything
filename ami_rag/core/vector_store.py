@@ -87,7 +87,9 @@ class QdrantVectorStore:
         except Exception as exc:
             raise VectorStoreError(f"Qdrant {self._url}: {exc}") from exc
 
-    async def upsert(self, collection: str, chunks: list[ChunkRecord]) -> None:
+    async def upsert(
+        self, collection: str, chunks: list[ChunkRecord], batch_size: int = 64
+    ) -> None:
         from qdrant_client.http.models import PointStruct
 
         if not chunks:
@@ -100,9 +102,17 @@ class QdrantVectorStore:
             )
             for c in chunks
         ]
-        await asyncio.to_thread(
-            self._client.upsert, collection_name=collection, points=points
-        )
+        try:
+            for i in range(0, len(points), batch_size):
+                batch = points[i : i + batch_size]
+                await asyncio.to_thread(
+                    self._client.upsert,
+                    collection_name=collection,
+                    points=batch,
+                    wait=True,
+                )
+        except Exception as exc:
+            raise VectorStoreError(f"Qdrant {self._url}: {exc}") from exc
 
     async def search(self, collection: str, vector: list[float], top_k: int) -> list[SearchHit]:
         results = await asyncio.to_thread(

@@ -23,6 +23,7 @@ Data giữa các stage nằm trong MinIO: `{doc_id}/content_list.json`,
 """
 
 import asyncio
+import base64
 import hashlib
 import logging
 import re
@@ -150,8 +151,9 @@ class Chunk:
         )
 
 
-def _chunk_id(doc_id: str, content: str) -> str:
-    return f"chunk-{hashlib.md5(f'{doc_id}{content}'.encode()).hexdigest()[:24]}"
+def _chunk_id(doc_id: str, content: str, index: int | None = None) -> str:
+    seed = f"{doc_id}#{index}#{content}" if index is not None else f"{doc_id}{content}"
+    return f"chunk-{hashlib.md5(seed.encode()).hexdigest()[:24]}"
 
 
 def _format_modal_chunk(type_: str, item: dict, description: str) -> str:
@@ -406,6 +408,7 @@ class VectorPipeline(PipelineRunner):
                 desc_by_index.setdefault(d["index"], []).append(d["description"])
 
         chunks: list[Chunk] = []
+        chunk_idx = 0
         for i, item in enumerate(content_list):
             t = item.get("type") or "text"
             if t == "text":
@@ -417,7 +420,7 @@ class VectorPipeline(PipelineRunner):
                 ):
                     chunks.append(
                         Chunk(
-                            id=_chunk_id(doc_id, piece),
+                            id=_chunk_id(doc_id, piece, chunk_idx),
                             content=piece,
                             modality="text",
                             page_idx=item.get("page_idx", 0),
@@ -425,6 +428,7 @@ class VectorPipeline(PipelineRunner):
                             source_path=source_path,
                         )
                     )
+                    chunk_idx += 1
             else:
                 # multimodal: description from describe stage if present, else raw caption
                 descs = desc_by_index.get(i) or []
@@ -437,7 +441,7 @@ class VectorPipeline(PipelineRunner):
                 content = _format_modal_chunk(t, item, description)
                 chunks.append(
                     Chunk(
-                        id=_chunk_id(doc_id, content),
+                        id=_chunk_id(doc_id, content, chunk_idx),
                         content=content,
                         modality=_normalize_item_type(t),
                         page_idx=item.get("page_idx", 0),
@@ -448,6 +452,7 @@ class VectorPipeline(PipelineRunner):
                         caption=_join_caption(item.get("image_caption") or item.get("table_caption")) or None,
                     )
                 )
+                chunk_idx += 1
         return chunks
 
     async def _stage_chunk(
@@ -492,6 +497,39 @@ class VectorPipeline(PipelineRunner):
         return self._build_chunks(doc_id, content_list, descriptions, source_path=source_path)
 
     # ------------------------------------------------------------------
+    async def _prepare_embed_items(
+        self, chunks: list[Chunk]
+    ) -> list[str | dict]:
+        """Chuẩn bị payload cho embedder: nạp ảnh từ asset_store với chunk multimodal ảnh."""
+        image_chunks = [c for c in chunks if c.modality == "image" and c.asset_key]
+        asset_images: dict[str, str] = {}
+        if image_chunks and hasattr(self.asset_store, "get_bytes"):
+            unique_keys = {c.asset_key for c in image_chunks if c.asset_key}
+
+            async def _fetch(key: str) -> tuple[str, str | None]:
+                try:
+                    data = await asyncio.to_thread(self.asset_store.get_bytes, key)
+                    if data:
+                        return key, base64.b64encode(data).decode("ascii")
+                except Exception as exc:
+                    logger.warning("fetch asset %s failed: %s", key, exc)
+                return key, None
+
+            results = await asyncio.gather(*(_fetch(k) for k in unique_keys))
+            asset_images = {k: b64 for k, b64 in results if b64}
+
+        items: list[str | dict] = []
+        for c in chunks:
+            if c.modality == "image" and c.asset_key and c.asset_key in asset_images:
+                items.append({
+                    "text": c.content,
+                    "image_b64": asset_images[c.asset_key],
+                })
+            else:
+                items.append(c.content)
+        return items
+
+    # ------------------------------------------------------------------
     # Stage: embed (máy B qua RemoteEmbedder) + verify (idempotent)
     # ------------------------------------------------------------------
     async def _stage_embed(
@@ -499,10 +537,15 @@ class VectorPipeline(PipelineRunner):
     ) -> None:
         if not chunks:
             raise RuntimeError(f"doc {doc_id} không có chunk nào để embed")
+        seen_ids: set[str] = set()
+        for idx, c in enumerate(chunks):
+            if c.id in seen_ids:
+                c.id = f"{c.id}-{idx}"
+            seen_ids.add(c.id)
         # idempotency: xoá vector cũ của doc trước khi upsert
         await self.vector_store.delete_by_doc(self.collection, doc_id)
-        texts = [c.content for c in chunks]
-        vectors = await self.embedder.embed_documents(texts)  # [N x dim]
+        items = await self._prepare_embed_items(chunks)
+        vectors = await self.embedder.embed_documents(items)  # [N x dim]
         if len(vectors) != len(chunks):
             raise RuntimeError("embed server trả số vector không khớp số chunk")
         records = [
@@ -649,13 +692,13 @@ class VectorPipeline(PipelineRunner):
         else:
             logger.info("doc %s: không có trung gian (content_list/chunks), dry_run trả 0", doc_id)
             chunks = []
-        texts = [c.content for c in chunks]
+        items = await self._prepare_embed_items(chunks)
         return StageOutcome(
             doc_id=doc_id,
             stage=from_stage or "chunk",
             ok=True,
             chunk_count=len(chunks),
-            cache_hits=self.embedder.count_cache_hits(texts),
+            cache_hits=self.embedder.count_cache_hits(items),
         )
 
     # ------------------------------------------------------------------
