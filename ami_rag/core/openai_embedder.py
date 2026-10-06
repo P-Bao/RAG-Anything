@@ -55,6 +55,11 @@ def _image_mime(data: bytes) -> str:
     return "image/jpeg"
 
 
+def data_url_from_bytes(data: bytes) -> str:
+    """bytes ảnh -> data URI (dùng chung cho embed + rerank multimodal)."""
+    return f"data:{_image_mime(data)};base64,{base64.b64encode(data).decode('ascii')}"
+
+
 def _data_url(b64: str) -> str:
     """base64 -> data URI; đo mime từ magic bytes (decode tối đa 12 byte đầu)."""
     n = min(len(b64), 16)

@@ -85,6 +85,13 @@ class Settings(BaseSettings):
     CLI_STUCK_PROCESSING_MINUTES: int = 60
 
     RERANK_BASE_URL: str = "http://localhost:8010"
+    # vLLM serving nvidia/llama-nemotron-rerank-vl-1b-v2 (model card: vllm serve
+    # --runner pooling --trust-remote-code --chat-template nemotron-vl-rerank.jinja)
+    RERANK_MODEL: str = "nvidia/llama-nemotron-rerank-vl-1b-v2"
+    # auto | legacy | vllm (auto: model rỗng hoặc chứa "bge" -> legacy BGE, còn lại -> vllm)
+    RERANK_BACKEND: str = "auto"
+    # vLLM rerank kèm ảnh + text cho chunk image/table/equation (cần asset_key)
+    RERANK_MULTIMODAL: bool = True
     RERANK_TOP_K: int = 5
     RERANK_TIMEOUT: int = 60
 
@@ -124,6 +131,24 @@ def resolve_embed_backend(settings) -> str:
         return backend
     model = getattr(settings, "EMBED_MODEL", "")
     return "custom" if model.startswith("Qwen/") else "openai"
+
+
+def resolve_rerank_backend(settings) -> str:
+    """Resolve RERANK_BACKEND: explicit value, else auto-infer từ RERANK_MODEL.
+
+    - RERANK_BACKEND đặt rõ -> dùng luôn (legacy | vllm).
+    - auto: RERANK_MODEL rỗng hoặc chứa "bge" -> "legacy" (BGE reranker,
+      documents text-only), còn lại -> "vllm" (Nemotron VL rerank, multimodal).
+    """
+    backend = (getattr(settings, "RERANK_BACKEND", "auto") or "auto").lower()
+    if backend != "auto":
+        if backend not in ("legacy", "vllm"):
+            raise ValueError(
+                f"RERANK_BACKEND không hợp lệ: {backend} (legacy | vllm | auto)"
+            )
+        return backend
+    model = (getattr(settings, "RERANK_MODEL", "") or "").lower()
+    return "vllm" if model and "bge" not in model else "legacy"
 
 
 def parser_kwargs(settings) -> dict:

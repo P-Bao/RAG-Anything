@@ -37,9 +37,9 @@ def get_asset_store():
 
 
 def get_rerank_func():
-    from ami_rag.core.rerank_client import build_rerank_model_func
+    from ami_rag.core.rerank_client import build_rerank_func
 
-    return build_rerank_model_func(get_settings())
+    return build_rerank_func(get_settings())
 
 
 _resolver_instance = None
@@ -86,14 +86,23 @@ def _last_user_message(payload: RAGRequest) -> str:
     return payload.messages[-1].content
 
 
-async def _rerank_chunks(rerank_func, query: str, chunks: list[dict], top_n: int):
+async def _rerank_chunks(rerank_func, query: str, chunks: list[dict], top_n: int, asset_store=None):
     if not chunks:
         return []
-    texts = [chunk.get("content") or "" for chunk in chunks]
+    settings = get_settings()
+    from ami_rag.core.rerank_client import build_rerank_documents
+    from ami_rag.settings import resolve_rerank_backend
+
+    # Multimodal chỉ với backend vllm (legacy BGE chỉ nhận documents text)
+    multimodal = (
+        getattr(settings, "RERANK_MULTIMODAL", True)
+        and resolve_rerank_backend(settings) == "vllm"
+    )
+    documents = await build_rerank_documents(chunks, asset_store, multimodal=multimodal)
     reason = "empty"
     try:
         with observe_stage("rerank"):
-            results = await rerank_func(query=query, documents=texts, top_n=top_n)
+            results = await rerank_func(query=query, documents=documents, top_n=top_n)
         scored = []
         for result in results or []:
             idx = result.get("index")
@@ -203,7 +212,7 @@ async def _run_search(
     chunks = [hit.payload for hit in hits]
     CHUNKS_RETRIEVED.observe(len(chunks))
     candidates = len(chunks)
-    scored = (await _rerank_chunks(rerank_func, query, chunks, top_k))[:top_k]
+    scored = (await _rerank_chunks(rerank_func, query, chunks, top_k, asset_store))[:top_k]
     documents = await _build_documents(scored, resolver, asset_store)
     references = []
     if payload.include_references:
