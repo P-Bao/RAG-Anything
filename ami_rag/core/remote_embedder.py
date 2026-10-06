@@ -200,6 +200,20 @@ class RemoteEmbedder:
         return result["vectors"][0]
 
     # ------------------------------------------------------------------
+    # Cache (không HTTP)
+    # ------------------------------------------------------------------
+    def count_cache_hits(self, texts: list[str]) -> int:
+        """Đếm số text đã có trong cache (lookup SQLite, KHÔNG gọi HTTP).
+
+        Yêu cầu đã verify (dim + instruction_ns từ handshake); cache tắt -> 0.
+        """
+        if not texts or self.cache is None or not self._verified:
+            return 0
+        keys = [self._cache_key(t) for t in texts]
+        cached = self.cache.get_many(keys)
+        return sum(1 for k in keys if k in cached)
+
+    # ------------------------------------------------------------------
     # HTTP
     # ------------------------------------------------------------------
     async def _post_embed(self, items: list[dict]) -> dict:

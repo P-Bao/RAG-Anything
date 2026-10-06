@@ -2,7 +2,7 @@ import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ami_rag.api.routes.rag import get_asset_store, get_rag, verify_api_key
+from ami_rag.api.routes.rag import get_asset_store, verify_api_key
 from ami_rag.queue.events import EVENT_UPDATED, RagEvent
 from ami_rag.settings import get_settings
 
@@ -27,10 +27,10 @@ def get_queue():
 
 
 def get_state_repo():
-    from ami_rag.storage.rag_documents import RagDocumentsRepo
+    from ami_rag.storage.doc_status import DocStatusStore
 
     settings = get_settings()
-    return RagDocumentsRepo(
+    return DocStatusStore(
         mongo_uri=settings.MONGO_URI,
         db_name=settings.RAG_DB,
         collection_name=settings.RAG_DOCUMENTS_COLLECTION,
@@ -49,11 +49,10 @@ def get_docs_repo():
 
 
 @router.get("/pipeline_status")
-async def pipeline_status(rag=Depends(get_rag), queue=Depends(get_queue)):
+async def pipeline_status(queue=Depends(get_queue), state_repo=Depends(get_state_repo)):
     settings = get_settings()
     try:
-        lightrag = getattr(rag, "lightrag", rag)
-        status_counts = await _await(lightrag.doc_status.get_status_counts())
+        status_counts = await asyncio.to_thread(state_repo.counts)
     except Exception:
         status_counts = {}
     try:
@@ -67,26 +66,18 @@ async def pipeline_status(rag=Depends(get_rag), queue=Depends(get_queue)):
     }
 
 
-async def _await(value):
-    if asyncio.isawaitable(value):
-        return await value
-    return value
-
-
 @router.post("/reprocess_failed")
 async def reprocess_failed(
-    rag=Depends(get_rag),
     queue=Depends(get_queue),
     state_repo=Depends(get_state_repo),
 ):
-    failed_ids = await asyncio.to_thread(state_repo.get_failed_ids)
+    failed_rows = await asyncio.to_thread(state_repo.failed_rows)
     requeued = 0
-    for doc_id in failed_ids:
-        state = await asyncio.to_thread(state_repo.get, doc_id)
+    for row in failed_rows:
         event = RagEvent(
             event=EVENT_UPDATED,
-            document_id=doc_id,
-            content_hash=(state or {}).get("last_hash") or None,
+            document_id=str(row.get("_id")),
+            content_hash=row.get("content_hash") or None,
         )
         await queue.publish(event)
         requeued += 1
@@ -159,6 +150,7 @@ async def document_status(document_id: str, state_repo=Depends(get_state_repo)):
     return {
         "document_id": document_id,
         "status": state.get("status"),
+        "stage": state.get("stage"),
         "source": state.get("source"),
         "counts": state.get("counts") or {},
         "page_count": state.get("page_count"),

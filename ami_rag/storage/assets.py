@@ -125,6 +125,27 @@ class MinioAssetStore:
             response.close()
             response.release_conn()
 
+    def save_json(self, key: str, data) -> None:
+        raw = json.dumps(data, ensure_ascii=False, default=str).encode("utf-8")
+        self._get_client().put_object(
+            self._bucket,
+            key,
+            BytesIO(raw),
+            length=len(raw),
+            content_type="application/json",
+        )
+
+    def load_json(self, key: str):
+        try:
+            response = self._get_client().get_object(self._bucket, key)
+        except Exception:
+            return None
+        try:
+            return json.loads(response.read().decode("utf-8"))
+        finally:
+            response.close()
+            response.release_conn()
+
     def presign(self, key: str | None) -> str | None:
         if not key:
             return None

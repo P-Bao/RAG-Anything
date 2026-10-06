@@ -146,6 +146,17 @@ class DocStatusStore:
         embed_model: str | None = None,
         embed_dim: int | None = None,
         chunker_version: str | None = None,
+        source: str | None = None,
+        parser: str | None = None,
+        file_path: str | None = None,
+        counts: dict | None = None,
+        page_count: int | None = None,
+        assets: list | None = None,
+        document_type: str | None = None,
+        title: str | None = None,
+        organization_unit_id=None,
+        owner_id: str | None = None,
+        meta: dict | None = None,
     ) -> None:
         """Chuyển doc sang `processing` ở `stage`; giữ nguyên các trường khác."""
         updates: dict = {"status": STATUS_PROCESSING, "stage": stage, "updated_at": self._now()}
@@ -161,6 +172,28 @@ class DocStatusStore:
             updates["embed_dim"] = embed_dim
         if chunker_version is not None:
             updates["chunker_version"] = chunker_version
+        if source is not None:
+            updates["source"] = source
+        if parser is not None:
+            updates["parser"] = parser
+        if file_path is not None:
+            updates["file_path"] = file_path
+        if counts is not None:
+            updates["counts"] = counts
+        if page_count is not None:
+            updates["page_count"] = page_count
+        if assets is not None:
+            updates["assets"] = assets
+        if document_type is not None:
+            updates["document_type"] = document_type
+        if title is not None:
+            updates["title"] = title
+        if organization_unit_id is not None:
+            updates["organization_unit_id"] = organization_unit_id
+        if owner_id is not None:
+            updates["owner_id"] = owner_id
+        if meta:
+            updates.update(meta)
         self._col.update_one({"_id": doc_id}, {"$set": updates}, upsert=True)
 
     def mark_indexed(
@@ -172,6 +205,17 @@ class DocStatusStore:
         embed_dim: int = 0,
         chunker_version: str = "",
         source_hash: str | None = None,
+        source: str | None = None,
+        parser: str | None = None,
+        file_path: str | None = None,
+        counts: dict | None = None,
+        page_count: int | None = None,
+        assets: list | None = None,
+        document_type: str | None = None,
+        title: str | None = None,
+        organization_unit_id=None,
+        owner_id: str | None = None,
+        meta: dict | None = None,
     ) -> None:
         updates: dict = {
             "status": STATUS_INDEXED,
@@ -187,7 +231,50 @@ class DocStatusStore:
         }
         if source_hash is not None:
             updates["content_hash"] = source_hash
+        if source is not None:
+            updates["source"] = source
+        if parser is not None:
+            updates["parser"] = parser
+        if file_path is not None:
+            updates["file_path"] = file_path
+        if counts is not None:
+            updates["counts"] = counts
+        if page_count is not None:
+            updates["page_count"] = page_count
+        if assets is not None:
+            updates["assets"] = assets
+        if document_type is not None:
+            updates["document_type"] = document_type
+        if title is not None:
+            updates["title"] = title
+        if organization_unit_id is not None:
+            updates["organization_unit_id"] = organization_unit_id
+        if owner_id is not None:
+            updates["owner_id"] = owner_id
+        if meta:
+            updates.update(meta)
         self._col.update_one({"_id": doc_id}, {"$set": updates}, upsert=True)
+
+    def begin_attempt(self, doc_id: str, content_hash: str | None = None, **stage_meta) -> int:
+        """Đánh dấu doc bắt đầu xử lý (processing + stage parse) và +1 attempts."""
+        self.mark_stage(doc_id, STAGE_PARSE, content_hash=content_hash, **stage_meta)
+        self._col.update_one(
+            {"_id": doc_id},
+            {"$inc": {"attempts": 1}, "$setOnInsert": {"created_at": self._now()}},
+            upsert=True,
+        )
+        row = self.get(doc_id)
+        return int((row or {}).get("attempts", 1))
+
+    def release_attempt(self, doc_id: str) -> None:
+        """Huỷ lần bắt đầu khi doc không được xử lý (skipped/restored)."""
+        self._col.update_one(
+            {"_id": doc_id},
+            {"$inc": {"attempts": -1}},
+        )
+        row = self.get(doc_id)
+        if row and row.get("status") == STATUS_PROCESSING and not row.get("content_hash"):
+            self._col.delete_one({"_id": doc_id, "status": STATUS_PROCESSING})
 
     def mark_failed(self, doc_id: str, error: str, stage: str, *, increment_attempt: bool = True) -> None:
         updates: dict = {

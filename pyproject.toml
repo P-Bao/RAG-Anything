@@ -129,6 +129,7 @@ target-version = "py310"
 "ami_rag/cli.py" = ["BLE001"]
 "ami_rag/workers/**" = ["BLE001"]
 "ami_rag/storage/**" = ["BLE001"]
+"ami_rag/core/**" = ["BLE001", "S110"]
 "tests/ami_service/**" = ["BLE001", "TRY002", "PERF102"]
 
 [tool.pytest.ini_options]

@@ -9,28 +9,27 @@ Includes:
 - GenericModalProcessor: Processor for other modal content
 """
 
+import hashlib
+import logging
 import re
 import json
-import time
 import base64
 from typing import Dict, Any, Tuple, List, Optional
 from pathlib import Path
 from dataclasses import dataclass
 
-from lightrag.utils import (
-    logger,
-    compute_mdhash_id,
-)
-from lightrag.lightrag import LightRAG
-from dataclasses import asdict
-from lightrag.kg.shared_storage import get_namespace_data, get_pipeline_status_lock
-from lightrag.operate import extract_entities, merge_nodes_and_edges
+logger = logging.getLogger(__name__)
+
+
+def compute_mdhash_id(content, prefix: str = "id-") -> str:
+    """Stable id từ nội dung (thay compute_mdhash_id của LightRAG)."""
+    if isinstance(content, (dict, list)):
+        content = json.dumps(content, ensure_ascii=False, sort_keys=True)
+    return f"{prefix}{hashlib.md5(str(content).encode()).hexdigest()}"
 
 # Import prompt templates
 from raganything.prompt import PROMPTS
 from raganything.utils import (
-    build_modal_chunk_metadata,
-    format_asset_line,
     format_table_body,
     get_equation_text_and_format,
     get_table_body,
@@ -370,37 +369,41 @@ class BaseModalProcessor:
 
     def __init__(
         self,
-        lightrag: LightRAG,
-        modal_caption_func,
+        lightrag=None,
+        modal_caption_func=None,
         context_extractor: ContextExtractor = None,
+        tokenizer=None,
+        global_config: Optional[Dict[str, Any]] = None,
     ):
-        """Initialize base processor
+        """Initialize base processor (không phụ thuộc LightRAG).
 
         Args:
-            lightrag: LightRAG instance
+            lightrag: Tương thích ngược - đọc llm_model_func/tokenizer nếu còn
+                truyền; None cho pipeline vector thuần.
             modal_caption_func: Function for generating descriptions
             context_extractor: Context extractor instance
+            tokenizer: Tokenizer cho context/token budget (mặc định None)
+            global_config: Config dict (chunk_token_size, ...); mặc định {}
         """
         self.lightrag = lightrag
         self.modal_caption_func = modal_caption_func
+        self.llm_model_func = getattr(lightrag, "llm_model_func", None)
+        self.tokenizer = tokenizer or getattr(lightrag, "tokenizer", None)
 
-        # Use LightRAG's storage instances
-        self.text_chunks_db = lightrag.text_chunks
-        self.chunks_vdb = lightrag.chunks_vdb
-        self.entities_vdb = lightrag.entities_vdb
-        self.relationships_vdb = lightrag.relationships_vdb
-        self.knowledge_graph_inst = lightrag.chunk_entity_relation_graph
+        if global_config is None:
+            build_global_config = getattr(lightrag, "_build_global_config", None)
+            if callable(build_global_config):
+                global_config = build_global_config()
+            elif lightrag is not None:
+                from dataclasses import asdict
 
-        # Use LightRAG's configuration and functions
-        self.embedding_func = lightrag.embedding_func
-        self.llm_model_func = lightrag.llm_model_func
-        build_global_config = getattr(lightrag, "_build_global_config", None)
-        if callable(build_global_config):
-            self.global_config = build_global_config()
-        else:
-            self.global_config = asdict(lightrag)
-        self.hashing_kv = lightrag.llm_response_cache
-        self.tokenizer = lightrag.tokenizer
+                try:
+                    global_config = asdict(lightrag)
+                except Exception:
+                    global_config = {}
+            else:
+                global_config = {}
+        self.global_config = global_config or {}
 
         # Initialize context extractor with tokenizer if not provided
         if context_extractor is None:
@@ -530,95 +533,6 @@ class BaseModalProcessor:
         except (TypeError, ValueError):
             value = default
         return value if value > 0 else default
-
-    async def _create_entity_and_chunk(
-        self,
-        modal_chunk: str,
-        entity_info: Dict[str, Any],
-        file_path: str,
-        batch_mode: bool = False,
-        doc_id: str = None,
-        chunk_order_index: int = 0,
-        chunk_metadata: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[str, Dict[str, Any]]:
-        """Create entity and text chunk
-
-        ``chunk_metadata`` (see ``build_modal_chunk_metadata``) is stored with the
-        chunk in ``text_chunks`` only; it is omitted when ``None``.
-        """
-        # Create chunk
-        chunk_id = compute_mdhash_id(str(modal_chunk), prefix="chunk-")
-        tokens = len(self.tokenizer.encode(modal_chunk))
-
-        # Use provided doc_id or generate one from chunk_id for backward compatibility
-        actual_doc_id = doc_id if doc_id else chunk_id
-
-        chunk_data = {
-            "tokens": tokens,
-            "content": modal_chunk,
-            "chunk_order_index": chunk_order_index,
-            "full_doc_id": actual_doc_id,  # Use proper document ID
-            "file_path": file_path,
-        }
-        if chunk_metadata:
-            chunk_data.update(chunk_metadata)
-
-        # Store chunk
-        await self.text_chunks_db.upsert({chunk_id: chunk_data})
-
-        # Store chunk in vector database for retrieval
-        chunk_vdb_data = {
-            chunk_id: {
-                "content": modal_chunk,
-                "full_doc_id": actual_doc_id,
-                "tokens": tokens,
-                "chunk_order_index": chunk_order_index,
-                "file_path": file_path,
-            }
-        }
-        await self.chunks_vdb.upsert(chunk_vdb_data)
-
-        # Create entity node
-        node_data = {
-            "entity_id": entity_info["entity_name"],
-            "entity_type": entity_info["entity_type"],
-            "description": entity_info["summary"],
-            "source_id": chunk_id,
-            "file_path": file_path,
-            "created_at": int(time.time()),
-        }
-
-        await self.knowledge_graph_inst.upsert_node(
-            entity_info["entity_name"], node_data
-        )
-
-        # Insert entity into vector database
-        entity_vdb_data = {
-            compute_mdhash_id(entity_info["entity_name"], prefix="ent-"): {
-                "entity_name": entity_info["entity_name"],
-                "entity_type": entity_info["entity_type"],
-                "content": f"{entity_info['entity_name']}\n{entity_info['summary']}",
-                "source_id": chunk_id,
-                "file_path": file_path,
-            }
-        }
-        await self.entities_vdb.upsert(entity_vdb_data)
-
-        # Process entity and relationship extraction
-        chunk_results = await self._process_chunk_for_extraction(
-            chunk_id, entity_info["entity_name"], batch_mode
-        )
-
-        return (
-            entity_info["summary"],
-            {
-                "entity_name": entity_info["entity_name"],
-                "entity_type": entity_info["entity_type"],
-                "description": entity_info["summary"],
-                "chunk_id": chunk_id,
-            },
-            chunk_results,
-        )
 
     @staticmethod
     def _strip_thinking_tags(text: str) -> str:
@@ -796,126 +710,24 @@ class BaseModalProcessor:
         """Legacy method - now handled by progressive strategies"""
         return self._progressive_quote_fix(json_str)
 
-    async def _process_chunk_for_extraction(
-        self, chunk_id: str, modal_entity_name: str, batch_mode: bool = False
-    ):
-        """Process chunk for entity and relationship extraction"""
-        chunk_data = await self.text_chunks_db.get_by_id(chunk_id)
-        if not chunk_data:
-            logger.error(f"Chunk {chunk_id} not found")
-            return
-
-        # Create text chunk for vector database
-        chunk_vdb_data = {
-            chunk_id: {
-                "content": chunk_data["content"],
-                "full_doc_id": chunk_data.get("full_doc_id", chunk_id),
-                "tokens": chunk_data["tokens"],
-                "chunk_order_index": chunk_data["chunk_order_index"],
-                "file_path": chunk_data["file_path"],
-            }
-        }
-
-        await self.chunks_vdb.upsert(chunk_vdb_data)
-
-        pipeline_status = await get_namespace_data("pipeline_status")
-        pipeline_status_lock = get_pipeline_status_lock()
-
-        # Prepare chunk for extraction
-        chunks = {chunk_id: chunk_data}
-
-        # Extract entities and relationships
-        chunk_results = await extract_entities(
-            chunks=chunks,
-            global_config=self.global_config,
-            pipeline_status=pipeline_status,
-            pipeline_status_lock=pipeline_status_lock,
-            llm_response_cache=self.hashing_kv,
-        )
-
-        # Add "belongs_to" relationships for all extracted entities
-        processed_chunk_results = []
-        for maybe_nodes, maybe_edges in chunk_results:
-            for entity_name in maybe_nodes.keys():
-                if entity_name != modal_entity_name:  # Skip self-relationship
-                    # Create belongs_to relationship
-                    relation_data = {
-                        "description": f"Entity {entity_name} belongs to {modal_entity_name}",
-                        "keywords": "belongs_to,part_of,contained_in",
-                        "source_id": chunk_id,
-                        "weight": 10.0,
-                        "file_path": chunk_data.get("file_path", "manual_creation"),
-                    }
-                    await self.knowledge_graph_inst.upsert_edge(
-                        entity_name, modal_entity_name, relation_data
-                    )
-
-                    relation_id = compute_mdhash_id(
-                        entity_name + modal_entity_name, prefix="rel-"
-                    )
-                    relation_vdb_data = {
-                        relation_id: {
-                            "src_id": entity_name,
-                            "tgt_id": modal_entity_name,
-                            "keywords": relation_data["keywords"],
-                            "content": f"{relation_data['keywords']}\t{entity_name}\n{modal_entity_name}\n{relation_data['description']}",
-                            "source_id": chunk_id,
-                            "file_path": chunk_data.get("file_path", "manual_creation"),
-                        }
-                    }
-                    await self.relationships_vdb.upsert(relation_vdb_data)
-
-                    # Add to maybe_edges
-                    maybe_edges[(entity_name, modal_entity_name)] = [relation_data]
-
-            processed_chunk_results.append((maybe_nodes, maybe_edges))
-
-        if not batch_mode:
-            # Merge with correct file_path parameter
-            file_path = chunk_data.get("file_path", "manual_creation")
-            doc_id = chunk_data.get("full_doc_id")
-            await merge_nodes_and_edges(
-                chunk_results=chunk_results,
-                knowledge_graph_inst=self.knowledge_graph_inst,
-                entity_vdb=self.entities_vdb,
-                relationships_vdb=self.relationships_vdb,
-                global_config=self.global_config,
-                full_entities_storage=self.lightrag.full_entities,
-                full_relations_storage=self.lightrag.full_relations,
-                doc_id=doc_id,
-                pipeline_status=pipeline_status,
-                pipeline_status_lock=pipeline_status_lock,
-                llm_response_cache=self.hashing_kv,
-                entity_chunks_storage=self.lightrag.entity_chunks,
-                relation_chunks_storage=self.lightrag.relation_chunks,
-                current_file_number=1,
-                total_files=1,
-                file_path=file_path,
-            )
-
-            # Ensure all storage updates are complete
-            await self.lightrag._insert_done()
-
-        return processed_chunk_results
-
-
 class ImageModalProcessor(BaseModalProcessor):
     """Processor specialized for image content"""
 
     def __init__(
         self,
-        lightrag: LightRAG,
-        modal_caption_func,
+        lightrag=None,
+        modal_caption_func=None,
         context_extractor: ContextExtractor = None,
+        **kwargs,
     ):
         """Initialize image processor
 
         Args:
-            lightrag: LightRAG instance
+            lightrag: Optional (tương thích ngược)
             modal_caption_func: Function for generating descriptions (supporting image understanding)
             context_extractor: Context extractor instance
         """
-        super().__init__(lightrag, modal_caption_func, context_extractor)
+        super().__init__(lightrag, modal_caption_func, context_extractor, **kwargs)
 
     def _encode_image_to_base64(self, image_path: str) -> str:
         """Encode image to base64"""
@@ -1026,80 +838,6 @@ class ImageModalProcessor(BaseModalProcessor):
 
         except Exception as e:
             logger.error(f"Error generating image description: {e}")
-            # Fallback processing
-            fallback_entity = {
-                "entity_name": entity_name
-                if entity_name
-                else f"image_{compute_mdhash_id(str(modal_content))}",
-                "entity_type": "image",
-                "summary": f"Image content: {str(modal_content)[:100]}",
-            }
-            return str(modal_content), fallback_entity
-
-    async def process_multimodal_content(
-        self,
-        modal_content,
-        content_type: str,
-        file_path: str = "manual_creation",
-        entity_name: str = None,
-        item_info: Dict[str, Any] = None,
-        batch_mode: bool = False,
-        doc_id: str = None,
-        chunk_order_index: int = 0,
-    ) -> Tuple[str, Dict[str, Any]]:
-        """Process image content with context support"""
-        try:
-            # Generate description and entity info
-            enhanced_caption, entity_info = await self.generate_description_only(
-                modal_content, content_type, item_info, entity_name
-            )
-
-            # Build complete image content
-            if isinstance(modal_content, str):
-                try:
-                    content_data = json.loads(modal_content)
-                except json.JSONDecodeError:
-                    content_data = {"description": modal_content}
-            else:
-                content_data = modal_content
-
-            image_path = content_data.get("img_path", "")
-            captions = content_data.get(
-                "image_caption", content_data.get("img_caption", [])
-            )
-            footnotes = content_data.get(
-                "image_footnote", content_data.get("img_footnote", [])
-            )
-            section_path = content_data.get("_section_path", "")
-            neighbor_text = content_data.get("_neighbor_text", "")
-
-            modal_chunk = PROMPTS["image_chunk"].format(
-                section_path=section_path if section_path else "None",
-                neighbor_text=neighbor_text if neighbor_text else "None",
-                image_path_line=format_asset_line(
-                    content_data, "Image Path: ", image_path
-                ),
-                captions=", ".join(captions) if captions else "None",
-                footnotes=", ".join(footnotes) if footnotes else "None",
-                enhanced_caption=enhanced_caption,
-            )
-
-            return await self._create_entity_and_chunk(
-                modal_chunk,
-                entity_info,
-                file_path,
-                batch_mode,
-                doc_id,
-                chunk_order_index,
-                chunk_metadata=build_modal_chunk_metadata(
-                    content_type,
-                    content_data,
-                    (item_info or {}).get("page_idx"),
-                ),
-            )
-
-        except Exception as e:
-            logger.error(f"Error processing image content: {e}")
             # Fallback processing
             fallback_entity = {
                 "entity_name": entity_name
@@ -1243,75 +981,6 @@ class TableModalProcessor(BaseModalProcessor):
             }
             return str(modal_content), fallback_entity
 
-    async def process_multimodal_content(
-        self,
-        modal_content,
-        content_type: str,
-        file_path: str = "manual_creation",
-        entity_name: str = None,
-        item_info: Dict[str, Any] = None,
-        batch_mode: bool = False,
-        doc_id: str = None,
-        chunk_order_index: int = 0,
-    ) -> Tuple[str, Dict[str, Any]]:
-        """Process table content with context support"""
-        try:
-            # Generate description and entity info
-            enhanced_caption, entity_info = await self.generate_description_only(
-                modal_content, content_type, item_info, entity_name
-            )
-
-            # Parse table content for building complete chunk
-            if isinstance(modal_content, str):
-                try:
-                    content_data = json.loads(modal_content)
-                except json.JSONDecodeError:
-                    content_data = {"table_body": modal_content}
-            else:
-                content_data = modal_content
-
-            table_img_path = content_data.get("img_path")
-            table_caption = normalize_caption_list(content_data.get("table_caption"))
-            table_body = format_table_body(get_table_body(content_data))
-            table_footnote = normalize_caption_list(content_data.get("table_footnote"))
-
-            # Build complete table content
-            modal_chunk = PROMPTS["table_chunk"].format(
-                table_img_path_line=format_asset_line(
-                    content_data, "Image Path: ", table_img_path
-                ),
-                table_caption=", ".join(table_caption) if table_caption else "None",
-                table_body=table_body,
-                table_footnote=", ".join(table_footnote) if table_footnote else "None",
-                enhanced_caption=enhanced_caption,
-            )
-
-            return await self._create_entity_and_chunk(
-                modal_chunk,
-                entity_info,
-                file_path,
-                batch_mode,
-                doc_id,
-                chunk_order_index,
-                chunk_metadata=build_modal_chunk_metadata(
-                    content_type,
-                    content_data,
-                    (item_info or {}).get("page_idx"),
-                ),
-            )
-
-        except Exception as e:
-            logger.error(f"Error processing table content: {e}")
-            # Fallback processing
-            fallback_entity = {
-                "entity_name": entity_name
-                if entity_name
-                else f"table_{compute_mdhash_id(str(modal_content))}",
-                "entity_type": "table",
-                "summary": f"Table content: {str(modal_content)[:100]}",
-            }
-            return str(modal_content), fallback_entity
-
     def _parse_table_response(
         self, response: str, entity_name: str = None
     ) -> Tuple[str, Dict[str, Any]]:
@@ -1438,68 +1107,6 @@ class EquationModalProcessor(BaseModalProcessor):
             }
             return str(modal_content), fallback_entity
 
-    async def process_multimodal_content(
-        self,
-        modal_content,
-        content_type: str,
-        file_path: str = "manual_creation",
-        entity_name: str = None,
-        item_info: Dict[str, Any] = None,
-        batch_mode: bool = False,
-        doc_id: str = None,
-        chunk_order_index: int = 0,
-    ) -> Tuple[str, Dict[str, Any]]:
-        """Process equation content with context support"""
-        try:
-            # Generate description and entity info
-            enhanced_caption, entity_info = await self.generate_description_only(
-                modal_content, content_type, item_info, entity_name
-            )
-
-            # Parse equation content for building complete chunk
-            if isinstance(modal_content, str):
-                try:
-                    content_data = json.loads(modal_content)
-                except json.JSONDecodeError:
-                    content_data = {"equation": modal_content}
-            else:
-                content_data = modal_content
-
-            equation_text, equation_format = get_equation_text_and_format(content_data)
-
-            # Build complete equation content
-            modal_chunk = PROMPTS["equation_chunk"].format(
-                equation_text=equation_text,
-                equation_format=equation_format,
-                enhanced_caption=enhanced_caption,
-            )
-
-            return await self._create_entity_and_chunk(
-                modal_chunk,
-                entity_info,
-                file_path,
-                batch_mode,
-                doc_id,
-                chunk_order_index,
-                chunk_metadata=build_modal_chunk_metadata(
-                    content_type,
-                    content_data,
-                    (item_info or {}).get("page_idx"),
-                ),
-            )
-
-        except Exception as e:
-            logger.error(f"Error processing equation content: {e}")
-            # Fallback processing
-            fallback_entity = {
-                "entity_name": entity_name
-                if entity_name
-                else f"equation_{compute_mdhash_id(str(modal_content))}",
-                "entity_type": "equation",
-                "summary": f"Equation content: {str(modal_content)[:100]}",
-            }
-            return str(modal_content), fallback_entity
-
     def _parse_equation_response(
         self, response: str, entity_name: str = None
     ) -> Tuple[str, Dict[str, Any]]:
@@ -1607,57 +1214,6 @@ class GenericModalProcessor(BaseModalProcessor):
 
         except Exception as e:
             logger.error(f"Error generating {content_type} description: {e}")
-            # Fallback processing
-            fallback_entity = {
-                "entity_name": entity_name
-                if entity_name
-                else f"{content_type}_{compute_mdhash_id(str(modal_content))}",
-                "entity_type": content_type,
-                "summary": f"{content_type} content: {str(modal_content)[:100]}",
-            }
-            return str(modal_content), fallback_entity
-
-    async def process_multimodal_content(
-        self,
-        modal_content,
-        content_type: str,
-        file_path: str = "manual_creation",
-        entity_name: str = None,
-        item_info: Dict[str, Any] = None,
-        batch_mode: bool = False,
-        doc_id: str = None,
-        chunk_order_index: int = 0,
-    ) -> Tuple[str, Dict[str, Any]]:
-        """Process generic modal content with context support"""
-        try:
-            # Generate description and entity info
-            enhanced_caption, entity_info = await self.generate_description_only(
-                modal_content, content_type, item_info, entity_name
-            )
-
-            # Build complete content
-            modal_chunk = PROMPTS["generic_chunk"].format(
-                content_type=content_type.title(),
-                content=str(modal_content),
-                enhanced_caption=enhanced_caption,
-            )
-
-            return await self._create_entity_and_chunk(
-                modal_chunk,
-                entity_info,
-                file_path,
-                batch_mode,
-                doc_id,
-                chunk_order_index,
-                chunk_metadata=build_modal_chunk_metadata(
-                    content_type,
-                    modal_content,
-                    (item_info or {}).get("page_idx"),
-                ),
-            )
-
-        except Exception as e:
-            logger.error(f"Error processing {content_type} content: {e}")
             # Fallback processing
             fallback_entity = {
                 "entity_name": entity_name

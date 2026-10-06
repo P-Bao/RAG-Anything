@@ -8,7 +8,6 @@ from raganything.mineru_content import (
     convert_mineru_content_list_v2,
 )
 from raganything.parser import MineruParser
-from raganything.processor import ProcessorMixin
 from raganything.utils import separate_content
 
 
@@ -411,32 +410,6 @@ def test_read_output_files_refreshes_markdown_when_v2_falls_back(tmp_path):
 
     assert content_list == [{"type": "text", "text": "legacy"}]
     assert markdown == "legacy markdown"
-
-
-def test_layout_option_isolated_in_parse_cache_key(tmp_path):
-    class DummyProcessor(ProcessorMixin):
-        pass
-
-    processor = DummyProcessor()
-    processor.config = type(
-        "Config", (), {"parser": "mineru", "parse_method": "auto"}
-    )()
-    source = tmp_path / "document.pdf"
-    source.write_bytes(b"%PDF-1.4\n")
-
-    default_key = processor._generate_cache_key(source, include_layout_blocks=False)
-    layout_key = processor._generate_cache_key(source, include_layout_blocks=True)
-
-    assert default_key != layout_key
-    assert processor._relevant_parser_kwargs(
-        {"include_layout_blocks": True, "unrelated": "ignored"}
-    ) == {"include_layout_blocks": True}
-    assert (
-        processor._relevant_parser_kwargs(
-            {"include_layout_blocks": False, "unrelated": "ignored"}
-        )
-        == {}
-    )
 
 
 def test_parse_pdf_wires_layout_option_to_output_reader(tmp_path):

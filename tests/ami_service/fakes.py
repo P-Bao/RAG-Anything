@@ -69,8 +69,8 @@ class FakeMongoCollection:
         doc_id = query.get("_id")
         if doc_id in self._docs:
             self._docs.pop(doc_id)
-            return DeleteResult(1)
-        return DeleteResult(0)
+            return DeleteResult(1, True)
+        return DeleteResult(0, False)
 
     def aggregate(self, pipeline: list[dict]):
         counts: dict[str, int] = {}

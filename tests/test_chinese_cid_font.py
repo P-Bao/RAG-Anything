@@ -11,6 +11,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+pytest.importorskip("reportlab")
+
 
 class TestChineseCIDFont:
     """Test CID font registration for Chinese text rendering."""

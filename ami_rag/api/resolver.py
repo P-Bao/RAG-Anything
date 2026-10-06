@@ -126,5 +126,26 @@ class DocResolver:
         self._cache[file_path] = payload
         return payload
 
+    async def resolve_doc_id(self, doc_id: str) -> dict | None:
+        """Resolve a Mongo document id directly (vector chunks carry doc_id)."""
+        if not doc_id:
+            return None
+        cache_key = f"id:{doc_id}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        try:
+            doc = await asyncio.to_thread(self.docs_repo.find_by_id, doc_id)
+        except Exception:
+            doc = None
+        if doc is None:
+            self._cache[cache_key] = None
+            return None
+        file_url = None
+        if doc.get("file_path"):
+            file_url = await self._presign_async(doc["file_path"])
+        payload = self._build_payload(doc, file_url)
+        self._cache[cache_key] = payload
+        return payload
+
     def invalidate(self, file_path: str) -> None:
         self._cache.pop(file_path, None)

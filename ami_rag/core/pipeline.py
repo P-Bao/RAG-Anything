@@ -73,13 +73,8 @@ def validate_stage(stage: str | None) -> str | None:
     return stage
 
 
-def create_runner(settings) -> PipelineRunner:
-    """Cắm pipeline runner thật (trả về VectorPipeline).
+def create_runner(settings=None) -> PipelineRunner:
+    """Cắm pipeline runner thật (trả về VectorPipeline)."""
+    from ami_rag.core.factory import build_pipeline
 
-    Giai đoạn 4 (chuyển pipeline sang vector thuần) triển khai. Cho tới đó,
-    retry/reindex dừng với lỗi rõ ràng thay vì chạy nhầm pipeline cũ.
-    """
-    raise RuntimeError(
-        "Pipeline vector thuần chưa được cắm (Giai đoạn 4). "
-        "CLI retry/reindex sẽ hoạt động sau khi VectorPipeline được triển khai."
-    )
+    return build_pipeline(settings)

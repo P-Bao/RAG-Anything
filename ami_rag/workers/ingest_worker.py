@@ -1,95 +1,56 @@
 import asyncio
 import logging
 import os
-import tempfile
 import time
 import uuid
 from functools import partial
-from pathlib import Path
 
-from ami_rag.index_check import (
-    ERR_INCOMPLETE,
-    ERR_OTHER,
-    ERROR_HINTS,
-    FATAL_ERROR_CODES,
-    IngestIncompleteError,
-    classify_error,
-    inspect_document,
-    short_error,
-)
 from ami_rag.observability import (
-    INGEST_ASSET_UPLOAD_FAILURES_TOTAL,
     INGEST_DOCUMENTS,
     INGEST_DURATION_SECONDS,
     INGEST_EVENTS_TOTAL,
     INGEST_IN_FLIGHT,
-    INGEST_ITEMS_TOTAL,
-    INGEST_PAGES_TOTAL,
-    INGEST_PARSE_FAILURES_TOTAL,
     INGEST_STREAM_LAG,
     INGEST_STREAM_PENDING,
     observe_ingest_stage,
 )
 from ami_rag.queue.events import EVENT_DELETED, RagEvent
 from ami_rag.queue.streams import RagStreamQueue
-from ami_rag.settings import Settings, get_settings, parser_kwargs
-from ami_rag.sources import (
-    SOURCE_MINIO_PARSE,
-    doc_link_fields,
-    resolve_file_path,
-    select_source,
-    source_hash,
+from ami_rag.settings import Settings, get_settings
+from ami_rag.sources import SOURCE_MINIO_PARSE, select_source, source_hash
+from ami_rag.storage.doc_status import (
+    STATUS_INDEXED,
+    DocStatusStore,
+    effective_status,
 )
 
 logger = logging.getLogger(__name__)
 
-_COUNT_TYPES = ("text", "image", "table", "equation")
-_CRAWL_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 _STATS_INTERVAL_SECONDS = 15
 _COUNTS_INTERVAL_SECONDS = 60
 
 
-def count_content_list(content_list: list[dict]) -> tuple[dict, int]:
-    """Items per modality (unknown types fold into `other`) and page count (max page_idx + 1)."""
-    counts = {t: 0 for t in _COUNT_TYPES}
-    other = 0
-    max_page = -1
-    for item in content_list:
-        item_type = item.get("type")
-        if item_type in counts:
-            counts[item_type] += 1
-        else:
-            other += 1
-        page_idx = item.get("page_idx")
-        if isinstance(page_idx, int) and page_idx > max_page:
-            max_page = page_idx
-    if other:
-        counts["other"] = other
-    return counts, max_page + 1
-
-
 class IngestWorker:
-    """Consume RAG ingest events from Redis Streams and drive RAGAnything.
+    """Consume RAG ingest events from Redis Streams and drive the vector pipeline.
 
-    created/updated -> select_source: minio_parse (pdf/docx: MinIO file parsed by the
-    multimodal parser, assets uploaded to MinIO) or mongo_text (Mongo `content`) ->
-    insert_content_list with doc_id=mongo_id; unchanged source_hash is skipped.
-    deleted -> adelete_by_doc_id + MinIO assets + registry row. Updates are
-    delete-reinsert.
+    created/updated -> ensure_pending + runner.run(doc_id, from_stage="parse")
+    (parse -> describe -> chunk -> embed -> indexed, DocStatusStore ghi ở mỗi
+    stage). Unchanged source_hash (đã indexed, cùng embed model/chunker) skip.
+    deleted -> runner.delete_doc + registry row.
     """
 
     def __init__(
         self,
-        rag_anything,
+        runner,
         docs_repo,
-        state_repo,
+        state_repo: DocStatusStore,
         queue: RagStreamQueue,
         asset_store,
         settings: Settings | None = None,
         image_worker=None,
         logger_=None,
     ):
-        self.rag_anything = rag_anything
+        self.runner = runner
         self.docs_repo = docs_repo
         self.state_repo = state_repo
         self.queue = queue
@@ -99,80 +60,9 @@ class IngestWorker:
         self.log = logger_ or logger
         self._seen_statuses: set[str] = set()
 
-    async def _purge_index(self, doc_id: str) -> None:
+    async def _purge(self, doc_id: str) -> None:
         with observe_ingest_stage("delete"):
-            await self.rag_anything.lightrag.adelete_by_doc_id(doc_id)
-            await asyncio.to_thread(self.asset_store.delete_doc_assets, doc_id)
-
-    async def _verify_index(self, doc_id: str) -> dict | None:
-        """Check the document really landed in the index (chunk vectors, entities).
-
-        LightRAG swallows embedding/LLM failures, so an insert that returned normally can
-        still leave no vectors/entities. Raises IngestIncompleteError (-> retry, then
-        `failed`) instead of recording the document as processed.
-        """
-        if not getattr(self.settings, "INGEST_VERIFY", True):
-            return None
-        lightrag = getattr(self.rag_anything, "lightrag", None)
-        if getattr(lightrag, "chunks_vdb", None) is None:
-            return None
-        require_entities = getattr(self.settings, "INGEST_REQUIRE_ENTITIES", True)
-        with observe_ingest_stage("verify"):
-            stats = await inspect_document(lightrag, doc_id)
-        problems = stats.problems(require_entities)
-        if problems:
-            self.log.warning("index check failed: %s", stats.line(require_entities))
-            raise IngestIncompleteError(
-                f"document {doc_id} index incomplete: {'; '.join(problems)}"
-            )
-        self.log.info("index check: %s", stats.line(require_entities))
-        return stats.as_dict()
-
-    async def _upload_assets(self, doc_id: str, content_list: list[dict]) -> list[str]:
-        try:
-            with observe_ingest_stage("upload_assets"):
-                return await asyncio.to_thread(
-                    self.asset_store.upload_content_list_assets, doc_id, content_list
-                )
-        except Exception:
-            INGEST_ASSET_UPLOAD_FAILURES_TOTAL.inc()
-            raise
-
-    async def _drop_parse_cache(self, local: Path) -> None:
-        """Delete this parse's RAGAnything cache entry.
-
-        The cache key embeds the (temp) file path, so it can never hit again and
-        would only accumulate full content lists in Mongo. Best effort.
-        """
-        try:
-            key = self.rag_anything._generate_cache_key(local, self.settings.PARSE_METHOD)
-            await self.rag_anything.parse_cache.delete([key])
-            await self.rag_anything.parse_cache.index_done_callback()
-        except Exception as exc:
-            self.log.debug("parse cache cleanup skipped for %s: %s", local.name, exc)
-
-    async def _crawl_image_items(self, doc: dict, doc_id: str, tmp: str) -> list[dict]:
-        """Download crawl images (CrawlImageWorker -> MinIO) and fetch them locally as
-        image items; failures are skipped (best effort)."""
-        items: list[dict] = []
-        for url in self.image_worker.collect_image_urls(doc):
-            key = await self.image_worker.ensure_in_minio(doc_id, url)
-            if not key or Path(key).suffix.lower() not in _CRAWL_IMAGE_EXTS:
-                continue
-            try:
-                local = await asyncio.to_thread(self.asset_store.fetch, key, Path(tmp))
-            except Exception as exc:
-                self.log.warning("crawl image %s for %s not fetched: %s", url, doc_id, exc)
-                continue
-            items.append(
-                {
-                    "type": "image",
-                    "img_path": str(local),
-                    "image_caption": [],
-                    "page_idx": 0,
-                }
-            )
-        return items
+            await self.runner.delete_doc(doc_id)
 
     async def handle_event(self, event: RagEvent) -> dict | None:
         """Process one event. Returns ingest info when the document was (re)indexed,
@@ -180,7 +70,7 @@ class IngestWorker:
         doc_id = event.document_id
 
         if event.event == EVENT_DELETED:
-            await self._purge_index(doc_id)
+            await self._purge(doc_id)
             await asyncio.to_thread(self.state_repo.delete, doc_id)
             self.log.info("deleted document %s from RAG index", doc_id)
             return None
@@ -191,7 +81,6 @@ class IngestWorker:
             return None
 
         source = select_source(doc)
-        file_path = resolve_file_path(doc)
         if source == SOURCE_MINIO_PARSE:
             if not doc.get("file_path"):
                 raise ValueError(f"document {doc_id} has no file_path in MinIO to parse")
@@ -201,79 +90,43 @@ class IngestWorker:
 
         h = source_hash(doc, source)
         prev = await asyncio.to_thread(self.state_repo.get, doc_id)
-        if prev and prev.get("status") == "processed" and prev.get("source_hash") == h:
+        if (
+            prev
+            and effective_status(
+                prev, self.settings.EMBED_MODEL, self.settings.CHUNKER_VERSION
+            )
+            == STATUS_INDEXED
+            and prev.get("content_hash") == h
+        ):
             self.log.debug("document %s unchanged, skipping", doc_id)
             return None
 
-        if prev:
-            await self._purge_index(doc_id)
-
-        assets: list[str] = []
-        with tempfile.TemporaryDirectory() as tmp:
-            if source == SOURCE_MINIO_PARSE:
-                with observe_ingest_stage("download"):
-                    local = await asyncio.to_thread(
-                        self.asset_store.fetch, doc["file_path"], Path(tmp)
-                    )
-                try:
-                    with observe_ingest_stage("parse"):
-                        content_list, _ = await self.rag_anything.parse_document(
-                            str(local),
-                            output_dir=tmp,
-                            parse_method=self.settings.PARSE_METHOD,
-                            **parser_kwargs(self.settings),
-                        )
-                except Exception:
-                    INGEST_PARSE_FAILURES_TOTAL.labels(
-                        document_type=doc.get("document_type") or "unknown"
-                    ).inc()
-                    raise
-                await self._drop_parse_cache(local)
-                assets = await self._upload_assets(doc_id, content_list)
-            else:
-                content_list = [{"type": "text", "text": doc["content"], "page_idx": 0}]
-                if getattr(self.settings, "CRAWL_IMAGES_ENABLED", False) and self.image_worker:
-                    content_list += await self._crawl_image_items(doc, doc_id, tmp)
-                    assets = await self._upload_assets(doc_id, content_list)
-
-            if not content_list:
-                self.log.warning("document %s produced an empty content list, skipping", doc_id)
-                return None
-
-            with observe_ingest_stage("upload_assets"):
-                await asyncio.to_thread(self.asset_store.save_content_list, doc_id, content_list)
-            # Insert inside the temp dir: image processing reads local `img_path` files.
-            with observe_ingest_stage("insert"):
-                await self.rag_anything.insert_content_list(
-                    content_list, file_path=file_path, doc_id=doc_id
+        if prev is None:
+            await asyncio.to_thread(
+                partial(
+                    self.state_repo.ensure_pending,
+                    doc_id,
+                    doc.get("file_path") or "",
+                    h,
                 )
-            index_stats = await self._verify_index(doc_id)
+            )
 
-        counts, page_count = count_content_list(content_list)
-        for modality, n in counts.items():
-            if n:
-                INGEST_ITEMS_TOTAL.labels(modality=modality).inc(n)
-        if page_count:
-            INGEST_PAGES_TOTAL.inc(page_count)
+        outcome = await self.runner.run(doc_id, from_stage="parse")
+        if not outcome.ok:
+            raise RuntimeError(
+                f"pipeline failed at stage '{outcome.stage}': {outcome.error}"
+            )
         self.log.info(
-            "indexed document %s (type=%s, source=%s, file_path=%s, counts=%s)",
+            "indexed document %s (type=%s, source=%s, chunks=%s)",
             doc_id,
             doc.get("document_type"),
             source,
-            file_path,
-            counts,
+            outcome.chunk_count,
         )
         return {
             "source": source,
             "source_hash": h,
-            "file_path": file_path or "",
-            "assets": assets,
-            "counts": counts,
-            "page_count": page_count,
-            "meta": {
-                **doc_link_fields(doc),
-                **({"index_stats": index_stats} if index_stats else {}),
-            },
+            "chunk_count": outcome.chunk_count,
         }
 
     async def _process_message(self, message_id: str, event: RagEvent) -> None:
@@ -283,33 +136,29 @@ class IngestWorker:
         INGEST_IN_FLIGHT.inc()
         started = time.perf_counter()
         source = "none"
+        ran = False
         try:
             try:
                 result = await self.handle_event(event)
+                ran = True
             except Exception as exc:
-                code = classify_error(exc)
                 self.log.error(
-                    "failed to process event %s for document %s [%s]: %s",
+                    "failed to process event %s for document %s: %s",
                     event.event,
                     event.document_id,
-                    code,
-                    short_error(exc),
+                    exc,
                 )
-                if code in FATAL_ERROR_CODES:
-                    self.log.error("%s: %s", code, ERROR_HINTS.get(code, ""))
-                if attempts >= self.settings.WORKER_MAX_DELIVERY:
-                    INGEST_EVENTS_TOTAL.labels(event=event.event, result="failed").inc()
+                if not ran:
                     await asyncio.to_thread(
                         partial(
                             self.state_repo.mark_failed,
                             event.document_id,
                             str(exc),
-                            event.content_hash,
-                            error_code=code,
-                            error_stage="verify" if code == ERR_INCOMPLETE else "ingest",
-                            retryable=code != ERR_OTHER,
+                            "ingest",
                         )
                     )
+                if attempts >= self.settings.WORKER_MAX_DELIVERY:
+                    INGEST_EVENTS_TOTAL.labels(event=event.event, result="failed").inc()
                     await self.queue.ack(message_id)
                     self.log.error(
                         "document %s marked failed after %s attempts",
@@ -322,7 +171,6 @@ class IngestWorker:
             if result:
                 source = result.get("source") or "none"
                 INGEST_EVENTS_TOTAL.labels(event=event.event, result="processed").inc()
-                await self.mark_processed(event.document_id, result)
             else:
                 INGEST_EVENTS_TOTAL.labels(event=event.event, result="skipped").inc()
                 await asyncio.to_thread(self.state_repo.release_attempt, event.document_id)
@@ -330,23 +178,6 @@ class IngestWorker:
         finally:
             INGEST_DURATION_SECONDS.labels(source=source).observe(time.perf_counter() - started)
             INGEST_IN_FLIGHT.dec()
-
-    async def mark_processed(self, doc_id: str, result: dict) -> None:
-        """Persist the outcome returned by handle_event into the registry."""
-        await asyncio.to_thread(
-            partial(
-                self.state_repo.mark_processed,
-                doc_id,
-                result["source_hash"],
-                source=result["source"],
-                file_path=result["file_path"],
-                parser=self.settings.PARSER,
-                assets=result["assets"],
-                counts=result["counts"],
-                page_count=result["page_count"],
-                meta=result.get("meta"),
-            )
-        )
 
     async def _update_queue_gauges(self) -> None:
         try:
@@ -402,7 +233,6 @@ def _build_default_deps(settings: Settings):
     from ami_rag.core.factory import get_asset_store
     from ami_rag.queue.streams import RagStreamQueue
     from ami_rag.storage.mongo_docs import MongoDocumentRepo
-    from ami_rag.storage.rag_documents import RagDocumentsRepo
 
     consumer = settings.RAG_CONSUMER_NAME or f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
     docs_repo = MongoDocumentRepo(
@@ -410,7 +240,7 @@ def _build_default_deps(settings: Settings):
         db_name=settings.ORG_DB,
         collection_name=settings.DOC_COLLECTION,
     )
-    state_repo = RagDocumentsRepo(
+    state_repo = DocStatusStore(
         mongo_uri=settings.MONGO_URI,
         db_name=settings.RAG_DB,
         collection_name=settings.RAG_DOCUMENTS_COLLECTION,
@@ -456,11 +286,11 @@ async def run_worker(settings: Settings | None = None) -> None:
     from prometheus_client import start_http_server
 
     start_http_server(settings.WORKER_METRICS_PORT)
-    from ami_rag.core.factory import get_raganything
+    from ami_rag.core.factory import build_pipeline
 
     docs_repo, state_repo, queue, asset_store, image_worker = _build_default_deps(settings)
     worker = IngestWorker(
-        rag_anything=await get_raganything(),
+        runner=build_pipeline(settings, docs_repo=docs_repo),
         docs_repo=docs_repo,
         state_repo=state_repo,
         queue=queue,
@@ -471,9 +301,9 @@ async def run_worker(settings: Settings | None = None) -> None:
     try:
         await worker.run_forever()
     finally:
-        from ami_rag.core.factory import close_rag
+        from ami_rag.core.factory import close_pipeline
 
-        await close_rag()
+        await close_pipeline()
 
 
 def run() -> None:

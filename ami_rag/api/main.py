@@ -15,12 +15,12 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     worker_task = None
     if settings.WORKER_ENABLED:
-        from ami_rag.core.factory import get_raganything
+        from ami_rag.core.factory import get_pipeline
         from ami_rag.workers.ingest_worker import IngestWorker, _build_default_deps
 
         docs_repo, state_repo, queue, asset_store, image_worker = _build_default_deps(settings)
         worker = IngestWorker(
-            rag_anything=await get_raganything(),
+            runner=await get_pipeline(),
             docs_repo=docs_repo,
             state_repo=state_repo,
             queue=queue,
@@ -34,9 +34,9 @@ async def lifespan(app: FastAPI):
         worker_task.cancel()
         with suppress(asyncio.CancelledError):
             await worker_task
-    from ami_rag.core.factory import close_rag
+    from ami_rag.core.factory import close_pipeline
 
-    await close_rag()
+    await close_pipeline()
 
 
 def create_app() -> FastAPI:

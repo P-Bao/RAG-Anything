@@ -24,9 +24,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from lightrag.utils import compute_mdhash_id
-
-from .modalprocessors import BaseModalProcessor
+from .modalprocessors import BaseModalProcessor, compute_mdhash_id
 
 logger = logging.getLogger(__name__)
 
@@ -385,70 +383,3 @@ class AudioModalProcessor(BaseModalProcessor):
             f"Transcription:\n{section['description']}"
         )
 
-    async def process_multimodal_content(
-        self,
-        modal_content,
-        content_type: str,
-        file_path: str = "manual_creation",
-        entity_name: str = None,
-        item_info: Dict[str, Any] = None,
-        batch_mode: bool = False,
-        doc_id: str = None,
-        chunk_order_index: int = 0,
-    ) -> Tuple[str, Dict[str, Any], List[Any]]:
-        """Process audio content: transcribe and insert into knowledge graph.
-
-        Long recordings produce multiple ordered chunks; each section is stored
-        with a sequential ``chunk_order_index`` starting at the supplied value.
-
-        Returns:
-            Tuple of (primary_summary, primary_entity_info, all_chunk_results)
-        """
-        try:
-            sections = await self.generate_chunk_sections(
-                modal_content, content_type, item_info, entity_name
-            )
-            audio_path = self._resolve_audio_path(modal_content)
-
-            all_chunk_results: List[Any] = []
-            section_chunk_ids: List[str] = []
-            primary_summary = None
-            primary_entity = None
-
-            for offset, section in enumerate(sections):
-                modal_chunk = self._build_audio_chunk(audio_path, section)
-                (
-                    summary,
-                    entity_ret,
-                    chunk_results,
-                ) = await self._create_entity_and_chunk(
-                    modal_chunk,
-                    section["entity_info"],
-                    file_path,
-                    batch_mode,
-                    doc_id,
-                    chunk_order_index + offset,
-                )
-                all_chunk_results.extend(chunk_results)
-                if entity_ret.get("chunk_id"):
-                    section_chunk_ids.append(entity_ret["chunk_id"])
-                if primary_summary is None:
-                    primary_summary = summary
-                    primary_entity = entity_ret
-
-            # Expose every section's chunk id so the caller can register them all
-            if primary_entity is not None:
-                primary_entity["chunk_ids"] = section_chunk_ids
-
-            return primary_summary, primary_entity, all_chunk_results
-
-        except Exception as e:
-            logger.error(f"Error processing audio content: {e}")
-            fallback_entity = {
-                "entity_name": entity_name
-                if entity_name
-                else f"audio_{compute_mdhash_id(str(modal_content))}",
-                "entity_type": "audio",
-                "summary": f"Audio content: {str(modal_content)[:100]}",
-            }
-            return str(modal_content), fallback_entity, []
