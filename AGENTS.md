@@ -56,25 +56,32 @@ Migrate RAG-Anything fork (service `ami_rag`) từ LightRAG KG + Gemini embeddin
 | 1 | Thiết kế ( duyệt) | ✅ |
 | 2 | Qwen embed server (repo riêng) + client RemoteEmbedder + cache SQLite | ✅ commit `394c8df` |
 | 3 | CLI + DocStatusStore + lockfile + PipelineRunner protocol | ✅ commit `32bf44c` |
-| 4 | **VectorPipeline + wiring factory/worker/API + strip LightRAG** | 🔴 **ĐANG LÀM** |
-| 5 | Reindex docs cũ (scan legacy → pending) | ⏳ |
-| 6 | Dọn docs + xóa LightRAG còn sót | ⏳ |
+| 4 | VectorPipeline + wiring factory/worker/API + strip LightRAG | ✅ commit `b2f8828` |
+| 5 | Reindex docs cũ (scan legacy → pending) | ✅ commit `787ff0d` |
+| 6 | Dọn docs + xóa LightRAG còn sót | 🔴 **CÒN LẠI** |
 
-## Phase 4 — đang làm
-- ✅ `ami_rag/core/vector_store.py`: QdrantVectorStore (ensure_collection dim check, upsert uuid5, query_points, delete_by_doc, count).
-- ✅ `ami_rag/storage/doc_status.py`: begin_attempt/release_attempt + mark_stage/mark_indexed rich meta (10 tests pass).
-- 🔴 `ami_rag/core/vector_pipeline.py`: **VỪA VIẾT, CHƯA CLEAN** (715 dòng, syntax OK). Cần:
-  1. Sửa `run()`: flow nonlocal `doc`/`content_list`/`descriptions` lỗi (do_parse dùng `doc` trước khi gán; truyền `row` cho `_stage_parse` không đúng shape). Viết lại tuần tự: load row → load doc (docs_repo) → parse (nếu cần) → describe (load content_list nếu thiếu) → chunk (load descriptions nếu thiếu) → embed (load chunks.json nếu thiếu, else build lại) → mark_indexed.
-  2. Xóa junk: `Midclass` (đổi tên → ArtifactPaths), `_file_rel_path`, `_content_hash` (dùng lại hay bỏ tùy), `_sheet_ok`, `_describe_fn`, `_require_content_list` (nonsense — xử lý inline trong run), import thừa (`urllib.error`?, check).
-  3. Verify `asset_store.doc_prefix(doc_id)` có tồn tại trong `ami_rag/storage/assets.py` — nếu không, dùng `f"{prefix}/{doc_id}/"`.
-  4. Thêm `RemoteEmbedder.count_cache_hits(texts)` vào `ami_rag/core/remote_embedder.py` (lookup EmbeddingCache với instruction_ns, KHÔNG gọi HTTP) — `_dry_run` đang gọi method này.
-  5. `_stage_parse(doc_id, doc)`: bỏ fallback từ row; nếu `doc is None` (không có docs_repo) → raise lỗi rõ ràng.
-- ⏳ Còn lại: wire `create_runner` trong `ami_rag/core/pipeline.py` → VectorPipeline; factory.py (build_pipeline/get_pipeline thay get_raganything); worker ingest rewrite; api routes rag.py/admin.py/main.py/schemas.py (v2-only); modalprocessors.py strip (BaseModalProcessor lightrag-tolerant, xóa storage attrs + storage-writing methods ~1053/1087/1260/1289/1455/1477/1634/1645); processor.py (giữ parse_document, xóa graph paths 630-1732); query.py rewrite (aquery_data → embed+search+rerank); raganything.py rewrite; utils.py trim; tests/fixtures sample questions; pipeline tests (fake embedder/vector_store/asset_store trong `tests/ami_service/`).
+## Phase 4 — ✅ (commit `b2f8828`)
+- `vector_pipeline.py`: run() tuần tự (load row → doc → parse → describe → chunk → embed → mark_indexed); resume từ MinIO artifacts (chunks.json reuse, build lại nếu thiếu); `_stage_parse` raise khi doc None; dry_run không embed/không ghi; junk đã xóa (`ArtifactPaths`, `_load_doc`, `_load_or_build_chunks`).
+- Wiring: `create_runner` → `build_pipeline`; factory.py không còn LightRAG (build_pipeline/get_pipeline/close_pipeline + LLM/vision funcs thuần OpenAI-compatible qua `openai` lib, `_build_modal_processors` lightrag=None).
+- Worker: runner-based (`IngestWorker(runner=...)`), DocStatusStore làm state repo; xóa `index_check.py` + `storage/rag_documents.py`.
+- API v2-only: `RAGRequest` = messages/top_k/include_references; `/rag` = embed_query → vector_search → rerank → `resolve_doc_id`; admin dùng DocStatusStore; `DocResolver.resolve_doc_id`.
+- raganything thin: query.py (aquery → llm, aquery_data → embed+search), processor.py (parse-only), raganything.py (parser + modal processors + query), utils.py (bỏ insert_text_content*), config.py (`get_env_value` local — KHÔNG import lightrag nữa, toàn service import được không cần lightrag).
+- modalprocessors: BaseModalProcessor lightrag-tolerant (llm_model_func/tokenizer/global_config qua kwargs), xóa `_create_entity_and_chunk`/`_process_chunk_for_extraction`/`process_multimodal_content` (mọi file), `compute_mdhash_id` local.
+- Tests: 480 pass khi commit Phase 4; xóa 15 test file old-pipeline; **thêm `tests/__init__.py`** (bắt buộc: site-packages có package `tests` shadow local dir → `tests.ami_service` import lỗi nếu thiếu).
+
+## Phase 5 — ✅ (commit `787ff0d`)
+- `ami_rag/core/scan.py`: `scan_pending` (scan backend documents → ensure_pending cho docs thiếu registry row) + `reindex_candidates` (pending + stale, gồm legacy `processed`; indexed/failed loại trừ).
+- CLI: `ami-rag reindex --scan`; from_stage per-doc (`_from_stage_for`: chunk khi content_list đã có trong MinIO, None=full parse khi thiếu).
+- Tests: 483 pass, 2 skip (pre-existing: reportlab + lightrag); ruff clean trên `ami_rag`.
+
+## Phase 6 — 🔴 còn lại
+- Xóa `reproduce/` + LightRAG examples (`examples/`), deps lightrag còn sót (pyproject), code dead (batch.py? resilience? callback paths?), docs cũ.
+- Cập nhật `docs/ami_service.md` cuối cùng; sample questions `tests/fixtures/` nếu cần.
 
 ## Quy tắc (bắt buộc)
 - **MỖI phase commit riêng, STOP xin duyệt sau mỗi phase.** Trước commit: `gitnexus_detect_changes()`.
 - Trước khi sửa symbol: `gitnexus_impact` trước (AGENTS.md gitnexus block ở trên).
-- Test: `pytest` cần `$env:PYTHONIOENCODING="utf-8"`; lint ruff 0.16.0 global.
+- Test: `pytest` cần `$env:PYTHONIOENCODING="utf-8"`; lint ruff 0.16.0 global (`ami_rag/**` đã per-file-ignores BLE001/S110/B008).
 - GitNexus CLI phải dùng bản global 1.6.5 (`C:\Users\phanb\AppData\Local\pnpm\bin\gitnexus.CMD`), KHÔNG `npx` latest.
 - File có tiếng Việt: chỉ dùng tool write/edit, KHÔNG Add-Content/Set-Content (cp1252 mojibake).
 - Không gọi LLM/API ngoài ý muốn; describe là stage duy nhất gọi LLM (tuỳ chọn).
