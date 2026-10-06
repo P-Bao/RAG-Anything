@@ -289,3 +289,45 @@ async def test_prepare_embed_items_attaches_image_b64(pipeline, fake_embedder):
     assert image_items[0]["image_b64"]
 
 
+async def test_prepare_embed_items_attaches_assets_for_table_and_equation(pipeline):
+    from ami_rag.core.vector_pipeline import Chunk
+
+    chunks = [
+        Chunk(id="c1", content="text", modality="text", page_idx=0, is_multimodal=False),
+        Chunk(
+            id="c2",
+            content="[Table Content]",
+            modality="table",
+            page_idx=1,
+            is_multimodal=True,
+            asset_key="t1.png",
+        ),
+        Chunk(
+            id="c3",
+            content="[Equation]",
+            modality="equation",
+            page_idx=2,
+            is_multimodal=True,
+            asset_key="e1.png",
+        ),
+        Chunk(
+            id="c4",
+            content="table no asset",
+            modality="table",
+            page_idx=3,
+            is_multimodal=True,
+        ),
+    ]
+    items = await pipeline._prepare_embed_items(chunks)
+    assert items[0] == "text"
+    # table có asset -> image + text (modality Image+Text)
+    assert isinstance(items[1], dict)
+    assert items[1]["text"] == "[Table Content]"
+    assert items[1]["image_b64"]
+    # equation có asset -> image + text
+    assert isinstance(items[2], dict)
+    assert items[2]["image_b64"]
+    # table không có asset_key -> text-only
+    assert items[3] == "table no asset"
+
+

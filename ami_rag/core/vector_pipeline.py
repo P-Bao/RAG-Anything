@@ -11,8 +11,9 @@ Các stage (ghi DocStatusStore ở MỖI stage):
 - chunk: text chunk bằng plain splitter; multimodal chunk bằng template
   (Nội dung = mô tả đã lưu, không bao giờ gọi LLM ở stage này); lưu
   `{doc_id}/chunks.json`.
-- embed: RemoteEmbedder (máy B) với cache; luôn delete_by_doc trước upsert
-  (idempotent). KHÔNG tạo entity, KHÔNG ghi vào graph.
+- embed: RemoteEmbedder/OpenAIEmbedder (máy B, chọn theo EMBED_BACKEND) với
+  cache; luôn delete_by_doc trước upsert (idempotent). KHÔNG tạo entity,
+  KHÔNG ghi vào graph.
 - indexed: mark_indexed + meta. Verify: count vector trong Qdrant ==
   số chunk đã lưu.
 
@@ -500,11 +501,17 @@ class VectorPipeline(PipelineRunner):
     async def _prepare_embed_items(
         self, chunks: list[Chunk]
     ) -> list[str | dict]:
-        """Chuẩn bị payload cho embedder: nạp ảnh từ asset_store với chunk multimodal ảnh."""
-        image_chunks = [c for c in chunks if c.modality == "image" and c.asset_key]
+        """Chuẩn bị payload cho embedder: nạp ảnh từ asset_store với chunk
+        image/table/equation (image+text modality - cả Qwen3-VL lẫn Nemotron
+        VL đều nhận text + ảnh qua contract item {text, image_b64})."""
+        asset_chunks = [
+            c
+            for c in chunks
+            if c.modality in ("image", "table", "equation") and c.asset_key
+        ]
         asset_images: dict[str, str] = {}
-        if image_chunks and hasattr(self.asset_store, "get_bytes"):
-            unique_keys = {c.asset_key for c in image_chunks if c.asset_key}
+        if asset_chunks and hasattr(self.asset_store, "get_bytes"):
+            unique_keys = {c.asset_key for c in asset_chunks if c.asset_key}
 
             async def _fetch(key: str) -> tuple[str, str | None]:
                 try:
@@ -520,7 +527,11 @@ class VectorPipeline(PipelineRunner):
 
         items: list[str | dict] = []
         for c in chunks:
-            if c.modality == "image" and c.asset_key and c.asset_key in asset_images:
+            if (
+                c.modality in ("image", "table", "equation")
+                and c.asset_key
+                and c.asset_key in asset_images
+            ):
                 items.append({
                     "text": c.content,
                     "image_b64": asset_images[c.asset_key],
