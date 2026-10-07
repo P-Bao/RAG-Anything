@@ -57,6 +57,7 @@ This project is indexed by GitNexus as **RAG-Anything** (5926 symbols, 11096 rel
 - Query API chỉ text (không đổi schema `RAGRequest`).
 - `_check_embed_server` (cli) backend-agnostic: `/health` + `embedder.verify()`; print dùng `embedder.model`/`dim` (getattr fallback cho FakeEmbedder).
 - URL defaults: `EMBED_SERVER_URL`/`RERANK_BASE_URL` = `http://localhost:8080` (gateway); backend `custom` (Qwen) phải đổi `EMBED_SERVER_URL` về 8007 qua env.
+- Cleanup model cũ: `ami-rag cleanup --stale-models` (xoá Qdrant `{WORKSPACE}__*` không phải collection hiện tại — ví dụ bản Qwen sau khi đổi Nemotron) + `--purge-cache-model "Qwen/Qwen3-VL-Embedding-2B"` (xoá cache SQLite theo prefix `{MODEL}|`). Helpers: `legacy_cleanup.find_stale_model_collections` + `EmbeddingCache.delete_by_prefix`.
 
 # Handoff — Migration sang vector pipeline thuần (cập nhật: 06/10/2026)
 

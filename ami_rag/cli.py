@@ -3,7 +3,9 @@
 - `status`: xem trạng thái doc (mặc định chỉ đọc local: 0 LLM, 0 embed, 0 model call).
 - `retry`: chạy lại doc `failed`, tiếp tục từ stage lỗi bằng dữ liệu trung gian đã lưu.
 - `reindex`: xử lý lại thủ công (chunk -> embed từ dữ liệu parse + mô tả modal đã lưu).
-- `cleanup`: kiểm tra + xoá collection Mongo/Qdrant legacy của pipeline LightRAG cũ.
+- `cleanup`: kiểm tra + xoá collection Mongo/Qdrant rác của pipeline LightRAG cũ;
+  `--stale-models` xoá thêm collection embed model cũ (Qdrant, ví dụ bản Qwen);
+  `--purge-cache-model` xoá cache embedding SQLite theo model.
 
 Pipeline thật (chunk -> embed -> upsert Qdrant) được cắm qua `PipelineRunner`
 (triển khai ở giai đoạn chuyển pipeline); CLI chỉ orchestrate và đọc DocStatusStore.
@@ -449,11 +451,14 @@ def _from_stage_for(row: dict, from_stage: str | None, runner) -> str | None:
 # cleanup
 # --------------------------------------------------------------------------
 async def cmd_cleanup(args, *, settings=None, mongo_db=None, qdrant_client=None) -> int:
-    """Kiểm tra + xoá collection Mongo/Qdrant legacy của pipeline LightRAG cũ.
+    """Kiểm tra + xoá collection Mongo/Qdrant rác của pipeline LightRAG cũ.
 
-    Chỉ đọc để dò (list + count); xoá sau khi có xác nhận. Không đụng:
-    registry `RAG_DOCUMENTS_COLLECTION`, collection Qdrant `{WORKSPACE}__*`
-    (vector pipeline, gồm cả model/chunker version cũ), collection ngoài workspace.
+    `--stale-models`: dò + xoá thêm collection Qdrant của embed model/version cũ
+    (`{WORKSPACE}__*` không phải collection hiện tại — ví dụ bản Qwen sau khi đổi
+    sang Nemotron). `--purge-cache-model NAME...`: xoá cache embedding SQLite theo
+    model. Chỉ đọc để dò (list + count); xoá sau khi có xác nhận. Không đụng:
+    registry `RAG_DOCUMENTS_COLLECTION`, collection Qdrant hiện tại
+    (`{WORKSPACE}__{embed_model_slug}__{CHUNKER_VERSION}`), collection ngoài workspace.
     """
     from ami_rag.core.embedder import collection_name
     from ami_rag.core.legacy_cleanup import (
@@ -461,6 +466,7 @@ async def cmd_cleanup(args, *, settings=None, mongo_db=None, qdrant_client=None)
         delete_qdrant_collections,
         find_legacy_mongo,
         find_legacy_qdrant,
+        find_stale_model_collections,
     )
 
     settings = settings or get_settings()
@@ -484,6 +490,18 @@ async def cmd_cleanup(args, *, settings=None, mongo_db=None, qdrant_client=None)
             targets.extend(
                 await asyncio.to_thread(find_legacy_qdrant, qdrant_client, settings.WORKSPACE)
             )
+            if getattr(args, "stale_models", False):
+                current = collection_name(
+                    settings.WORKSPACE, settings.EMBED_MODEL, settings.CHUNKER_VERSION
+                )
+                targets.extend(
+                    await asyncio.to_thread(
+                        find_stale_model_collections,
+                        qdrant_client,
+                        settings.WORKSPACE,
+                        current,
+                    )
+                )
     except Exception as exc:
         print(f"STOPPED: không dò được collection legacy: {exc}")
         return 2
@@ -492,7 +510,8 @@ async def cmd_cleanup(args, *, settings=None, mongo_db=None, qdrant_client=None)
     print(f"workspace: {settings.WORKSPACE}")
     print(
         f"giữ lại: Mongo `{settings.RAG_DOCUMENTS_COLLECTION}` (registry/DocStatusStore), "
-        f"Qdrant `{current}` và mọi `{settings.WORKSPACE}__*` (vector pipeline)"
+        f"Qdrant `{current}` (collection hiện tại)"
+        + ("" if getattr(args, "stale_models", False) else f" và mọi `{settings.WORKSPACE}__*` (vector pipeline)")
     )
     if not targets:
         print("không có collection legacy nào cần xoá")
@@ -500,7 +519,7 @@ async def cmd_cleanup(args, *, settings=None, mongo_db=None, qdrant_client=None)
 
     for t in targets:
         size = f"{t.count:,}" if t.count >= 0 else "?"
-        print(f"  legacy [{t.db}] {t.name}  ({size} documents/points)")
+        print(f"  {t.kind} [{t.db}] {t.name}  ({size} documents/points)")
     if args.dry_run:
         print(f"dry-run: {len(targets)} collection legacy sẽ bị xoá (không ghi gì)")
         return 0
@@ -525,6 +544,20 @@ async def cmd_cleanup(args, *, settings=None, mongo_db=None, qdrant_client=None)
     except Exception as exc:
         print(f"STOPPED: lỗi khi xoá: {exc}")
         return 2
+
+    purge_models = getattr(args, "purge_cache_model", None) or []
+    if purge_models:
+        try:
+            from ami_rag.core.embedding_cache import EmbeddingCache
+
+            cache = EmbeddingCache(settings.EMBED_CACHE_PATH)
+            for model in purge_models:
+                purged = await asyncio.to_thread(cache.delete_by_prefix, f"{model}|")
+                print(f"cache: đã xoá {purged} entry của model `{model}`")
+            await asyncio.to_thread(cache.close)
+        except Exception as exc:
+            print(f"LỖI purge cache: {exc}")
+            failed.append(f"cache:{','.join(purge_models)}")
 
     for name in failed:
         print(f"LỖI xoá: {name}")
@@ -608,6 +641,19 @@ def main() -> None:
         help="chỉ liệt kê collection legacy (kèm số document/points), không xoá",
     )
     p_cleanup.add_argument("--yes", action="store_true", help="bỏ qua xác nhận")
+    p_cleanup.add_argument(
+        "--stale-models",
+        action="store_true",
+        help="xoá thêm collection Qdrant của embed model/version cũ "
+        "(`{WORKSPACE}__*` không phải collection hiện tại, ví dụ bản Qwen)",
+    )
+    p_cleanup.add_argument(
+        "--purge-cache-model",
+        nargs="+",
+        default=[],
+        metavar="MODEL",
+        help="xoá cache embedding SQLite của model (ví dụ 'Qwen/Qwen3-VL-Embedding-2B')",
+    )
     p_cleanup.add_argument(
         "--mongo-only",
         action="store_true",

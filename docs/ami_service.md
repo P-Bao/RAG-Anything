@@ -394,7 +394,7 @@ Mã thoát: `0` xong, `1` một số doc thất bại, `2` dừng sớm (preflig
 Sau migration, các collection của LightRAG không còn được đọc/ghi nhưng vẫn chiếm chỗ. Lệnh dò và xoá chúng (`ami_rag/core/legacy_cleanup.py`):
 
 - **Mongo** (`RAG_DB`): mọi collection `{WORKSPACE}_*` trừ registry `RAG_DOCUMENTS_COLLECTION` — tức `multimodal_full_docs`, `multimodal_text_chunks`, `multimodal_llm_response_cache`, `multimodal_doc_status`, `multimodal_chunk_entity_relation`(+`_edges`), `multimodal_parse_cache`, ... Registry được giữ nguyên vì DocStatusStore còn đọc dòng legacy `processed` (như `stale`) để `reindex --scan`.
-- **Qdrant**: mọi collection `{WORKSPACE}_*` **một gạch** (`multimodal_chunks`, `multimodal_entities`, `multimodal_relationships`, ...). Các collection `{WORKSPACE}__*` (hai gạch — quy ước vector pipeline, gồm cả embed model/chunker version cũ để rollback) luôn giữ.
+- **Qdrant**: mọi collection `{WORKSPACE}_*` **một gạch** (`multimodal_chunks`, `multimodal_entities`, `multimodal_relationships`, ...). Các collection `{WORKSPACE}__*` (hai gạch — quy ước vector pipeline) mặc định luôn giữ; dùng `--stale-models` để dò + xoá các collection embed model/version **cũ** (không phải collection hiện tại) — ví dụ bản Qwen sau khi đổi sang Nemotron.
 - Collection ngoài tiền tố workspace (dịch vụ khác dùng chung Mongo/Qdrant) không bao giờ bị đụng.
 
 | Cờ | Ý nghĩa |
@@ -402,6 +402,8 @@ Sau migration, các collection của LightRAG không còn được đọc/ghi nh
 | `--dry-run` | chỉ liệt kê collection legacy kèm số document/points, không xoá |
 | `--yes` | bỏ qua xác nhận (mặc định hỏi trước khi xoá — không hoàn tác được) |
 | `--mongo-only` / `--qdrant-only` | giới hạn dò/xoá một loại DB |
+| `--stale-models` | xoá thêm collection Qdrant của embed model cũ: mọi `{WORKSPACE}__*` không phải `{WORKSPACE}__{embed_model_slug}__{CHUNKER_VERSION}` hiện tại |
+| `--purge-cache-model MODEL...` | xoá cache embedding SQLite của model (key bắt đầu `{MODEL}|`) — ví dụ `--purge-cache-model "Qwen/Qwen3-VL-Embedding-2B"` |
 
 Mã thoát: `0` xong (hoặc không có gì xoá), `1` một số collection xoá lỗi, `2` không kết nối được Mongo/Qdrant.
 
@@ -411,9 +413,11 @@ Ví dụ:
 ami-rag cleanup --dry-run       # xem cái gì sẽ bị xoá
 ami-rag cleanup --yes           # xoá hết legacy (sau khi reindex --scan thành công)
 ami-rag cleanup --qdrant-only   # chỉ xoá collection Qdrant legacy
+# sau khi đổi EMBED_MODEL (ví dụ Qwen -> Nemotron) và retrieval trên index mới ổn:
+ami-rag cleanup --stale-models --purge-cache-model "Qwen/Qwen3-VL-Embedding-2B" --yes
 ```
 
-Lưu ý: MinIO `rag-assets/` và cache embedding SQLite **không thuộc** cleanup — assets/content_list.json vẫn dùng cho resume, cache embedding key theo model nên tự vô hiệu khi đổi model. Thư mục local `rag_storage/` của LightRAG cũ (nếu còn trên đĩa) xoá tay.
+Lưu ý: MinIO `rag-assets/` không thuộc cleanup — assets/content_list.json vẫn dùng cho resume. Cache embedding key theo model nên tự vô hiệu khi đổi model, nhưng vẫn chiếm chỗ trên đĩa — dùng `--purge-cache-model` để xoá hẳn. Thư mục local `rag_storage/` của LightRAG cũ (nếu còn trên đĩa) xoá tay.
 
 ### 7.1 Chạy CLI khi dùng Docker
 

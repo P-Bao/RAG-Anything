@@ -162,6 +162,8 @@ class _Args:
         self.embed_batch_size = None
         self.mongo_only = False
         self.qdrant_only = False
+        self.stale_models = False
+        self.purge_cache_model = []
         for key, value in kwargs.items():
             setattr(self, key, value)
 
@@ -747,5 +749,79 @@ async def test_cleanup_partial_delete_failure_returns_1(capsys):
     out = capsys.readouterr().out
     assert "LỖI xoá: multimodal_entities" in out
     assert "đã xoá 2/3" in out
-    assert mongo.dropped == ["multimodal_full_docs"]
-    assert qdrant.deleted == ["multimodal_chunks"]
+
+
+async def test_cleanup_stale_models_drops_old_model_collections(capsys):
+    mongo, qdrant = _make_legacy_dbs()
+    rc = await cmd_cleanup(
+        _Args(yes=True, stale_models=True), settings=_make_settings(),
+        mongo_db=mongo, qdrant_client=qdrant,
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "stale-model [qdrant] multimodal__old-model__v1" in out
+    # legacy LightRAG + model cũ bị xoá
+    assert sorted(mongo.dropped) == [
+        "multimodal_chunk_entity_relation",
+        "multimodal_doc_status",
+        "multimodal_full_docs",
+    ]
+    assert sorted(qdrant.deleted) == [
+        "multimodal__old-model__v1",
+        "multimodal_chunks",
+        "multimodal_entities",
+    ]
+    # registry + collection hiện tại + ngoài workspace sống sót
+    assert set(qdrant.counts) == {_KEEP_QDRANT, "other_service_collection"}
+
+
+async def test_cleanup_stale_models_dry_run_keeps_current(capsys):
+    mongo, qdrant = _make_legacy_dbs()
+    rc = await cmd_cleanup(
+        _Args(dry_run=True, stale_models=True), settings=_make_settings(),
+        mongo_db=mongo, qdrant_client=qdrant,
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "stale-model [qdrant] multimodal__old-model__v1" in out
+    assert "dry-run: 6 collection legacy" in out
+    assert not qdrant.deleted
+    assert _KEEP_QDRANT in qdrant.counts
+
+
+async def test_cleanup_stale_models_qdrant_only(capsys):
+    qdrant = FakeQdrantClient({_KEEP_QDRANT: 5, "multimodal__old-model__v1": 3})
+    rc = await cmd_cleanup(
+        _Args(yes=True, stale_models=True, qdrant_only=True),
+        settings=_make_settings(), qdrant_client=qdrant,
+    )
+    assert rc == 0
+    assert qdrant.deleted == ["multimodal__old-model__v1"]
+    assert set(qdrant.counts) == {_KEEP_QDRANT}
+
+
+async def test_cleanup_purge_cache_model(tmp_path, capsys):
+    from ami_rag.core.embedding_cache import EmbeddingCache
+
+    cache_path = tmp_path / "cache.db"
+    cache = EmbeddingCache(cache_path)
+    cache.put_many({
+        "Qwen/Qwen3-VL-Embedding-2B|2048|ns|a": [0.1] * 4,
+        "Qwen/Qwen3-VL-Embedding-2B|2048|ns|b": [0.2] * 4,
+        "nvidia/llama-nemotron-embed-vl-1b-v2|2048|ns|c": [0.3] * 4,
+    })
+    cache.close()
+
+    mongo, qdrant = _make_legacy_dbs()
+    rc = await cmd_cleanup(
+        _Args(yes=True, purge_cache_model=["Qwen/Qwen3-VL-Embedding-2B"]),
+        settings=_make_settings(EMBED_CACHE_PATH=str(cache_path)),
+        mongo_db=mongo, qdrant_client=qdrant,
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "đã xoá 2 entry của model `Qwen/Qwen3-VL-Embedding-2B`" in out
+    # chỉ còn entry nemotron
+    cache = EmbeddingCache(cache_path)
+    assert cache.count() == 1
+    cache.close()
