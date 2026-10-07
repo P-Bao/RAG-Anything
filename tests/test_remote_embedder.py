@@ -345,3 +345,24 @@ async def test_cache_isolates_text_with_and_without_image(tmp_path):
     ])
     assert len(server.requests) == 0
 
+
+async def test_embed_documents_truncates_oversize_text():
+    server = FakeServer()
+    embedder = _make_embedder(server, max_input_tokens=100, image_token_reserve=50)
+    vectors = await embedder.embed_documents(["a" * 1000, "short"])
+    assert len(vectors) == 2
+    sent = server.requests[0]
+    # budget 100 token * 3 chars/token; item str -> {"type": "document", "text"}
+    assert sent[0] == {"type": "document", "text": "a" * 300}
+    assert sent[1] == {"type": "document", "text": "short"}
+
+
+async def test_embed_documents_truncates_multimodal_with_image_reserve():
+    server = FakeServer()
+    embedder = _make_embedder(server, max_input_tokens=300, image_token_reserve=100)
+    await embedder.embed_documents([{"text": "b" * 1000, "image_b64": "aW1n"}])
+    item = server.requests[0][0]
+    # budget (300 - 100) * 3 chars/token; ảnh giữ nguyên
+    assert item["image_b64"] == "aW1n"
+    assert item["text"] == "b" * 600
+

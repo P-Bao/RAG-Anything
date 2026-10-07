@@ -193,3 +193,25 @@ async def test_build_rerank_documents_equation_included():
     ]
     docs = await build_rerank_documents(chunks, store, multimodal=True)
     assert isinstance(docs[0], dict)
+
+
+async def test_build_rerank_documents_truncates_oversize_text():
+    chunks = [
+        {"content": "a" * 1000, "modality": "text"},
+        {"content": "b" * 1000, "modality": "image", "asset_key": "ok"},
+        {"content": "short", "modality": "text"},
+    ]
+    docs = await build_rerank_documents(
+        chunks,
+        FakeAssetStore(),
+        multimodal=True,
+        max_input_tokens=300,
+        image_token_reserve=100,
+    )
+    # text-only: budget 300 token * 3 chars
+    assert docs[0] == "a" * 900
+    # kèm ảnh: budget (300 - 100) * 3 chars, ảnh giữ nguyên
+    assert isinstance(docs[1], dict)
+    assert docs[1]["content"][0] == {"type": "text", "text": "b" * 600}
+    assert docs[1]["content"][1]["type"] == "image_url"
+    assert docs[2] == "short"

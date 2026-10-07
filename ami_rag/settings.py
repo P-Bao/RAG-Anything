@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     EMBED_RETRIES: int = 3
     EMBED_CACHE_ENABLED: bool = True
     EMBED_CACHE_PATH: str = "./embed_cache.db"
+    # Guard kích thước input embed (client-side): item vượt budget bị head-truncate
+    # trước khi gửi (content đầy đủ vẫn lưu Qdrant). Default tính cho max_model_len
+    # 8192 của gateway - server phải chạy 8192, còn không thì giảm qua env.
+    EMBED_MAX_INPUT_TOKENS: int = 6000
+    # Một ảnh Nemotron VL tốn tối đa ~1792 visual token (6 tile + thumbnail - model card)
+    EMBED_IMAGE_TOKEN_RESERVE: int = 1792
 
     MONGO_URI: str = "mongodb://localhost:27017/?directConnection=true"
     # Shares organization_db with the backend; every RAG collection is prefixed `multimodal_`
@@ -45,6 +51,8 @@ class Settings(BaseSettings):
 
     QDRANT_URL: str = "http://localhost:6333"
     QDRANT_API_KEY: str = ""
+    # Giới hạn byte mỗi request upsert (server Qdrant mặc định max_request_size_mb=32)
+    QDRANT_UPSERT_MAX_MB: int = 16
 
     WORKSPACE: str = "multimodal"
 
@@ -94,6 +102,10 @@ class Settings(BaseSettings):
     RERANK_MULTIMODAL: bool = True
     RERANK_TOP_K: int = 5
     RERANK_TIMEOUT: int = 60
+    # Guard kích thước text gửi lên rerank server (cùng vLLM 8192): document vượt
+    # budget bị head-truncate (kèm ảnh -> trừ image token reserve).
+    RERANK_MAX_INPUT_TOKENS: int = 6000
+    RERANK_IMAGE_TOKEN_RESERVE: int = 1792
 
     # candidates fetched = final top_k * RETRIEVAL_OVERFETCH, so rerank always yields top_k docs
     RETRIEVAL_CHUNK_TOP_K: int = 40

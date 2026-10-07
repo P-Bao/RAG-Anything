@@ -303,3 +303,48 @@ async def test_data_url_mime_detection():
     assert data_url_from_bytes(PNG_BYTES).startswith("data:image/png;base64,")
     jpeg_b64 = b"\xff\xd8\xff\xe0rest"
     assert data_url_from_bytes(jpeg_b64).startswith("data:image/jpeg;base64,")
+
+
+async def test_embed_documents_truncates_oversize_text():
+    server = FakeServer()
+    embedder = _make_embedder(server, max_input_tokens=100, image_token_reserve=50)
+    vectors = await embedder.embed_documents(["a" * 1000, "short"])
+    assert len(vectors) == 2
+    sent = server.requests[0]
+    # budget 100 token * 3 chars/token
+    assert sent[0] == "a" * 300
+    assert sent[1] == "short"
+
+
+async def test_embed_documents_truncates_multimodal_with_image_reserve():
+    server = FakeServer()
+    embedder = _make_embedder(server, max_input_tokens=300, image_token_reserve=100)
+    await embedder.embed_documents([{"text": "b" * 1000, "image_b64": PNG_B64}])
+    item = server.requests[0][0]
+    # budget (300 - 100) * 3 chars/token; ảnh giữ nguyên
+    assert item["image"] == PNG_B64
+    assert item["text"] == "b" * 600
+
+
+async def test_embed_documents_keeps_items_within_budget_untouched():
+    server = FakeServer()
+    embedder = _make_embedder(server, max_input_tokens=100)
+    text = "a" * 300  # == budget: không cắt
+    await embedder.embed_documents([text])
+    assert server.requests[0][0] == text
+
+
+async def test_embed_query_truncates_oversize_query():
+    server = FakeServer()
+    embedder = _make_embedder(server, max_input_tokens=100)
+    await embedder.embed_query("q" * 500)
+    assert server.requests[0][0]["text"] == "q" * 300
+
+
+async def test_clamp_floor_prevents_degenerate_short_text():
+    from ami_rag.core.embedder import clamp_embed_text
+
+    # budget rất nhỏ bị floor 256 chars (chống text degenerate khi embed)
+    assert clamp_embed_text("a" * 1000, 10) == "a" * 256
+    # kèm ảnh trừ hết budget -> vẫn floor 256
+    assert clamp_embed_text("a" * 1000, 50, has_image=True, image_tokens=50) == "a" * 256

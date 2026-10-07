@@ -10,8 +10,10 @@ trước 2 vLLM (embed + rerank, repo ``nemotron-vl-vllm``). Contract gateway:
   ``/v1/models``) - handshake dùng /health + probe embed 1 lần để xác minh model
   (field ``model`` trong response) và lấy dim thực tế; lệch thì dừng.
 - Retry exponential backoff + jitter CHỈ cho lỗi tạm thời; KHÔNG retry 4xx.
-- Chia batch theo số item (``EMBED_BATCH_SIZE``) và theo byte payload; cache
-  embedding theo khoá (model, dim, hash nội dung) - chia sẻ EmbeddingCache.
+- Chia batch theo số item (``EMBED_BATCH_SIZE``) và theo byte payload; item vượt
+  token budget bị head-truncate trước khi gửi (``EMBED_MAX_INPUT_TOKENS``, trừ
+  ``EMBED_IMAGE_TOKEN_RESERVE`` khi kèm ảnh) - không vượt max_model_len vLLM.
+- Cache embedding theo khoá (model, dim, hash nội dung) - chia sẻ EmbeddingCache.
 - Circuit breaker: N lần liên tiếp không với tới server -> dừng cả lô sớm.
 """
 
@@ -33,6 +35,7 @@ from ami_rag.core.embedder import (
     EmbedModelMismatch,
     EmbedServerOOM,
     EmbedServerUnreachable,
+    clamp_embed_text,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,6 +77,8 @@ class OpenAIEmbedder:
         timeout: float = 60,
         batch_size: int = 32,
         max_payload_bytes: int = 32 * 1024 * 1024,
+        max_input_tokens: int = 6000,
+        image_token_reserve: int = 1792,
         max_concurrency: int = 4,
         retries: int = 3,
         backoff_base: float = 0.5,
@@ -88,6 +93,8 @@ class OpenAIEmbedder:
         self.timeout = timeout
         self.batch_size = batch_size
         self.max_payload_bytes = max_payload_bytes
+        self.max_input_tokens = max_input_tokens
+        self.image_token_reserve = image_token_reserve
         self.max_concurrency = max_concurrency
         self.retries = retries
         self.backoff_base = backoff_base
@@ -160,6 +167,7 @@ class OpenAIEmbedder:
             return []
         await self._ensure_verified()
 
+        items = self._clamp_items(items)
         vectors: list[list[float] | None] = [None] * len(items)
         keys: list[str] = [self._cache_key(it) for it in items]
         pending: list[int] = list(range(len(items)))
@@ -224,6 +232,7 @@ class OpenAIEmbedder:
     async def embed_query(self, text: str) -> list[float]:
         """Embed một câu hỏi (input_type=query, không cache)."""
         await self._ensure_verified()
+        text = clamp_embed_text(text, self.max_input_tokens)
         result = await self._post_embed_batch([{"text": text}], input_type="query")
         self._check_response(result)
         data = result.get("data") or []
@@ -316,6 +325,54 @@ class OpenAIEmbedder:
     # ------------------------------------------------------------------
     # Batching / cache key / payload builder
     # ------------------------------------------------------------------
+    def _clamp_items(self, items: list[str | dict]) -> list[str | dict]:
+        """Head-truncate item vượt token budget (trước cache key + batching).
+
+        Text đầy đủ vẫn được caller lưu ở Qdrant payload - chỉ input gửi lên
+        server bị cắt để không vượt max_model_len.
+        """
+        out: list[str | dict] = []
+        truncated = 0
+        for item in items:
+            if isinstance(item, dict):
+                text = item.get("text") or ""
+                has_image = bool(item.get("image_b64"))
+                clamped = clamp_embed_text(
+                    text,
+                    self.max_input_tokens,
+                    has_image=has_image,
+                    image_tokens=self.image_token_reserve,
+                )
+                if clamped != text:
+                    truncated += 1
+                    logger.warning(
+                        "embed item text vượt budget: cắt %d -> %d chars (has_image=%s)",
+                        len(text),
+                        len(clamped),
+                        has_image,
+                    )
+                    out.append({**item, "text": clamped})
+                else:
+                    out.append(item)
+            else:
+                clamped = clamp_embed_text(item, self.max_input_tokens)
+                if clamped != item:
+                    truncated += 1
+                    logger.warning(
+                        "embed text vượt budget: cắt %d -> %d chars",
+                        len(item),
+                        len(clamped),
+                    )
+                out.append(clamped)
+        if truncated:
+            logger.warning(
+                "embed_documents: %d/%d item bị cắt theo EMBED_MAX_INPUT_TOKENS=%s",
+                truncated,
+                len(items),
+                self.max_input_tokens,
+            )
+        return out
+
     @staticmethod
     def _to_embed_payload(item: str | dict) -> str | dict:
         """Item nội bộ -> item gateway: {"text", "image"} (gateway tự sniff mime)."""
@@ -398,6 +455,8 @@ def build_openai_embedder(settings) -> OpenAIEmbedder:
         timeout=settings.EMBED_TIMEOUT,
         batch_size=settings.EMBED_BATCH_SIZE,
         max_concurrency=settings.EMBED_MAX_CONCURRENCY,
+        max_input_tokens=getattr(settings, "EMBED_MAX_INPUT_TOKENS", 6000),
+        image_token_reserve=getattr(settings, "EMBED_IMAGE_TOKEN_RESERVE", 1792),
         retries=getattr(settings, "EMBED_RETRIES", 3),
         cache=cache,
     )

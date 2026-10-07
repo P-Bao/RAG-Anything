@@ -150,6 +150,8 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `EMBED_BATCH_SIZE` | `32` | số item mỗi request |
 | | `EMBED_MAX_CONCURRENCY` | `4` | số request đồng thời |
 | | `EMBED_RETRIES` | `3` | retry cho lỗi tạm thời (timeout/5xx/429) |
+| | `EMBED_MAX_INPUT_TOKENS` | `6000` | budget token mỗi item embed (máy A không tokenizer, xấp xỉ ~3 chars/token); item vượt bị cắt đầu trước khi gửi — content đầy đủ vẫn lưu Qdrant. Default tính cho gateway `max_model_len=8192`; server chạy 4096 thì giảm qua env |
+| | `EMBED_IMAGE_TOKEN_RESERVE` | `1792` | một ảnh Nemotron VL tốn tối đa ~1792 visual token (6 tile + thumbnail) — budget text kèm ảnh bị trừ trước |
 | | `EMBED_CACHE_ENABLED` | `true` | cache embedding SQLite ở máy A |
 | | `EMBED_CACHE_PATH` | `./embed_cache.db` | |
 | Mongo | `MONGO_URI` | `mongodb://localhost:27017/?directConnection=true` | |
@@ -157,6 +159,7 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `RAG_DOCUMENTS_COLLECTION` | `multimodal_rag_documents` | registry / DocStatusStore |
 | | `ORG_DB` / `DOC_COLLECTION` | `organization_db` / `documents` | chỉ đọc |
 | Qdrant | `QDRANT_URL` / `QDRANT_API_KEY` | `http://localhost:6333` / rỗng | |
+| | `QDRANT_UPSERT_MAX_MB` | `16` | giới hạn ước lượng byte mỗi request upsert (Qdrant server mặc định giới hạn request 32 MB); batch được đóng gói theo byte VÀ số điểm |
 | Index | `WORKSPACE` | `multimodal` | tiền tố collection Qdrant `{WORKSPACE}__{embed_model_slug}__{CHUNKER_VERSION}` |
 | Parser | `PARSER` | `mineru` | |
 | | `PARSE_METHOD` | `auto` | |
@@ -184,6 +187,8 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `RERANK_MULTIMODAL` | `true` | chỉ với backend `vllm`: chunk image/table/equation có asset_key kèm ảnh (data URI từ MinIO) + text |
 | | `RERANK_TOP_K` | `5` | số tài liệu trả về mặc định khi request không chỉ định `top_k` |
 | | `RERANK_TIMEOUT` | `60` | giây |
+| | `RERANK_MAX_INPUT_TOKENS` | `6000` | budget token text mỗi document rerank; vượt bị cắt đầu (kèm ảnh → trừ `RERANK_IMAGE_TOKEN_RESERVE`) — rerank server cùng vLLM giới hạn `max_model_len` |
+| | `RERANK_IMAGE_TOKEN_RESERVE` | `1792` | như `EMBED_IMAGE_TOKEN_RESERVE` |
 | Retrieval | `RETRIEVAL_CHUNK_TOP_K` | `40` | số chunk tối thiểu lấy từ Qdrant trước khi rerank |
 | | `RETRIEVAL_OVERFETCH` | `4` | hệ số nhân lấy ứng viên: `max(RETRIEVAL_CHUNK_TOP_K, top_k * RETRIEVAL_OVERFETCH)` để sau khi rerank vẫn đủ `top_k` kết quả |
 | Pipeline/CLI | `CHUNKER_VERSION` | `v1` | gắn vào collection + registry để kiểm tra tương thích lúc reindex |
@@ -266,6 +271,10 @@ Khuyến nghị:
 - `OpenAIEmbedder`/`RemoteEmbedder` handshake lúc khởi tạo: so model (và dim — probe embed 1 lần với `OpenAIEmbedder`); lệch thì dừng với lỗi rõ ràng (không ghi vector khi chưa xác minh). Mỗi response được kiểm tra model để phát hiện server bị đổi model giữa chừng.
 - Retry chỉ cho lỗi tạm thời (timeout, 5xx, 429, mất kết nối), backoff + jitter; **không retry** 4xx. Circuit breaker: 5 lô liên tiếp không với tới server thì dừng cả lô sớm (doc chưa xử lý không bị đánh fail hàng loạt). Lỗi `embed server unreachable` trong một doc không làm hỏng doc khác.
 - Cache embedding SQLite ở máy A (`EMBED_CACHE_ENABLED`, key = `model|dim|instruction_ns|sha256(text)`); `reindex --dry-run` dùng `count_cache_hits` để báo trước số chunk trúng cache, không gọi HTTP.
+- **Kích thước input gửi lên máy B** (đã gặp thực tế: vLLM từ chối `decoder prompt ... longer than the maximum model length` với HTTP 400):
+  - Gateway vLLM giới hạn `max_model_len` (khuyến nghị đặt `EMBED/RERANK_MAX_MODEL_LEN=8192` trong `.env` máy B, kèm `*_MAX_NUM_BATCHED_TOKENS >= 8192`; một ảnh tốn tối đa ~1792 visual token).
+  - Client cắt đầu (head-truncate) item vượt budget trước khi gửi: embed qua `EMBED_MAX_INPUT_TOKENS` (trừ `EMBED_IMAGE_TOKEN_RESERVE` khi kèm ảnh), rerank qua `RERANK_MAX_INPUT_TOKENS`. Content đầy đủ vẫn lưu Qdrant payload nên LLM vẫn thấy toàn văn khi trả lời; chỉ vector/rerank tính trên phần đầu.
+  - Qdrant giới hạn request (mặc định 32 MB): `QDRANT_UPSERT_MAX_MB=16` — upsert đóng gói batch theo byte ước lượng (payload + vector) và số điểm; doc nhiều bảng lớn (payload `content` + `table_body`) không còn gộp vượt giới hạn trong một request.
 - Hết credit/quota hay model quá tải trên server (5xx sau retry) → doc ở stage `embed` thành `failed` với lý do rõ ràng; chạy lại `retry` sau khi server ổn định.
 - Redis: `redis-py` ≥ 8 mặc định `socket_timeout=5s`, trùng với `XREADGROUP BLOCK` (`WORKER_POLL_BLOCK_MS`) nên worker báo `queue read failed: Timeout reading from redis`. Client của worker đặt `socket_timeout = WORKER_POLL_BLOCK_MS/1000 + 5` và `health_check_interval=30` (`ingest_worker.py::_build_default_deps`).
 

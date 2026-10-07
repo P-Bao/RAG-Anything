@@ -7,6 +7,12 @@ Máy A (pipeline/CLI) KHÔNG chứa torch/transformers - mọi embedding đi qua
 import re
 from typing import Protocol
 
+# Xấp xỉ token -> chars thận trọng cho tiếng Việt (máy A không có tokenizer);
+# budget chars = (max_tokens - image token reserve nếu có) * CHARS_PER_TOKEN
+CHARS_PER_TOKEN = 3
+# Một ảnh Nemotron VL tốn tối đa ~1792 visual token (6 tile + thumbnail - model card)
+DEFAULT_IMAGE_TOKEN_RESERVE = 1792
+
 
 class EmbedderError(RuntimeError):
     """Lỗi cơ sở từ embedding server."""
@@ -50,6 +56,30 @@ class Embedder(Protocol):
     async def embed_query(self, text: str) -> list[float]:
         """Embed một câu hỏi (query embedding, không cache)."""
         ...
+
+
+def clamp_embed_text(
+    text: str,
+    max_tokens: int,
+    *,
+    has_image: bool = False,
+    image_tokens: int = DEFAULT_IMAGE_TOKEN_RESERVE,
+) -> str:
+    """Head-truncate text vượt token budget cho input embed/rerank.
+
+    Budget chars xấp xỉ = (max_tokens - image_tokens nếu kèm ảnh) * CHARS_PER_TOKEN.
+    Content đầy đủ vẫn lưu ở Qdrant payload (LLM dùng lúc trả lời) - chỉ input gửi
+    lên embed/rerank server bị cắt để không vượt max_model_len.
+    """
+    if not text:
+        return text
+    if max_tokens <= 0:
+        return text  # <=0 = tắt guard
+    budget = max_tokens - (image_tokens if has_image else 0)
+    max_chars = max(256, budget * CHARS_PER_TOKEN)
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars]
 
 
 def embed_model_slug(model_name: str) -> str:

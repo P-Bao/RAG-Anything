@@ -266,6 +266,54 @@ async def test_qdrant_vector_store_upsert_batching():
     assert len(call3_points) == 22
 
 
+async def test_qdrant_upsert_packs_by_byte_limit():
+    from unittest.mock import MagicMock
+
+    from ami_rag.core.vector_store import (
+        ChunkRecord,
+        QdrantVectorStore,
+        _point_estimate,
+    )
+
+    store = QdrantVectorStore("http://fake:6333", max_request_bytes=64 * 1024)
+    store._client = MagicMock()
+    chunks = [
+        ChunkRecord(id=f"b_{i}", vector=[0.1] * 8, payload={"text": "x" * 4096})
+        for i in range(32)
+    ]
+    await store.upsert("test_col", chunks, batch_size=64)
+    calls = store._client.upsert.call_args_list
+    # payload ~4 KB/point -> batch bị chia theo byte trước khi chạm 64 điểm
+    assert len(calls) > 1
+    total = 0
+    for call in calls:
+        points = call.kwargs["points"]
+        total += len(points)
+        assert sum(_point_estimate(p) for p in points) <= 64 * 1024
+        assert len(points) <= 64
+    assert total == 32
+
+
+async def test_qdrant_upsert_single_oversized_point_sent_alone():
+    from unittest.mock import MagicMock
+
+    from ami_rag.core.vector_store import ChunkRecord, QdrantVectorStore
+
+    store = QdrantVectorStore("http://fake:6333", max_request_bytes=1024)
+    store._client = MagicMock()
+    chunks = [
+        ChunkRecord(id="small", vector=[0.1] * 8, payload={"text": "ok"}),
+        ChunkRecord(id="big", vector=[0.1] * 8, payload={"text": "x" * 8192}),
+        ChunkRecord(id="small2", vector=[0.1] * 8, payload={"text": "ok"}),
+    ]
+    await store.upsert("test_col", chunks, batch_size=10)
+    calls = store._client.upsert.call_args_list
+    sizes = [len(c.kwargs["points"]) for c in calls]
+    # point "big" vượt limit -> gửi riêng, không chặn hai điểm nhỏ
+    assert sizes == [1, 1, 1]
+    assert calls[1].kwargs["points"][0].payload["chunk_id"] == "big"
+
+
 def test_build_chunks_with_duplicate_content_assigns_unique_ids(pipeline):
     content_list = [
         {"type": "text", "text": "Đại học Bách Khoa", "page_idx": 1},

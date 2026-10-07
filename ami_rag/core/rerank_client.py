@@ -6,7 +6,9 @@
   (POST {base}/rerank trả ``{results: [{index, relevance_score}]}``) - documents
   dạng ``str`` hoặc ``{"content": [text / image_url parts]}`` (multimodal).
 - ``build_rerank_documents``: chunk payload (Qdrant) -> documents cho rerank;
-  chunk image/table/equation có ``asset_key`` kèm ảnh (data URI từ asset store).
+  chunk image/table/equation có ``asset_key`` kèm ảnh (data URI từ asset store);
+  text vượt token budget bị head-truncate (``RERANK_MAX_INPUT_TOKENS``) để
+  không vượt max_model_len của rerank server.
 - ``build_rerank_func``: dispatcher theo ``RERANK_BACKEND``.
 """
 
@@ -15,6 +17,7 @@ import logging
 
 import httpx
 
+from ami_rag.core.embedder import clamp_embed_text
 from ami_rag.core.openai_embedder import data_url_from_bytes
 from ami_rag.settings import Settings, get_settings
 
@@ -103,6 +106,8 @@ async def build_rerank_documents(
     asset_store=None,
     *,
     multimodal: bool = True,
+    max_input_tokens: int | None = None,
+    image_token_reserve: int | None = None,
 ) -> list[str | dict]:
     """Chunk payload (Qdrant) -> documents cho rerank.
 
@@ -110,9 +115,19 @@ async def build_rerank_documents(
     - chunk image/table/equation có asset_key: fetch ảnh từ MinIO (bounded
       concurrency, lỗi -> rơi về text) rồi trả
       ``{"content": [text part, image_url data URI part]}``.
+    - text (cả 2 dạng) vượt token budget bị head-truncate: rerank server cùng
+      vLLM giới hạn max_model_len; content đầy đủ vẫn nằm ở Qdrant payload.
     """
     if not chunks:
         return []
+
+    settings = get_settings()
+    max_tokens = max_input_tokens if max_input_tokens is not None else (
+        getattr(settings, "RERANK_MAX_INPUT_TOKENS", 6000)
+    )
+    img_reserve = image_token_reserve if image_token_reserve is not None else (
+        getattr(settings, "RERANK_IMAGE_TOKEN_RESERVE", 1792)
+    )
 
     data_uris: dict[int, str] = {}
     if multimodal and asset_store is not None and hasattr(asset_store, "get_bytes"):
@@ -139,20 +154,40 @@ async def build_rerank_documents(
                     data_uris[i] = data_url_from_bytes(data)
 
     documents: list[str | dict] = []
+    truncated = 0
     for i, chunk in enumerate(chunks):
         text = chunk.get("content") or ""
         uri = data_uris.get(i)
+        clamped = clamp_embed_text(
+            text, max_tokens, has_image=bool(uri), image_tokens=img_reserve
+        )
+        if clamped != text:
+            truncated += 1
+            logger.warning(
+                "rerank document %d vượt budget: cắt %d -> %d chars (has_image=%s)",
+                i,
+                len(text),
+                len(clamped),
+                bool(uri),
+            )
         if uri:
             documents.append(
                 {
                     "content": [
-                        {"type": "text", "text": text},
+                        {"type": "text", "text": clamped},
                         {"type": "image_url", "image_url": {"url": uri}},
                     ]
                 }
             )
         else:
-            documents.append(text)
+            documents.append(clamped)
+    if truncated:
+        logger.warning(
+            "build_rerank_documents: %d/%d document bị cắt theo RERANK_MAX_INPUT_TOKENS=%s",
+            truncated,
+            len(chunks),
+            max_tokens,
+        )
     return documents
 
 

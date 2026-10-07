@@ -218,7 +218,11 @@ def build_pipeline(
         embedder=embedder or build_embedder(settings),
         vector_store=vector_store
         or QdrantVectorStore(
-            url=settings.QDRANT_URL, api_key=settings.QDRANT_API_KEY or None
+            url=settings.QDRANT_URL,
+            api_key=settings.QDRANT_API_KEY or None,
+            max_request_bytes=getattr(settings, "QDRANT_UPSERT_MAX_MB", 16)
+            * 1024
+            * 1024,
         ),
         asset_store=asset_store or get_asset_store(),
         store=store

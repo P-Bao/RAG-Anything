@@ -10,6 +10,7 @@ Quy ước collection: {prefix}__{embed_model_slug}__{chunker_version}
 """
 
 import asyncio
+import json
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -20,6 +21,18 @@ logger = logging.getLogger(__name__)
 
 class VectorStoreError(RuntimeError):
     """Lỗi liên quan vector store (collection lệch cấu hình, mạng, v.v.)."""
+
+
+def _point_estimate(p) -> int:
+    """Ước lượng byte JSON của một point khi gửi Qdrant (payload + vector + overhead).
+
+    Vector serialize dạng JSON float: ~32 bytes/chiều (số thập phân dài) —
+    ước lượng thận trọng hơn thực tế để không vượt giới hạn request.
+    """
+    vector = p.vector
+    vec_len = len(vector) if isinstance(vector, (list, tuple)) else 0
+    payload_bytes = len(json.dumps(p.payload or {}, ensure_ascii=False).encode("utf-8"))
+    return payload_bytes + vec_len * 32 + 256
 
 
 @dataclass
@@ -49,11 +62,19 @@ class VectorStore(Protocol):
 class QdrantVectorStore:
     """Backend mặc định: Qdrant (lệnh kế thừa từ RAG-Anything/AMI hiện có)."""
 
-    def __init__(self, url: str = "http://localhost:6333", api_key: str | None = None):
+    def __init__(
+        self,
+        url: str = "http://localhost:6333",
+        api_key: str | None = None,
+        max_request_bytes: int = 16 * 1024 * 1024,
+    ):
         from qdrant_client import QdrantClient
 
         self._url = url
         self._client = QdrantClient(url=url, api_key=api_key or None)
+        # Giới hạn byte ước lượng mỗi request upsert (server mặc định 32 MB);
+        # batch được đóng gói theo byte VÀ số điểm để không vượt giới hạn.
+        self.max_request_bytes = max_request_bytes
 
     async def ensure_collection(self, name: str, dim: int) -> None:
         """Tạo collection nếu thiếu; kiểm tra tương thích dim với collection có sẵn."""
@@ -88,12 +109,17 @@ class QdrantVectorStore:
             raise VectorStoreError(f"Qdrant {self._url}: {exc}") from exc
 
     async def upsert(
-        self, collection: str, chunks: list[ChunkRecord], batch_size: int = 64
+        self,
+        collection: str,
+        chunks: list[ChunkRecord],
+        batch_size: int = 64,
+        max_request_bytes: int | None = None,
     ) -> None:
         from qdrant_client.http.models import PointStruct
 
         if not chunks:
             return
+        limit = max_request_bytes if max_request_bytes is not None else self.max_request_bytes
         points = [
             PointStruct(
                 id=str(uuid.uuid5(uuid.NAMESPACE_URL, c.id)),
@@ -102,9 +128,9 @@ class QdrantVectorStore:
             )
             for c in chunks
         ]
+        batches = self._pack_batches(points, batch_size, limit)
         try:
-            for i in range(0, len(points), batch_size):
-                batch = points[i : i + batch_size]
+            for batch in batches:
                 await asyncio.to_thread(
                     self._client.upsert,
                     collection_name=collection,
@@ -113,6 +139,40 @@ class QdrantVectorStore:
                 )
         except Exception as exc:
             raise VectorStoreError(f"Qdrant {self._url}: {exc}") from exc
+
+    def _pack_batches(
+        self, points: list, batch_size: int, limit: int
+    ) -> list[list]:
+        """Đóng gói batch theo số điểm VÀ byte ước lượng (payload JSON + vector).
+
+        Point đơn vượt limit vẫn được gửi riêng (Qdrant giới hạn theo request,
+        không thể chia một point) - chỉ log cảnh báo.
+        """
+        batches: list[list] = []
+        current: list = []
+        current_bytes = 0
+        for p in points:
+            est = _point_estimate(p)
+            if current and (
+                len(current) >= batch_size or current_bytes + est > limit
+            ):
+                batches.append(current)
+                current = []
+                current_bytes = 0
+            if est > limit:
+                logger.warning(
+                    "point %s ước ~%.1f MB vượt giới hạn upsert %.1f MB - gửi riêng",
+                    p.id,
+                    est / 1048576,
+                    limit / 1048576,
+                )
+                batches.append([p])
+                continue
+            current.append(p)
+            current_bytes += est
+        if current:
+            batches.append(current)
+        return batches
 
     async def search(self, collection: str, vector: list[float], top_k: int) -> list[SearchHit]:
         results = await asyncio.to_thread(
