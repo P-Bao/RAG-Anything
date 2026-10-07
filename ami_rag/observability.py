@@ -12,7 +12,7 @@ Two layers, initialised once:
   ``trace_id`` so they can be joined in Grafana.
 
 ``track_retrieval`` wraps a whole search; ``observe_stage`` times one stage
-(``raganything_query`` / ``rerank`` / ``resolve``).
+(``embed_query`` / ``vector_search`` / ``rerank``).
 """
 
 import json
@@ -82,7 +82,7 @@ REQUESTS_IN_FLIGHT = Gauge(
 )
 STAGE_DURATION_SECONDS = Histogram(
     "multimodal_rag_retrieval_stage_duration_seconds",
-    "Duration of one retrieval pipeline stage (raganything_query, rerank, resolve).",
+    "Duration of one retrieval pipeline stage (embed_query, vector_search, rerank).",
     ["stage"],
     buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20),
 )
@@ -95,10 +95,6 @@ RERANK_FALLBACK_TOTAL = Counter(
     "multimodal_rag_retrieval_rerank_fallback_total",
     "Rerank fell back to unscored chunks (reason: error | empty).",
     ["reason"],
-)
-DOCS_FILTERED_TOTAL = Counter(
-    "multimodal_rag_retrieval_docs_filtered_total",
-    "Documents dropped by request filters (organization_unit_id / document_type).",
 )
 RETRIEVAL_DOCS_BY_MODALITY_TOTAL = Counter(
     "multimodal_rag_retrieval_docs_by_modality_total",
@@ -131,7 +127,7 @@ INGEST_DURATION_SECONDS = Histogram(
 )
 INGEST_STAGE_DURATION_SECONDS = Histogram(
     "multimodal_rag_ingest_stage_duration_seconds",
-    "Duration of one ingest stage (download, parse, upload_assets, insert, delete).",
+    "Duration of one ingest stage (delete). Timing of the vector pipeline stages (parse/describe/chunk/embed) lives in the DocStatusStore registry, not Prometheus.",
     ["stage"],
     buckets=_INGEST_BUCKETS,
 )

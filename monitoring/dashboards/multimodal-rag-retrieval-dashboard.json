@@ -1120,7 +1120,7 @@
               "transformations": []
             }
           },
-          "description": "P95 theo stage: raganything_query / rerank / resolve (resolve là mỗi chunk).",
+          "description": "P95 theo stage: embed_query / vector_search / rerank.",
           "id": 15,
           "links": [],
           "title": "Stage latency P95",
@@ -1523,115 +1523,6 @@
                     ]
                   },
                   "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "hideZeros": false,
-                  "mode": "multi",
-                  "sort": "desc"
-                }
-              }
-            },
-            "version": "13.2.0"
-          }
-        }
-      },
-      "panel-19": {
-        "kind": "Panel",
-        "spec": {
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "prometheus"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "expr": "sum(rate(multimodal_rag_retrieval_docs_filtered_total[5m])) or vector(0)",
-                        "legendFormat": "filtered/s"
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "A"
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": []
-            }
-          },
-          "description": "Docs bị loại bởi filters organization_unit_id / document_type.",
-          "id": 19,
-          "links": [],
-          "title": "Docs filtered rate",
-          "vizConfig": {
-            "group": "timeseries",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "axisBorderShow": false,
-                    "axisCenteredZero": false,
-                    "axisColorMode": "text",
-                    "axisLabel": "",
-                    "axisPlacement": "auto",
-                    "barAlignment": 0,
-                    "barWidthFactor": 0.6,
-                    "drawStyle": "line",
-                    "fillOpacity": 10,
-                    "gradientMode": "none",
-                    "hideFrom": {
-                      "legend": false,
-                      "tooltip": false,
-                      "viz": false
-                    },
-                    "insertNulls": false,
-                    "lineInterpolation": "linear",
-                    "lineWidth": 2,
-                    "pointSize": 5,
-                    "scaleDistribution": {
-                      "type": "linear"
-                    },
-                    "showPoints": "never",
-                    "showValues": false,
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  },
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "color": "green",
-                        "value": 0
-                      }
-                    ]
-                  },
-                  "unit": "ops"
                 },
                 "overrides": []
               },
@@ -2491,7 +2382,7 @@
               "transformations": []
             }
           },
-          "description": "download / parse / upload_assets / insert / delete — stage nào chiếm nhiều nhất.",
+          "description": "delete — thời gian purge document (runner-based; timing parse→describe→chunk→embed nằm trong DocStatusStore).",
           "id": 28,
           "links": [],
           "title": "Ingest stage time / s (stacked)",
@@ -2600,7 +2491,7 @@
               "transformations": []
             }
           },
-          "description": "Số document trong multimodal_rag_documents theo trạng thái.",
+          "description": "Số document trong multimodal_rag_ingest_documents theo trạng thái.",
           "id": 29,
           "links": [],
           "title": "Documents theo status",
@@ -3041,19 +2932,6 @@
                         "x": 0,
                         "y": 8
                       }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-14"
-                        },
-                        "height": 8,
-                        "width": 12,
-                        "x": 12,
-                        "y": 8
-                      }
                     }
                   ]
                 }
@@ -3145,19 +3023,6 @@
                         "height": 8,
                         "width": 8,
                         "x": 8,
-                        "y": 0
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-19"
-                        },
-                        "height": 8,
-                        "width": 8,
-                        "x": 16,
                         "y": 0
                       }
                     }

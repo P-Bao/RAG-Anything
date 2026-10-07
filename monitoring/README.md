@@ -50,7 +50,7 @@ Mỗi lần đổi metric trong `ami_rag/observability.py` cần cập nhật da
 | `multimodal_rag_ingest_events_total` | Counter | `event`, `result` (processed/skipped/failed/retry) |
 | `multimodal_rag_ingest_in_flight` | Gauge | |
 | `multimodal_rag_ingest_duration_seconds` | Histogram | `source` (minio_parse/mongo_text/none) |
-| `multimodal_rag_ingest_stage_duration_seconds` | Histogram | `stage` (download/parse/upload_assets/insert/delete) |
+| `multimodal_rag_ingest_stage_duration_seconds` | Histogram | `stage` (delete; timing parse→describe→chunk→embed nằm trong DocStatusStore, không có metric Prometheus) |
 | `multimodal_rag_ingest_parse_failures_total` | Counter | `document_type` |
 | `multimodal_rag_ingest_asset_upload_failures_total` | Counter | |
 | `multimodal_rag_ingest_items_total` | Counter | `modality` |
@@ -58,7 +58,7 @@ Mỗi lần đổi metric trong `ami_rag/observability.py` cần cập nhật da
 | `multimodal_rag_ingest_stream_pending` / `_stream_lag` | Gauge | |
 | `multimodal_rag_ingest_documents` | Gauge | `status` |
 
-Metric API mới so với bản cũ: `multimodal_rag_retrieval_docs_by_modality_total{modality}`, `_presign_failures_total`, `_chunks_retrieved`, `_rerank_fallback_total{reason}`, `_docs_filtered_total`. Danh sách đầy đủ: `docs/ami_service.md` mục 9.
+Metric API mới so với bản cũ: `multimodal_rag_retrieval_docs_by_modality_total{modality}`, `_presign_failures_total`, `_chunks_retrieved`, `_rerank_fallback_total{reason}`. Danh sách đầy đủ: `docs/ami_service.md` mục 9.
 
 ## Alert (`helm/prometheusrule.yaml`)
 
@@ -76,5 +76,4 @@ Metric API mới so với bản cũ: `multimodal_rag_retrieval_docs_by_modality_
 ## Lưu ý
 
 - Label `day` sinh series mới mỗi ngày (cardinality tăng dần theo thời gian chạy process).
-- `resolve` là stage đo theo từng chunk nên `count` của nó lớn hơn số request.
 - `/metrics` không yêu cầu `RAG_API_KEY`; chỉ mở trong mạng nội bộ hoặc chặn ở reverse proxy.
