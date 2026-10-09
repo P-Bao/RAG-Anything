@@ -1,0 +1,90 @@
+{
+  "meta": {
+    "generated_at": "2026-10-08T02:15:47",
+    "source_collection": "multimodal__llama-nemotron-embed-vl-1b-v2__v1",
+    "embed_model": "nvidia/llama-nemotron-embed-vl-1b-v2",
+    "depths": [
+      5,
+      15,
+      30,
+      50
+    ],
+    "note": "Đo trên collection tạm, production không bị đụng. Bỏ collection tạm bằng `python -c 'client.delete_collection(name)'` sau khi xem xong. 389/413 chunk bảng có ảnh render; 24 chunk không có ảnh nên không tham gia phép so sánh này.",
+    "table_chunks_with_image": 389,
+    "table_chunks_total": 413
+  },
+  "results": {
+    "text+image": {
+      "collection": "probe_table_embed__text_image",
+      "chunks": 389,
+      "embed_s": 37.4,
+      "reachable": 7,
+      "median_rank": 1,
+      "recall": {
+        "5": 6,
+        "15": 6,
+        "30": 6,
+        "50": 7
+      },
+      "ranks": {
+        "table_01_lanh_dao_vien": 1,
+        "table_02_discrete_math": 1,
+        "table_03_thac_si_tich_hop": 1,
+        "table_04_data_analysis": 1,
+        "table_05_diem_san_tai_nang": 1,
+        "table_06_ngoai_ngu_2": null,
+        "table_07_quan_tri_du_an": null,
+        "table_08_tieng_anh_course_1": 43,
+        "table_09_thiet_ke_tuong_tac": 2
+      }
+    },
+    "image_only": {
+      "collection": "probe_table_embed__image_only",
+      "chunks": 389,
+      "embed_s": 35.0,
+      "reachable": 7,
+      "median_rank": 1,
+      "recall": {
+        "5": 6,
+        "15": 6,
+        "30": 6,
+        "50": 7
+      },
+      "ranks": {
+        "table_01_lanh_dao_vien": 1,
+        "table_02_discrete_math": 1,
+        "table_03_thac_si_tich_hop": 1,
+        "table_04_data_analysis": 1,
+        "table_05_diem_san_tai_nang": 2,
+        "table_06_ngoai_ngu_2": null,
+        "table_07_quan_tri_du_an": null,
+        "table_08_tieng_anh_course_1": 49,
+        "table_09_thiet_ke_tuong_tac": 3
+      }
+    },
+    "text_only": {
+      "collection": "probe_table_embed__text_only",
+      "chunks": 389,
+      "embed_s": 6.0,
+      "reachable": 8,
+      "median_rank": 1.5,
+      "recall": {
+        "5": 6,
+        "15": 7,
+        "30": 8,
+        "50": 8
+      },
+      "ranks": {
+        "table_01_lanh_dao_vien": 2,
+        "table_02_discrete_math": 1,
+        "table_03_thac_si_tich_hop": 1,
+        "table_04_data_analysis": 1,
+        "table_05_diem_san_tai_nang": 1,
+        "table_06_ngoai_ngu_2": 11,
+        "table_07_quan_tri_du_an": null,
+        "table_08_tieng_anh_course_1": 24,
+        "table_09_thiet_ke_tuong_tac": 3
+      }
+    }
+  }
+}

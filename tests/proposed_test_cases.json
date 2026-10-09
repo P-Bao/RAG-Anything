@@ -1,0 +1,3523 @@
+{
+  "meta": {
+    "generated_at": "2026-10-08T01:40:51",
+    "collection": "multimodal__llama-nemotron-embed-vl-1b-v2__v1",
+    "probe_depth": 15,
+    "source_cases": 28,
+    "target_reachable_at_probe_depth": 23,
+    "how_to_use": [
+      "Đây là NGUYÊN LIỆU, chưa phải bộ test. Chưa case nào được thêm vào tests/retrieval_cases.json.",
+      "`mechanical_drafts` chỉ là nháp sinh bằng mẫu, chất lượng thấp: hãy viết lại bằng tiếng Việt tự nhiên trước khi dùng.",
+      "`confusables[0..]` là các chunk hay bị nhặt nhầm: dùng để viết minimal-pair có tác dụng thật.",
+      "Chỉ giữ câu hỏi mà target nằm trong pool @15, xem `validate.keep_if`.",
+      "Ưu tiên mở rộng text/table: collection chỉ có 70 chunk ảnh nên case ảnh không mở rộng được nhiều."
+    ]
+  },
+  "proposals": [
+    {
+      "source_case_id": "text_01_lihong_zhang",
+      "modality": "text",
+      "current_query": "Giáo sư Lihong Zhang trao đổi học thuật tại PTIT",
+      "current_xfail": false,
+      "expected_doc_id": "6ab42382006dfa39df99aff4",
+      "expected_chunk_id": null,
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 1,
+        "page": 0,
+        "text": "# Giáo sư Lihong Zhang đến thăm và trao đổi học thuật tại Học viện\n**Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung\n**Ngày đăng:** 2026-09-21\n**URL:** https://ptit.edu.vn/giao-su-lihong-zhang-den-tham-va-trao-doi-hoc-thuat-tai-hoc-vien/\n---\nGiáo sư Lihong Zhang đến thăm và trao đổi học thuật tại Học viện\nTin tức\n21/09/2026\nChung Hải Bằng\nTrong khuôn khổ các hoạt động tăng cường hợp tác quốc tế và thúc đẩy nghiên cứu khoa học, Khoa Kỹ thuật Điện tử 1, Học viện Công nghệ Bưu chính Viễn thông (PTIT) đã tổ chức chương trình gặp gỡ và trao đổi học thuật với Giáo sư Lihong Zhang nhân dịp ông đến Việt Nam tham dự Hội nghị quốc tế AICAS 2026.\nTS.Nguyễn Trung Hiếu – Trưởng Khoa KTDDT1 tặng hoa, quà lưu niệm và chụp ảnh cùng GS Giáo sư Lihong Zhang\nTham dự chương trình có đại diện lãnh đạo Khoa Kỹ thuật Điện tử 1, các giảng viên, nghiên cứu viên cùng đông đảo sinh viên quan tâm đến lĩnh vực vi mạch, thiết kế hệ thống tích hợp và công nghệ bán dẫn.\nGiáo sư Lihong Zhang chia sẻ với Thầy và Trò PTIT\nGiáo sư Lihong Zhang hiện công tác tại Bộ môn Kỹ thuật Điện và Máy tính, Khoa Kỹ thuật và Khoa học Ứng dụng, Trường Đại học Memorial Newfoundland (Canada). Với nhiều năm kinh nghiệm trong nghiên cứu và đào tạo, Giáo sư là chuyên gia trong các lĩnh vực thiết kế vi mạch tương tự và hỗn hợp, tự động hóa thiết kế vi mạch (EDA), thiết kế mạch số và hệ thống số.\nTại buổi trao đổi, Giáo sư Lihong Zhang đã chia sẻ những xu hướng nghiên cứu mới, các thách thức và cơ hội phát triển trong lĩnh vực vi mạch và thiết kế VLSI. Các nội dung được trao đổi tập trung vào thiết kế vi mạch tương tự và hỗn hợp, các giải pháp tự động hóa thiết kế VLSI/EDA, thiết kế mạch số và hệ thống số cùng một số hướng nghiên cứu tiềm năng đang được cộng đồng khoa học quốc tế quan tâm.\nGiáo sư Lihong Zhang chia sẻ tại chương trình\nKhông chỉ mang đến những thông tin chuyên môn cập nhật, chương trình còn tạo cơ hội để cán bộ, giảng viên và sinh viên PTIT trực tiếp trao đổi học thuật với chuyên gia quốc tế, mở rộng hiểu biết về các hướng nghiên cứu mới, đồng thời nâng cao năng lực nghiên cứu và hội nhập quốc tế trong lĩnh vực điện tử, vi mạch và bán dẫn.\nCác Thầy Khoa Kỹ thuật Điện tử 1 trao đổi với Giáo sư Lihong Zhang tại chương trình\nBên cạnh nội dung chuyên môn, hai bên cũng đã trao đổi về tiềm năng hợp tác trong nghiên cứu khoa học, đào tạo và phát triển nguồn nhân lực chất lượng cao. Các nội dung được thảo luận bao gồm khả năng triển khai các đề tài nghiên cứu chung, công bố quốc tế, trao đổi học giả, giảng viên, sinh viên và phát triển các chương trình hợp tác học thuật trong thời gian tới.\nGiáo sư Lihong Zhang và các Thầy, Cô Khoa Kỹ thuật Điện tử 1 – PTIT\nChương trình là hoạt động có ý nghĩa thiết thực, góp phần tăng cường kết nối giữa PTIT với các cơ sở giáo dục, nghiên cứu uy tín trên thế giới, đồng thời tạo điều kiện để cán bộ, giảng viên và sinh viên tiếp cận với những xu hướng công nghệ tiên tiến, đáp ứng yêu cầu phát triển nguồn nhân lực chất lượng cao trong lĩnh vực điện tử, vi mạch và công nghiệp bán dẫn.\nMột số hình ảnh tại chương trình:\nChia sẻ:\n**Hình ảnh:**\n- https://ptit.edu.vn/wp-content/uploads/2026/09/2aOboR0E8J63Q17tdY5K4JACGbmz0tHzg3JJnf5U.jpg\n- https://ptit.edu.vn/wp-content/uploads/2026/09/2aOboR0E8Iy0ja6BRyuA1D1Ht9RtibTrKPcmnq0u.jpg\n- https://ptit.edu.vn/wp-content/uploads/2026/09/2aOboR0E8IamdAflT3T4HfSYGvYaNKJQeu8hGxiy.jpg\n- https://ptit.edu.vn/wp-content/uploads/2026/09/2aOboR0E8Jb82ks8I0KcdG7kThDGn3jbkHKxnyHA.jpg\n- https://ptit.edu.vn/wp-content/uploads/2026/09/2aOboR0E8JKxoEvwuSDuqOFws7q3lEV4OnN9zaQS.jpg\n- https://ptit.edu.vn/wp-content/uploads/2026/09/2aOboR0E8JpZF7NdWPyvHIhEYJNASDWtD2YtL1xg.jpg\n- https://ptit.edu.vn/wp-content/uploads/2026/09/2aOboR0E8KBm6AKCPwh344tmEvpJ5pMx1JfHBSmO.jpg",
+        "distinctive_terms": [
+          "ptit",
+          "giáo",
+          "lihong",
+          "zhang",
+          "thuật",
+          "trao"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-3bcc39ea3961b1df5236ae64",
+          "doc_id": "6ab57393006dfa39df99aff8",
+          "page": 0,
+          "snippet": "nghệ mới. BUPT và PTIT cũng thảo luận khả năng phát triển các hoạt động hỗ trợ học thuật cho sinh viên PTIT có nhu cầu học tập tại BUPT. Để thể hiện cam kết hợp tác và cụ thể hóa các nội dung hợp tác giữa hai bên, PTIT và BUPT thống nhất sẽ xúc tiến các thủ tụ",
+          "distinctive_terms": [
+            "ptit",
+            "https",
+            "content",
+            "uploads",
+            "2026",
+            "quốc"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-7794290a4e0bbde57d372dfd",
+          "doc_id": "6a4d1fe844e99bb8b2f2aced",
+          "page": 0,
+          "snippet": "# PTIT và Đại học Thanh Hoa Trung Quốc: Thúc đẩy hợp tác chiến lược trong lĩnh vực Vi mạch, Trí tuệ nhân tạo và Đổi mới sáng tạo **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2026-04-16 **URL:** https://ptit.edu.vn/ptit-va",
+          "distinctive_terms": [
+            "việc",
+            "ptit",
+            "nghiên",
+            "nghiệp",
+            "thanh",
+            "đoàn"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-239297bb1a6c446cdf4755c2",
+          "doc_id": "6a4d1fe944e99bb8b2f2acf0",
+          "page": 0,
+          "snippet": "# PTIT tăng cường hợp tác với các tập đoàn công nghệ Trung Quốc trong lĩnh vực AI và 6G **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2026-04-15 **URL:** https://ptit.edu.vn/ptit-tang-cuong-hop-tac-voi-cac-tap-doan-cong-ng",
+          "distinctive_terms": [
+            "ptit",
+            "nghệ",
+            "đoàn",
+            "iflytek",
+            "phát",
+            "triển"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-5f9274e10e9e8b4f9b6d27b0",
+          "doc_id": "6ab57393006dfa39df99aff8",
+          "page": 0,
+          "snippet": "# Học viện Công nghệ Bưu chính Viễn thông mở rộng hợp tác đào tạo, nghiên cứu với các đối tác tại Trung Quốc **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2026-09-24 **URL:** https://ptit.edu.vn/hoc-vien-cong-nghe-buu-chin",
+          "distinctive_terms": [
+            "nghệ",
+            "nghiên",
+            "trung",
+            "ptit",
+            "đoàn",
+            "trao"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-a37cd2090b857a92c7aeda85",
+          "doc_id": "6a4d1fe844e99bb8b2f2acee",
+          "page": 0,
+          "snippet": "# PTIT tham dự Diễn đàn Giáo dục Việt Nam – Trung Quốc, mở rộng hợp tác đào tạo và công nghệ **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2026-04-16 **URL:** https://ptit.edu.vn/ptit-tham-du-dien-dan-giao-duc-hop-tac-viet",
+          "distinctive_terms": [
+            "nghệ",
+            "quốc",
+            "trung",
+            "tham",
+            "phát",
+            "triển"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-e8e06458d6a1417740fd013b",
+          "doc_id": "6ab6c748006dfa39df99affd",
+          "page": 0,
+          "snippet": "rong khoa học và cuộc sống. TS.Lê Văn Ngọc – Trưởng Bộ môn Toán, Khoa Cơ bản 1 phát biểu cảm ơn tại chương trình Kết thúc chương trình, thay mặt Học viện, TS. Lê Văn Ngọc đã phát biểu cảm ơn và tặng hoa GS. Phan Thành Nam, ghi nhận những chia sẻ tâm huyết mà G",
+          "distinctive_terms": [
+            "ptit",
+            "toán",
+            "https",
+            "content",
+            "uploads",
+            "2026"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "ptit giáo lihong zhang thuật trao",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt ptit https content với ptit",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-3bcc39ea3961b1df5236ae64",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "text_02_thu_khoa_minh",
+      "modality": "text",
+      "current_query": "Thủ khoa toàn khóa Nguyễn Đăng Minh",
+      "current_xfail": false,
+      "expected_doc_id": "6a4d1ff144e99bb8b2f2ad07",
+      "expected_chunk_id": null,
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 1,
+        "page": 0,
+        "text": "# Nguyễn Đăng Minh – Thủ khoa toàn khóa và hành trình đưa công nghệ tạo giá trị cho cộng đồng\n**Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung\n**Ngày đăng:** 2026-03-24\n**URL:** https://ptit.edu.vn/nguyen-dang-minh-thu-khoa-toan-khoa-va-hanh-trinh-dua-cong-nghe-tao-gia-tri-cho-cong-dong/\n---\nNguyễn Đăng Minh – Thủ khoa toàn khóa và hành trình đưa công nghệ tạo giá trị cho cộng đồng\nGóc sinh viên\n24/03/2026\nbangch\nNguyễn Đăng Minh là Thủ khoa toàn khóa D21 ngành Công nghệ thông tin Học viện Công nghệ Bưu chính Viễn thông (PTIT). Anh gây ấn tượng với hàng loạt thành tích nổi bật như giải Ba Global Start-up Design Thinking Hackathon tại Hàn Quốc, nhiều giải thưởng khởi nghiệp và công nghệ quốc tế với dự án AI Vilutra, có bài báo khoa học tại hội nghị SOICT 2025 và được tuyển chọn tham gia chương trình NUS Young Fellowship tại Đại học Quốc gia Singapore.\nTừ những bước đi dò dẫm đến danh hiệu Thủ khoa\nĐăng Minh cho biết những năm đầu bước vào giảng đường đại học, định hướng của Minh vẫn còn nhiều mơ hồ. Thay vì chờ đợi đam mê đến một cách tự nhiên, Đăng Minh lựa chọn cách chủ động tìm kiếm cơ hội, tham gia các môi trường học tập và hoạt động khác nhau để khám phá khả năng của bản thân.\nĐiểm khởi đầu trong hành trình đó là khi anh tham gia Câu lạc bộ Lập trình ProPTIT. Tại đây, Minh có cơ hội học hỏi từ các anh chị khóa trên, rèn luyện kỹ năng lập trình và cùng bạn bè chia sẻ kiến thức chuyên môn. Từ những dòng code đầu tiên, nam sinh dần được thôi thúc tham gia các cuộc thi lập trình thi đấu và đạt được một số giải thưởng cấp trường, qua đó hình thành nền tảng chuyên môn và tư duy công nghệ.\nNguyễn Đăng Minh là Thủ khoa toàn khóa ngành Công nghệ thông tin Học viện Công nghệ Bưu chính Viễn thông.\nKhông dừng lại ở hoạt động câu lạc bộ, Đăng Minh tiếp tục thử sức trong môi trường nghiên cứu khi tham gia Lab về Nhận diện giọng nói tiếng Việt. Tại đây, Minh bắt đầu làm quen với việc xử lý dữ liệu và huấn luyện mô hình trí tuệ nhân tạo. Song song với đó, Minh tham gia Lab sáng tạo khởi nghiệp IEC và có cơ hội tiếp cận các dự án mang tính ứng dụng xã hội, tiêu biểu như ứng dụng dịch và dạy ngôn ngữ ký hiệu cho người khiếm thính.\nNhìn lại chặng đường đã qua, Đăng Minh chia sẻ: “Thời gian đầu, định hướng của mình vẫn chưa rõ ràng, nhưng mình nghĩ nếu không thử thì sẽ không biết mình phù hợp với điều gì. Qua từng trải nghiệm, mình dần nhận ra công nghệ chỉ thực sự có ý nghĩa khi nó có thể tạo ra giá trị và giúp ích cho con người”.\nDự án AI từ giảng đường vươn ra sân chơi quốc tế\nTrong hành trình học tập và trưởng thành của mình, Đăng Minh cho rằng quãng thời gian 4 năm học tại Học viện Công nghệ Bưu chính Viễn thông là nền tảng quan trọng giúp Minh từng bước định hình tư duy học thuật và con đường phát triển. Điều Đăng Minh trân trọng nhất trong những năm tháng đại học không chỉ là kiến thức chuyên môn, mà còn là sự tận tâm và những yêu cầu học thuật nghiêm túc từ các thầy cô. Chính môi trường học tập với tiêu chuẩn cao đã buộc sinh viên phải liên tục tư duy, tự học, rèn luyện khả năng tiếp cận công nghệ mới và không ngừng vượt qua giới hạn của bản thân.\nĐăng Minh ghi dấu ấn tại Đại học Quốc gia Singapore khi tham gia chương trình NUS Young Fellowship 2025.\nBên cạnh hoạt động học tập trên giảng đường, nhà trường cũng tạo ra nhiều sân chơi học thuật và cuộc thi sáng tạo để sinh viên có cơ hội cọ xát thực tế. Với Đăng Minh, một trong những dấu mốc quan trọng là cuộc thi PInnovation – Ý tưởng sáng tạo khởi nghiệp do Học viện tổ chức vào năm thứ tư. Tại đây, Minh cùng các cộng sự đã phát triển dự án Vilutra – hệ thống AI hỗ trợ truy tìm trẻ lạc tại các không gian công cộng như khu vui chơi hay trung tâm thương mại. Dự án xuất phát từ mong muốn giảm bớt sự hoảng loạn và rủi ro cho các gia đình khi xảy ra tình huống trẻ em bị lạc.\nDự án Vilutra đã giành giải Ba tại cuộc thi PInnovation và sau đó được nhà trường lựa chọn tham gia các sân chơi quốc tế. Từ bước đệm này, nhóm của Đăng Minh tiếp tục đạt nhiều giải thưởng như Best International Prototype do University of Technology Sydney tổ chức, Giải Nhất Excellence in Technology for Social Good tại Coding Fest của University of Sydney, Champion Track A tại Next Wave of Startup 2025, đồng thời có một bài báo khoa học được chấp nhận tại hội nghị SOICT 2025.\nĐăng Minh gắn bó với CLB Lập trình ProPTIT – nơi thắp lửa đam mê và nuôi dưỡng tinh thần công nghệ.\nChia sẻ về chặng đường này, Đăng Minh cho biết: “Mình luôn biết ơn thầy cô và môi trường học tập tại PTIT. Chính những yêu cầu rất cao trong học tập và những sân chơi học thuật của trường đã giúp mình trưởng thành hơn, không chỉ về kiến thức mà còn về tư duy nghiên cứu, làm việc nhóm và theo đuổi các dự án công nghệ có giá trị cho xã hội”.\nHành trình trưởng thành từ trải nghiệm thực tế",
+        "distinctive_terms": [
+          "minh",
+          "đăng",
+          "nghệ",
+          "trình",
+          "khoa",
+          "tham"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-9db08e67d1d45c8216bc989e",
+          "doc_id": "6a4d1fd944e99bb8b2f2acc0",
+          "page": 0,
+          "snippet": "# Gần 1200 tân kỹ sư PTIT tốt nghiệp: Mang theo khát vọng tuổi trẻ bước vào kỷ nguyên số **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2026-05-23 **URL:** https://ptit.edu.vn/gan-1200-tan-ky-su-ptit-tot-nghiep-mang-theo-kh",
+          "distinctive_terms": [
+            "ptit",
+            "minh",
+            "nghệ",
+            "bước",
+            "trình",
+            "2026"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-56b265122e027676a8093943",
+          "doc_id": "6a762de74d6b68cb01a5f639",
+          "page": 0,
+          "snippet": "# Thủ khoa toàn khoá 2022 Nguyễn Hồng Hạnh: Thành công đến từ những ngày không ngừng cố gắng **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2026-08-07 **URL:** https://ptit.edu.vn/thu-khoa-toan-khoa-2022-nguyen-hong-hanh-th",
+          "distinctive_terms": [
+            "hạnh",
+            "khoa",
+            "thành",
+            "ngày",
+            "trường",
+            "ptit"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-24441b8fbd174eb5d7eaf345",
+          "doc_id": "6a4d208444e99bb8b2f2aec4",
+          "page": 0,
+          "snippet": "# 2 Thủ khoa PTIT được vinh danh tại Lễ tuyên dương Thủ khoa xuất sắc tốt nghiệp các trường Đại học, Học viện **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2024-10-04 **URL:** https://ptit.edu.vn/2-thu-khoa-ptit-duoc-vinh-",
+          "distinctive_terms": [
+            "khoa",
+            "dương",
+            "thành",
+            "tuyên",
+            "2024",
+            "ptit"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-662d2e2a593af6960cfe945c",
+          "doc_id": "6a4d202b44e99bb8b2f2adb7",
+          "page": 0,
+          "snippet": "# Nguyễn Huy Hoàng – Thủ khoa kép PTIT: Tấm gương nuôi dưỡng giấc mơ Trí tuệ nhân tạo **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2025-08-31 **URL:** https://ptit.edu.vn/nguyen-huy-hoang-thu-khoa-kep-ptit-tam-guong-nuoi-",
+          "distinctive_terms": [
+            "hoàng",
+            "ptit",
+            "thành",
+            "chính",
+            "nhân",
+            "khoa"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-0fc373f53ebf4b2bfbb174c9",
+          "doc_id": "6a4d201944e99bb8b2f2ad80",
+          "page": 0,
+          "snippet": "khoa ngành Công nghệ tài chính Vũ Quỳnh Anh chia sẻ cảm xúc tại buổi Lễ Tại buổi Lễ, các tân cử nhân tốt nghiệp cũng đã tặng hoa, cúi đầu tri ân thầy cô, tri ân các bậc phụ huynh những người đã dìu dắt, dạy dỗ và là những hậu phương vững chắc cho các tân Cử nh",
+          "distinctive_terms": [
+            "https",
+            "ptit",
+            "content",
+            "uploads",
+            "2025",
+            "scaled"
+          ]
+        },
+        {
+          "vector_rank": 8,
+          "chunk_id": "chunk-a7b0a33873dd0418639d417c",
+          "doc_id": "6a762de74d6b68cb01a5f639",
+          "page": 0,
+          "snippet": "h không cho rằng thành công hôm nay là kết quả của riêng mình. “Đó là thành quả của sự yêu thương, sự tin tưởng và đồng hành từ gia đình, thầy cô, bạn bè cũng như môi trường học tập mà em may mắn được trải nghiệm tại PTIT.” Cùng đồng đội, Hạnh gặt hái nhiều th",
+          "distinctive_terms": [
+            "hạnh",
+            "thành",
+            "ptit",
+            "khoa",
+            "thương",
+            "toàn"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "minh đăng nghệ trình khoa tham",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt ptit minh nghệ với minh",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-9db08e67d1d45c8216bc989e",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "text_03_nghi_quyet_tw3",
+      "modality": "text",
+      "current_query": "Đảng bộ Học viện quán triệt Nghị quyết Hội nghị Trung ương 3 khóa XIV",
+      "current_xfail": false,
+      "expected_doc_id": "6a6a50199ed58c75b542e475",
+      "expected_chunk_id": null,
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 1,
+        "page": 0,
+        "text": "# Đảng bộ Học viện Công nghệ Bưu chính Viễn thông tham dự Hội nghị toàn quốc quán triệt Nghị quyết Hội nghị Trung ương 3 khóa XIV\n**Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung\n**Ngày đăng:** 2026-07-29\n**URL:** https://ptit.edu.vn/dang-bo-hoc-vien-cong-nghe-buu-chinh-vien-thong-tham-du-hoi-nghi-toan-quoc-quan-triet-nghi-quyet-hoi-nghi-trung-uong-3-khoa-xiv/\n---\nĐảng bộ Học viện Công nghệ Bưu chính Viễn thông tham dự Hội nghị toàn quốc quán triệt Nghị quyết Hội nghị Trung ương 3 khóa XIV\nTin tức\n29/07/2026\nhuongbtb\nSáng ngày 29/7/2026, Đảng bộ Học viện Công nghệ Bưu chính Viễn thông (PTIT) đã tổ chức điểm cầu trực tuyến tham dự Hội nghị toàn quốc nghiên cứu, học tập, quán triệt và triển khai thực hiện Nghị quyết Hội nghị lần thứ ba Ban Chấp hành Trung ương Đảng khóa XIV.\nHội nghị được kết nối trực tuyến từ điểm cầu trung tâm tại Hội trường Diên Hồng (Nhà Quốc hội) đến các điểm cầu trên cả nước. Tại Học viện Công nghệ Bưu chính Viễn thông, các cán bộ, đảng viên, giảng viên và viên chức đã tham dự hội nghị với tinh thần nghiêm túc, trách nhiệm, thể hiện quyết tâm nghiên cứu, quán triệt sâu sắc các nội dung của Nghị quyết, góp phần nâng cao nhận thức và tạo sự thống nhất trong tổ chức thực hiện.\nTại Hội nghị, các đại biểu đã được nghe các đồng chí lãnh đạo Đảng, Nhà nước truyền đạt những nội dung cốt lõi của các nghị quyết, kết luận và quy định quan trọng được thông qua tại Hội nghị Trung ương 3 khóa XIV, tập trung vào các chuyên đề lớn như: đổi mới mô hình phát triển đất nước gắn với mục tiêu xây dựng Việt Nam trở thành quốc gia biển mạnh; Chiến lược An ninh quốc gia, xây dựng xã hội kỷ cương, an toàn, văn minh, hài hòa và phát triển; tăng cường công tác bảo vệ môi trường, chủ động ứng phó với biến đổi khí hậu trong giai đoạn mới; tiếp tục hoàn thiện, vận hành hiệu quả mô hình tổ chức tổng thể của hệ thống chính trị và chính quyền địa phương hai cấp; cùng với Quy định về những điều đảng viên không được làm.\nQuán triệt tinh thần chỉ đạo của Tổng Bí thư, Chủ tịch nước Tô Lâm:\n“Mỗi cấp, mỗi ngành, mỗi cán bộ, đảng viên phải biến nhận thức thành hành động, quyết tâm thành sản phẩm”\n, Đảng bộ Học viện Công nghệ Bưu chính Viễn thông xác định việc nghiên cứu, học tập và quán triệt các nghị quyết, kết luận của Trung ương phải gắn với quá trình tổ chức thực hiện, bảo đảm các chủ trương của Đảng được cụ thể hóa thành những nhiệm vụ, giải pháp thiết thực trong từng lĩnh vực công tác.\nViệc tham dự Hội nghị là đợt sinh hoạt chính trị quan trọng, góp phần giúp cán bộ, đảng viên Học viện nắm vững những nội dung cốt lõi của các nghị quyết, kết luận và quy định mới của Trung ương, tạo sự thống nhất về nhận thức và hành động trong toàn Đảng bộ. Đây cũng là cơ sở để Học viện tiếp tục phát huy tinh thần đổi mới, nâng cao chất lượng đào tạo, nghiên cứu khoa học, chuyển đổi số và đổi mới sáng tạo, góp phần thực hiện hiệu quả các nhiệm vụ chính trị và chiến lược phát triển trong giai đoạn mới.\nChia sẻ:\n**Hình ảnh:**\n- https://ptit.edu.vn/wp-content/uploads/2026/07/1-4.jpg\n- https://ptit.edu.vn/wp-content/uploads/2026/07/3-5.jpg\n- https://ptit.edu.vn/wp-content/uploads/2026/07/4-4.jpg",
+        "distinctive_terms": [
+          "nghị",
+          "đảng",
+          "chính",
+          "quyết",
+          "trung",
+          "tham"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-074bc4d41fa6d997641af0d6",
+          "doc_id": "6a99c4bf63155e800bb950d8",
+          "page": 0,
+          "snippet": "# Đảng viên Học viện Công nghệ Bưu chính Viễn thông tham dự Hội nghị toàn quốc quán triệt các nghị quyết, chỉ thị của Bộ Chính trị **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2026-09-03 **URL:** https://ptit.edu.vn/dang-",
+          "distinctive_terms": [
+            "nghị",
+            "quyết",
+            "nhiệm",
+            "đảng",
+            "chính",
+            "triển"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-207989f70f3cf8399e847731",
+          "doc_id": "6a4d1fca44e99bb8b2f2ac93",
+          "page": 0,
+          "snippet": "# Đảng viên Học viện tham dự Hội nghị toàn quốc nghiên cứu, học tập, quán triệt và triển khai thực hiện Nghị quyết số 10-NQ/TW của Bộ Chính trị **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2026-06-30 **URL:** https://ptit",
+          "distinctive_terms": [
+            "nghị",
+            "chính",
+            "đảng",
+            "triển",
+            "nước",
+            "tham"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-ab2b2ff7798ee6a494b98911",
+          "doc_id": "6a4d205444e99bb8b2f2ae33",
+          "page": 0,
+          "snippet": "# Đại hội lần thứ XIII, nhiệm kỳ 2025-2030 Đảng bộ Học viện Công nghệ Bưu chính Viễn thông cơ sở thành phố Hồ Chí Minh thành công tốt đẹp **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2025-04-26 **URL:** https://ptit.edu.v",
+          "distinctive_terms": [
+            "đảng",
+            "nhiệm",
+            "thành",
+            "2025",
+            "minh",
+            "chính"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-cf49ad32136ca57cc95f8be3",
+          "doc_id": "6a4d209044e99bb8b2f2aee9",
+          "page": 0,
+          "snippet": "rung tri thức, trí tuệ để nghiên cứu, cụ thể hóa những định hướng mới của “Kết luận 91 ngày 12/8/2024 của Bộ Chính trị tiếp tục thực hiện Nghị quyết số 29-NQ/TW, ngày 04/11/2013 của Ban Chấp hành Trung ương Đảng khoá XI về đổi mới căn bản, toàn diện giáo dục v",
+          "distinctive_terms": [
+            "trung",
+            "2024",
+            "kiên",
+            "cntt",
+            "nghiên",
+            "định"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-56378e5fe26235483118b496",
+          "doc_id": "6a4d205944e99bb8b2f2ae41",
+          "page": 0,
+          "snippet": "# Ban Tuyên giáo và Dân vận Trung ương khảo sát kết quả triển khai kết luận số 94-KL/TW tại Học viện Công nghệ Bưu chính Viễn thông **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2025-04-12 **URL:** https://ptit.edu.vn/ban-",
+          "distinctive_terms": [
+            "chính",
+            "luận",
+            "giảng",
+            "việc",
+            "trung",
+            "giáo"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-b6898a0292f2998ee0b72537",
+          "doc_id": "6a4d205944e99bb8b2f2ae41",
+          "page": 0,
+          "snippet": "ào tạo còn phải nắm vững về đường lối, chủ trương của Đảng, pháp luật của Nhà nước, giữ vững niềm tin và lý tưởng cách mạng, trung thành với sự nghiệp xây dựng và bảo vệ Tổ quốc. Tuy nhiên, vẫn còn một số bộ phận sinh viên chưa nhận thức một cách đầy đủ ý nghĩ",
+          "distinctive_terms": [
+            "chính",
+            "luận",
+            "thực",
+            "việc",
+            "phương",
+            "hiện"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "nghị đảng chính quyết trung tham",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt nghị quyết nhiệm với nghị",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-074bc4d41fa6d997641af0d6",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "text_04_tong_ket_dang",
+      "modality": "text",
+      "current_query": "Hội nghị tổng kết công tác Đảng năm 2025 triển khai nhiệm vụ 2026",
+      "current_xfail": false,
+      "expected_doc_id": "6a4d200644e99bb8b2f2ad46",
+      "expected_chunk_id": null,
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 1,
+        "page": 0,
+        "text": "# Hội nghị tổng kết công tác Đảng năm 2025 và triển khai nhiệm vụ năm 2026\n**Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung\n**Ngày đăng:** 2025-12-20\n**URL:** https://ptit.edu.vn/hoi-nghi-tong-ket-cong-tac-dang-nam-2025-va-trien-khai-nhiem-vu-nam-2026/\n---\nHội nghị tổng kết công tác Đảng năm 2025 và triển khai nhiệm vụ năm 2026\nTin tức\n20/12/2025\nbangch\nNgày 19/12/2025, Đảng bộ Học viện Công nghệ Bưu chính Viễn thông đã tổ chức Hội nghị Tổng kết công tác Đảng năm 2025, triển khai phương hướng, nhiệm vụ năm 2026. Hội nghị nhằm đánh giá toàn diện kết quả lãnh đạo, chỉ đạo thực hiện nhiệm vụ chính trị trong năm 2025, đồng thời xác định các nhiệm vụ trọng tâm trong năm 2026 – năm đầu triển khai Chiến lược phát triển Học viện giai đoạn mới.\nđồng chí PGS.TS Đặng Hoài Bắc – Ph Bí óthư Đảng ủy, Giám đốc Học viên đã trình bày Báo cáo tổng kết công tác Đảng năm 2025\nTại Hội nghị, đồng chí PGS.TS Đặng Hoài Bắc – Ph Bí óthư Đảng ủy, Giám đốc Học viên đã trình bày Báo cáo tổng kết công tác Đảng năm 2025. Báo cáo khẳng định: trong bối cảnh năm cuối thực hiện Nghị quyết Đại hội Đảng bộ Học viện nhiệm kỳ 2021–2025, Đảng ủy Học viện đã phát huy vai trò hạt nhân chính trị, lãnh đạo, chỉ đạo toàn diện các mặt công tác xây dựng Đảng và thực hiện nhiệm vụ chuyên môn. Công tác chính trị tư tưởng được triển khai đồng bộ, nền nếp; công tác tổ chức cán bộ, kiểm tra giám sát, dân vận và lãnh đạo các đoàn thể tiếp tục được tăng cường; nhiều nghị quyết chuyên đề quan trọng được ban hành, tạo động lực thúc đẩy đào tạo, nghiên cứu khoa học, đổi mới sáng tạo và chuyển đổi số. Đảng bộ Học viện giữ vững sự đoàn kết, ổn định và hoàn thành tốt nhiệm vụ chính trị được giao.\nđồng chí GS.TS Từ Minh Phương – Bí thư Đảng ủy, Chủ tịch Hội đồng Học viện đã trình bày phương hướng, nhiệm vụ trọng tâm năm 2026\nTiếp nối chương trình, đồng chí GS.TS Từ Minh Phương – Bí thư Đảng ủy, Chủ tịch Hội đồng Học viện đã trình bày phương hướng, nhiệm vụ trọng tâm năm 2026. Theo đó, năm 2026 là năm có ý nghĩa đặc biệt quan trọng – năm đầu triển khai Chiến lược phát triển Học viện giai đoạn 2026–2030, tầm nhìn đến 2035. Đảng bộ Học viện sẽ tập trung xây dựng tổ chức đảng trong sạch, vững mạnh; tiếp tục đổi mới phương thức lãnh đạo; gắn công tác xây dựng Đảng với thực hiện nhiệm vụ chuyên môn. Trọng tâm là đẩy mạnh phát triển khoa học công nghệ, đổi mới sáng tạo và chuyển đổi số; nâng cao chất lượng đào tạo, nghiên cứu khoa học; xây dựng Học viện trở thành cơ sở giáo dục đại học chuyên sâu, giữ vai trò dẫn dắt trong một số lĩnh vực công nghệ mũi nhọn theo định hướng của Đảng và Bộ Khoa học và Công nghệ.\nĐảng bộ Học viện đã trao Bằng khen cho 05 chi bộ hoàn thành xuất sắc nhiệm vụ năm 2025\nNhân dịp này, Đảng bộ Học viện đã trao Bằng khen cho 05 chi bộ hoàn thành xuất sắc nhiệm vụ năm 2025, ghi nhận và biểu dương những tập thể tiêu biểu có nhiều đóng góp trong công tác xây dựng Đảng và thực hiện nhiệm vụ chính trị của Học viện.\nHội nghị diễn ra trong không khí nghiêm túc, dân chủ, thống nhất cao, thể hiện quyết tâm của toàn Đảng bộ Học viện trong việc tiếp tục đổi mới, nâng cao năng lực lãnh đạo và sức chiến đấu của tổ chức đảng, góp phần thực hiện thắng lợi các mục tiêu, nhiệm vụ trong giai đoạn phát triển mới.\nChia sẻ:\n**Hình ảnh:**\n- https://ptit.edu.vn/wp-content/uploads/2025/12/MG_9374-scaled.jpg\n- https://ptit.edu.vn/wp-content/uploads/2025/12/MG_9381-scaled.jpg\n- https://ptit.edu.vn/wp-content/uploads/2025/12/MG_9409-scaled.jpg",
+        "distinctive_terms": [
+          "đảng",
+          "2025",
+          "nhiệm",
+          "triển",
+          "2026",
+          "nghị"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-bc4a168c42cfceb2388dca4f",
+          "doc_id": "6a4d206a44e99bb8b2f2ae76",
+          "page": 0,
+          "snippet": "# Lễ kỷ niệm 95 năm Ngày thành lập Đảng Cộng sản Việt Nam và Hội nghị tổng kết công tác Đảng năm 2024, triển khai nhiệm vụ năm 2025 **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2025-01-23 **URL:** https://ptit.edu.vn/le-m",
+          "distinctive_terms": [
+            "đảng",
+            "2025",
+            "đồng",
+            "thành",
+            "nhiệm",
+            "minh"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-a3a4fe927d859f6be1b504d1",
+          "doc_id": "6a4d200a44e99bb8b2f2ad54",
+          "page": 0,
+          "snippet": "# PTIT hoàn thành xuất sắc nhiệm vụ năm 2025 và các mục tiêu chiến lược giai đoạn 2020 – 2025 **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2025-12-04 **URL:** https://ptit.edu.vn/ptit-hoan-thanh-xuat-sac-nhiem-vu-nam-2025",
+          "distinctive_terms": [
+            "2025",
+            "nghệ",
+            "ptit",
+            "trọng",
+            "nhiệm",
+            "minh"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-429b20c4b880c224d3a70629",
+          "doc_id": "6a4d204444e99bb8b2f2ae03",
+          "page": 0,
+          "snippet": "# Đại hội Đảng bộ Học viện Công nghệ Bưu chính Viễn thông nhiệm kỳ 2025 – 2030: Dấu mốc chính trị quan trọng, khẳng định vai trò tiên phong trong đổi mới sáng tạo và chuyển đổi số **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng",
+          "distinctive_terms": [
+            "đảng",
+            "2025",
+            "nhiệm",
+            "chính",
+            "2030",
+            "toàn"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-c2121c8dae24edf811e9a254",
+          "doc_id": "6a4d203844e99bb8b2f2addf",
+          "page": 0,
+          "snippet": "# Học viện Công nghệ Bưu chính Viễn thông tổ chức Hội nghị sơ kết công tác 6 tháng đầu năm 2025 **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2025-07-09 **URL:** https://ptit.edu.vn/hoc-vien-cong-nghe-buu-chinh-vien-thong-",
+          "distinctive_terms": [
+            "2025",
+            "tháng",
+            "chức",
+            "nhiệm",
+            "thành",
+            "nghị"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-e3470bae5e42b48f8ba9f215",
+          "doc_id": "6a4d206944e99bb8b2f2ae72",
+          "page": 0,
+          "snippet": "hợp với điều kiện mới là trái với quy luật phát triển; tạo ra tình trạng “Nói không đi đôi với làm” . Vì vậy, công tác trọng tâm trong giai đoạn hiện nay và thời gian tới là xây dựng và tổ chức thực hiện mô hình tổng thể tổ chức bộ máy hệ thống chính trị Việt ",
+          "distinctive_terms": [
+            "đảng",
+            "nhiệm",
+            "chính",
+            "tiêu",
+            "phát",
+            "dựng"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-854be280393ddb0eca1862b0",
+          "doc_id": "6a4d204444e99bb8b2f2ae04",
+          "page": 0,
+          "snippet": "# Bài viết của Tổng Bí thư Tô Lâm: Tổ chức tốt Đại hội Đảng bộ các cấp nhiệm kỳ 2025-2030 **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2025-06-09 **URL:** https://ptit.edu.vn/bai-viet-cua-tong-bi-thu-to-lam-to-chuc-tot-da",
+          "distinctive_terms": [
+            "đảng",
+            "chính",
+            "toàn",
+            "nhiệm",
+            "kiện",
+            "2025"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "đảng 2025 nhiệm triển 2026 nghị",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt đảng 2025 đồng với đảng",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-bc4a168c42cfceb2388dca4f",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "text_05_co_van_hoc_tap",
+      "modality": "text",
+      "current_query": "Phân công giảng viên làm công tác cố vấn học tập CVHT cho các lớp chuyên ngành",
+      "current_xfail": false,
+      "expected_doc_id": "6a8f144188f0aede5ebc8828",
+      "expected_chunk_id": null,
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 3,
+        "page": 3,
+        "text": "d) Đi vói nhng lóp sinh viên sau khi tách chuyên ngành, các Khoa chuyên môn c Ging viên có kinh nghim và đang trc tip giáng dy các lóp chuyên ngành làm công tác CVHT.",
+        "distinctive_terms": [
+          "chuyên",
+          "ngành",
+          "nhng",
+          "tách",
+          "khoa",
+          "ging"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 1,
+          "chunk_id": "chunk-b1d23fcf28d80034df64df73",
+          "doc_id": "6a8f0fcbfd49f773fa81f8d8",
+          "page": 5,
+          "snippet": "2. Lớp sinh viên được tổ chức bao gồm những sinh viên cùng chuyên ngành, cùng khóa học, có số lượng thích hợp với điều kiện cơ sở vật chất, quản lý của Học viện và được duy trì ổn định trong cả khóa học. Mỗi lớp sinh viên có một cán bộ giảng dạy làm Cố vấn học",
+          "distinctive_terms": [
+            "cùng",
+            "khóa",
+            "chức",
+            "chuyên",
+            "ngành",
+            "lượng"
+          ]
+        },
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-b92bf8cc63aa9ae857ed7f0f",
+          "doc_id": "6a8f0fcbfd49f773fa81f8d8",
+          "page": 4,
+          "snippet": "3. CVHT có trách nhiệm kiểm tra, giám sát việc tổ chức sinh hoạt lớp của lớp HSSV do mình làm CVHT; báo cáo với Trưởng khoa về tình hình học tập và rèn luyện của sinh viên trong lớp; các kiến nghị, đề xuất của sinh viên trong từng buổi họp.",
+          "distinctive_terms": [
+            "cvht",
+            "trách",
+            "nhiệm",
+            "kiểm",
+            "giám",
+            "việc"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-7019209c90f2f97434c171d2",
+          "doc_id": "6a8f0fcbfd49f773fa81f8d8",
+          "page": 7,
+          "snippet": "1. Ðối với lớp sinh viên khóa mới nhập học: Vào đầu khóa học, CVHT các lớp được phân công sẽ tổ chức gặp mặt trực tiếp sinh viên và họp lớp theo kế hoạch để bầu ra Ban cán sự lớp sau đó gửi biên bản họp lớp gồm đầy đủ thông tin Ban cán sự (Mẫu Biên bản họp lớp",
+          "distinctive_terms": [
+            "khóa",
+            "biên",
+            "nhiệm",
+            "thời",
+            "nhập",
+            "cvht"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-62c77877a70beeb345b56e3c",
+          "doc_id": "6a8f0fcbfd49f773fa81f8d8",
+          "page": 6,
+          "snippet": "- Chịu sự điều hành, quản lý của của Phòng Chính trị và Công tác sinh viên, Khoa chuyên môn và tư vấn của CVHT lớp;",
+          "distinctive_terms": [
+            "chịu",
+            "điều",
+            "hành",
+            "quản",
+            "phòng",
+            "chính"
+          ]
+        },
+        {
+          "vector_rank": 11,
+          "chunk_id": "chunk-043690379de805ca066b1f6b",
+          "doc_id": "6a8f0fcbfd49f773fa81f8d8",
+          "page": 5,
+          "snippet": "- Thường xuyên liên hệ với CVHT để báo cáo về tình hình lớp, xin ý kiến tư vấn nhằm giải quyết những vấn đề liên quan đến diễn biến tư tưởng, học tập, rèn luyện và sinh hoạt của sinh viên trong lớp. Hàng tháng tổ chức họp lớp theo quy định của Học viện và mời ",
+          "distinctive_terms": [
+            "liên",
+            "cvht",
+            "thường",
+            "xuyên",
+            "tình",
+            "hình"
+          ]
+        },
+        {
+          "vector_rank": 12,
+          "chunk_id": "chunk-15d33fec03e3da0d3472b225",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 140,
+          "snippet": "c) Trưng Khoa/b môn chuyên môn phân công ging viên hưóng dn thc tp, đa đim thc tp cho sinh viên;",
+          "distinctive_terms": [
+            "trưng",
+            "khoa",
+            "chuyên",
+            "phân",
+            "ging",
+            "hưóng"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "chuyên ngành nhng tách khoa ging",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt cùng khóa chức với chuyên",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-b1d23fcf28d80034df64df73",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "text_06_xet_tuyen_dai_hoc",
+      "modality": "text",
+      "current_query": "Thông báo Xét tuyển đại học hệ chính quy đợt 1 năm 2024",
+      "current_xfail": false,
+      "expected_doc_id": "6a4d209f44e99bb8b2f2af14",
+      "expected_chunk_id": null,
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 1,
+        "page": 0,
+        "text": "# Thông báo Xét tuyển đại học hệ chính quy đợt 1 năm 2024 theo Phương thức xét tuyển dựa vào kết quả thi tốt nghiệp THPT\n**Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung\n**Ngày đăng:** 2024-07-03\n**URL:** https://ptit.edu.vn/thong-bao-xet-tuyen-dai-hoc-he-chinh-quy-dot-1-nam-2024-theo-phuong-thuc-xet-tuyen-dua-vao-ket-qua-thi-tot-nghiep-thpt/\n---\nThông báo Xét tuyển đại học hệ chính quy đợt 1 năm 2024 theo Phương thức xét tuyển dựa vào kết quả thi tốt nghiệp THPT\nTin tức\n03/07/2024\nptit\nCăn cứ Thông tư số 08/2022/TT-BGDĐT ngày 06 tháng 6 năm 2022 của Bộ trưởng Bộ Giáo dục và Đào tạo về việc ban hành Quy chế tuyển sinh trình độ đại học; tuyển sinh trình độ cao đẳng ngành Giáo dục Mầm non;\nCăn cứ Quyết định số 37/QĐ-HV ngày 18 tháng 01 năm 2023 của Giám đốc Học viện Công nghệ Bưu chính Viễn thông về việc ban hành Quy chế tuyển sinh đại học chính quy;\nThực hiện nội dung văn bản số 1957/BGDĐT-GDĐH ngày 26 tháng 4 năm 2024 về việc hướng dẫn công tác tuyển sinh đại học, tuyển sinh cao đẳng Giáo dục mầm non của Bộ Giáo dục và Đào tạo;\nCăn cứ Quyết định số 545/QĐ-HV ngày 10 tháng 04 năm 2024 của Giám đốc Học viện về việc phê duyệt Đề án tuyển sinh trình độ đại học năm 2024 và Quyết định số 861/QĐ-HV ngày 28 tháng 05 năm 2024 của Giám đốc Học viện Công nghệ Bưu chính Viễn thông về việc sửa đổi, bổ sung một số nội dung của Quyết định số 545/QĐ-HV ngày 10 tháng 04 năm 2024 của Giám đốc Học viện về việc phê duyệt Đề án tuyển sinh trình độ đại học năm 2024;\nHọc viện Công nghệ Bưu chính Viễn thông\nthông báo xét tuyển vào đại học hệ chính quy đợt 1 năm 2024 theo Phương thức xét tuyển dựa vào kết quả thi tốt nghiệp THPT của Học viện\nnhư sau:\nA. CHỈ TIÊU XÉT TUYỂN\n1. Cơ sở đào tạo Phía Bắc (mã trường BVH):\nĐịa chỉ: Km10 đường Nguyễn Trãi, Quận Hà Đông, Thành phố Hà Nội\n2. Cơ sở đào tạo Phía Nam (mã trường BVS):\nĐịa chỉ: Số 11 Nguyễn Đình Chiểu, Quận 1, Thành phố Hồ Chí Minh\nB. PHƯƠNG THỨC TUYỂN SINH VÀ NGUYÊN TẮC XÉT TUYỂN\n1. Phương thức tuyển sinh:\n– Sử dụng kết quả kỳ thi tốt nghiệp THPT năm 2024 để xét tuyển;\n– Xét tuyển theo ngành, chương trình và theo tổ hợp bài thi/môn thi xét tuyển;\n– Không giới hạn số ngành, chương trình khi thí sinh đăng ký xét tuyển nhưng thí sinh phải sắp xếp nguyện vọng theo thứ tự ưu tiên từ cao xuống thấp\n(nguyện vọng 1 là nguyện vọng cao nhất)\n.\n2. Ngưỡng đảm bảo chất lượng đầu vào:\nNgưỡng đảm bảo chất lượng đầu vào đối với Phương thức xét tuyển dựa vào kết quả thi tốt nghiệp THPT có thông báo riêng\n(dự kiến ngày 18/7/2024)\n3. Nguyên tắc xét tuyển:\n– Xét tuyển theo ngành, chương trình và theo tổ hợp bài thi/môn thi xét tuyển;\n– Điểm trúng tuyển của các tổ hợp bài thi/môn thi trong cùng một ngành là bằng nhau\n(không có điểm chênh lệch giữa các tổ hợp trong cùng một ngành)\n;\n– Xét trúng tuyển từ thí sinh có kết quả cao xuống và đảm bảo chất lượng tuyển sinh;\n– Xét tuyển các nguyện vọng bình đẳng\n(không có điểm chênh lệch giữa các nguyện vọng trong cùng một ngành)\n, nếu thí sinh không trúng tuyển nguyện vọng ở thứ tự ưu tiên thứ nhất\n(nguyện vọng 1)\nthì sẽ được tự động xét tuyển ở nguyện vọng ưu tiên thứ hai\n(nguyện vọng 2)\nvà kế tiếp;\n– Thí sinh chỉ trúng tuyển vào 1 nguyện vọng ưu tiên cao nhất trong danh sách các nguyện vọng đã đăng ký, khi đã trúng tuyển ở nguyện vọng nào thì không được xét tuyển tiếp ở nguyện vọng sau;\n– Điểm trúng tuyển được tính theo thang điểm 10 trên tổng điểm tối đa của 3 môn thi trong tổ hợp xét tuyển là 30 điểm;\n– Đối với các thí sinh bằng điểm xét tuyển ở cuối danh sách, nếu vẫn còn vượt chỉ tiêu thì ưu tiên thí sinh có nguyện vọng cao hơn theo Quy chế tuyển sinh, Học viện\nkhông sử dụng tiêu chí phụ riêng\nđể xét tuyển;\n– Thí sinh trúng tuyển phải xác nhận nhập học trên Hệ thống tuyển sinh và theo kế hoạch quy định của Bộ Giáo dục và Đào tạo. Nếu quá thời hạn này, thí sinh không xác nhận nhập học được xem là từ chối nhập học.\n– Các điều kiện khác thực hiện theo Quy chế tuyển sinh đại học hệ chính quy hiện hành của Bộ Giáo dục và Đào tạo;\n–\nHọc viện không sử dụng kết quả miễn thi bài thi môn ngoại ngữ, điểm thi được bảo lưu để xét tuyển\nC. HỌC PHÍ DỰ KIẾN VỚI SINH VIÊN CHÍNH QUY\n– Học phí trình độ đại học hệ chính quy chương trình đại trà năm học 2024-2025: trung bình từ khoảng 27 triệu đồng đến 34 triệu đồng/năm tùy theo từng ngành học;\n– Học phí chương trình chất lượng cao trình độ đại học năm học 2024-2025: trung bình từ khoảng 39 triệu đồng đến 55 triệu đồng/năm tùy theo từng ngành học;\n– Học phí chương trình Cử nhân Công nghệ thông tin định hướng ứng dụng, chương trình Công nghệ thông tin Việt – Nhật và chương trình Thiết kế và phát triển Game năm học 2024-2025: trung bình khoảng 35 triệu đồng đến 37 triệu đồng/năm;",
+        "distinctive_terms": [
+          "tuyển",
+          "2024",
+          "trình",
+          "nguyện",
+          "vọng",
+          "chính"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-986fcb568bf50e6cea0abd1e",
+          "doc_id": "6a4d209a44e99bb8b2f2af07",
+          "page": 0,
+          "snippet": "# Thông báo ngưỡng đảm bảo chất lượng đầu vào trình độ đại học hệ chính quy đợt 1 năm 2024 theo Phương thức xét tuyển dựa vào kết quả thi tốt nghiệp THPT **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2024-07-18 **URL:** ht",
+          "distinctive_terms": [
+            "2024",
+            "chính",
+            "tuyển",
+            "https",
+            "ptit",
+            "ngưỡng"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-5f2f3455af13f14eef8044a9",
+          "doc_id": "6a4d20bc44e99bb8b2f2af6d",
+          "page": 0,
+          "snippet": "# Một số điểm mới trong kỳ tuyển sinh đại học chính quy năm 2024 của Học viện Công nghệ Bưu chính Viễn thông **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2024-03-11 **URL:** https://ptit.edu.vn/mot-so-diem-moi-trong-ky-tu",
+          "distinctive_terms": [
+            "tuyển",
+            "điểm",
+            "2024",
+            "chính",
+            "quốc",
+            "bổng"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-12760ce8a0ea1f83195a5460",
+          "doc_id": "6a4d20b044e99bb8b2f2af4a",
+          "page": 0,
+          "snippet": "# Thông báo xét tuyển thẳng và ưu tiên xét tuyển vào đại học hệ chính quy năm 2024 **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2024-05-04 **URL:** https://ptit.edu.vn/thong-bao-xet-tuyen-thang-va-uu-tien-xet-tuyen-vao-da",
+          "distinctive_terms": [
+            "tuyển",
+            "quốc",
+            "thẳng",
+            "bổng",
+            "thời",
+            "giải"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-d6018dcf5f042757f7d69f7f",
+          "doc_id": "6a4d209244e99bb8b2f2aeed",
+          "page": 0,
+          "snippet": "# Thông báo điểm chuẩn trúng tuyển vào đại học hệ chính quy theo Phương thức xét tuyển dựa vào kết quả thi tốt nghiệp THPT năm 2024 (cơ sở đào tạo phía Bắc-mã BVH) **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2024-08-19 *",
+          "distinctive_terms": [
+            "tuyển",
+            "ttnv",
+            "nhập",
+            "trúng",
+            "điểm",
+            "nhận"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-f21733025832520ba053576e",
+          "doc_id": "6a4d20a644e99bb8b2f2af29",
+          "page": 0,
+          "snippet": "ng, Xét tuyển dựa vào điểm thi đánh giá năng lực, đánh giá tư duy, Xét tuyển kết hợp, Xét tuyển dựa vào kết quả thi tốt nghiệp THPT năm 2024. Năm 2024, Học viện tuyển sinh một số chương trình đào tạo mới Công nghệ thông tin Việt – Nhật (mã ngành 7480201_VNH): ",
+          "distinctive_terms": [
+            "2024",
+            "tuyển",
+            "https",
+            "ptit",
+            "ngành",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-3c6742a855d7b93a9598c925",
+          "doc_id": "6a4d20b344e99bb8b2f2af52",
+          "page": 0,
+          "snippet": "# Thông báo Về việc mở hệ thống đăng ký xét tuyển trực tuyến cho thí sinh đăng ký xét tuyển vào đại học chính quy năm 2024 **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2024-04-12 **URL:** https://ptit.edu.vn/thong-bao-ve-",
+          "distinctive_terms": [
+            "tuyển",
+            "đăng",
+            "thống",
+            "chính",
+            "2024",
+            "trực"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "tuyển 2024 trình nguyện vọng chính",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt 2024 chính tuyển với tuyển",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-986fcb568bf50e6cea0abd1e",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "text_07_thiet_ke_game",
+      "modality": "text",
+      "current_query": "Ngành Thiết kế và phát triển Game chỉ tiêu tuyển sinh",
+      "current_xfail": false,
+      "expected_doc_id": "6a4d1fe344e99bb8b2f2acde",
+      "expected_chunk_id": null,
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 11,
+        "page": 0,
+        "text": "phương tiện\n240\n243\n25.75\n72.48\n20.21\n27\n260\n256\n24\n21\n7329001_GAM\nThiết kế và phát triển Game\n(ngành Công nghệ đa phương tiện)\n160\n159\n24.97\n–\n–\n–\n200\n190\n23.48\n22\n7320104\nTruyền thông đa phương tiện\n140\n142\n25.94\n70.03\n20.7\n28\n120\n116\n25.25\n23\n7320101\nBáo chí\n80\n85\n25.29\n73.17\n18.5\n26.73\n90\n93\n22.67\n24\n7480201_CLC\nCông nghệ thông tin\n(chất lượng cao)\n280\n286\n25.43\n72.6\n19.4\n25.64\n300\n285\n23.6\n25\n7480202_CLC\nAn toàn thông tin\n(chất lượng cao)\n–\n–\n–\n–\n–\n–\n100\n104\n23.14\n26\n7340301 _CLC\nKế toán\n(chuẩn quốc tế ACCA)\n40\n39\n22.5\n76.42\n15\n23.36\n60\n60\n21\n27\n7340115 _CLC\nMarketing\n(chất lượng cao)\n100\n105\n24.25\n75.63\n17.45\n25.51\n120\n118\n22\n28\n7320104_CLC\nTruyền thông đa phương tiện\n(chất lượng cao)\n–\n–\n–\n–\n–\n–\n90\n83\n22.65\nb\n)\nC\nơ sở đào tạo phía\nNam\n(BVS)\nSTT\nMã chương trình/ngành, xét tuyển\nTên chương trình/ngànhxét tuyển\nNăm tuyển sinh 2024\nNăm tuyển sinh 2025\nChỉ tiêu\nSố nhập học\nĐiểm trúng tuyển\nChỉ tiêu\nSố nhập học\nĐiểm TT\nDựa vào kết quả thi tốt nghiệp THPT\nXét tuyển Tài năng\nXét tuyển kết hợp\nDựa vào kết quả thi ĐGNL, ĐGTD\n1\n7340101\nQuản trị kinh doanh\n100\n79\n18.4\n–\n–\n–\n130\n124\n17.2\n2\n7340115\nMarketing\n90\n88\n24.24\n76.72\n23.87\n15.93\n120\n124\n21.25\n3\n7340301\nKế toán\n90\n90\n20.95\n–\n22.8\n15.88\n120\n50\n16.25\n4\n7480201\nCông nghệ thông tin\n180\n179\n25.17\n68.83\n22.2\n18.01\n230\n244\n23.47\n5\n7480202\nAn toàn thông tin\n80\n90\n26.68\n–\n21.89\n15.8\n120\n111\n23.09\n6\n7520208\nCông nghệ Internet vạn vật (IoT)\n85\n74\n18\n83.97\n24.83\n18.33\n100\n105\n17.25\n7\n7510301\nCông nghệ Kỹ thuật Điện điện tử\n90\n99\n20.85\n–\n24.36\n15.08\n120\n122\n20.00\n8\n7520207\nKỹ thuật Điện tử viễn thông\n100\n111\n23.23\n85.69\n23.77\n16.23\n140\n141\n21\n9\n7520216\nKỹ thuật Điều khiển và Tự động hóa\n85\n84\n19.65\n78.71\n23.7\n16.18\n120\n124\n19.8\n10\n7329001\nCông nghệ đa phương tiện\n120\n124\n23.95\n88.13\n23.46\n15.05\n140\n144\n21.35\n11\n7320104\nTruyền thông đa phương tiện\n–\n–\n–\n–\n–\n–\n80\n80\n24\n12\n7480201_CLC\nCông nghệ thông tin\n(chất lượng cao)\n100\n98\n23.25\n75.69\n23.36\n15.03\n120\n120\n21.5\n13\n7340115 _CLC\nMarketing\n(chất lượng cao)\n40\n21\n18\n78.48\n21.53\n15.28\n40\n54\n18.75\nĐăng ký xét tuyển\nThí sinh đăng ký qua hệ thống của Bộ GD&ĐT và hệ thống tuyển sinh của Học viện tại:\nhttps://tuyensinh.ptit.edu.vn\nTHÔNG TIN TUYỂN SINH ĐẠI HỌC CHÍNH QUY CHI TIẾT TẠI:\nQD1192. Thong tin TSDHCQ\nChia sẻ:",
+        "distinctive_terms": [
+          "tuyển",
+          "nghệ",
+          "phương",
+          "tiện",
+          "chất",
+          "lượng"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 1,
+          "chunk_id": "chunk-ed4fa759c6ca5fa8b0e52f72",
+          "doc_id": "6a4d20ad44e99bb8b2f2af41",
+          "page": 0,
+          "snippet": "# PTIT tuyển sinh 200 chỉ tiêu đại học năm 2024 về thiết kế và phát triển game **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2024-05-11 **URL:** https://ptit.edu.vn/ptit-tuyen-sinh-200-chi-tieu-dai-hoc-nam-2024-ve-thiet-ke",
+          "distinctive_terms": [
+            "game",
+            "trình",
+            "ptit",
+            "phát",
+            "triển",
+            "thiết"
+          ]
+        },
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-a4009216cbdee269b1504a85",
+          "doc_id": "69e6a195b990474f7e81c710",
+          "page": 0,
+          "snippet": "url: https://daotao.ptit.edu.vn/chuong-trinh-dao-tao/chuong-trinh-thiet-ke-va-phat-trien-game/ content: Chương trình Thiết kế và Phát triển Game Mã ngành 7329001_GAM Thời gian 4 năm Kỳ nhập học Mùa thu Cơ sở Hà Nội Tổng quan Mục tiêu cơ bản của chương trình đà",
+          "distinctive_terms": [
+            "game",
+            "năng",
+            "triển",
+            "dụng",
+            "trình",
+            "phát"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-fcf812bed4e0ba570f5bf443",
+          "doc_id": "6a4d20b944e99bb8b2f2af64",
+          "page": 0,
+          "snippet": "n đào tạo nhân lực ngành game tại buổi làm việc ngày 19/3. Ảnh: Lê Anh Dũng Trao đổi tại buổi làm việc ngày 19/3, Cục trưởng Cục PTTH&TTĐT Lê Quang Tự Do nhấn mạnh sự quyết liệt của trường để có thể sớm tuyển sinh và đào tạo nhân lực trình độ đại học về thiết ",
+          "distinctive_terms": [
+            "game",
+            "trình",
+            "ngành",
+            "chương",
+            "triển",
+            "thiết"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-493f960f4fa8af1d5ccd3848",
+          "doc_id": "6a4d1fd844e99bb8b2f2acbd",
+          "page": 0,
+          "snippet": "# Thiết kế đồ họa Game: “Mảnh ghép” nhân lực còn thiếu của ngành công nghiệp game Việt **Nguồn:** https://ptit.edu.vn/tin-tuc-su-kien/tin-tuc/tin-tuc-chung **Ngày đăng:** 2026-05-26 **URL:** https://ptit.edu.vn/thiet-ke-do-hoa-game-manh-ghep-nhan-luc-con-thieu",
+          "distinctive_terms": [
+            "game",
+            "thiết",
+            "nhân",
+            "ngành",
+            "trình",
+            "chơi"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-c1fd5ca06e79bcba17cfd142",
+          "doc_id": "69e6a195b990474f7e81c710",
+          "page": 0,
+          "snippet": "ông việc: - Chuyên viên kiểm thử game (Game Tester); - Chuyên viên triển khai, vận hành, bảo trì các hệ thống game (Game Tecnical Operator); - Chuyên viên thiết kế, phát triển, kiểm thử phần mềm (Software Developer, Software Tester); - Chuyên viên quản lý nhà ",
+          "distinctive_terms": [
+            "trình",
+            "game",
+            "tuyển",
+            "chuyên",
+            "hoặc",
+            "triển"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-37b1b30c394da5f2344488b9",
+          "doc_id": "69e6a195b990474f7e81c710",
+          "page": 0,
+          "snippet": "| | Học kỳ 4 | Lập trình đồ họa game | 3 | Cơ sở ngành | | Học kỳ 4 | Lập trình hướng đối tượng | 3 | Cơ sở ngành | | Học kỳ 4 | Cơ sở dữ liệu | 3 | Cơ sở ngành | | Học kỳ 4 | Kiến trúc máy tính và hệ điều hành | 2 | Cơ sở ngành | | Học kỳ 4 | Thiết kế câu chu",
+          "distinctive_terms": [
+            "game",
+            "ngành",
+            "chuyên",
+            "thiết",
+            "phát",
+            "triển"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "tuyển nghệ phương tiện chất lượng",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt game trình ptit với tuyển",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-ed4fa759c6ca5fa8b0e52f72",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "text_08_quy_che_dao_tao",
+      "modality": "text",
+      "current_query": "Căn cứ các Quy chế tuyển sinh Quy chế đào tạo của Bộ Giáo dục và Đào tạo",
+      "current_xfail": false,
+      "expected_doc_id": "6a8eec753b7bc85ec8357ed7",
+      "expected_chunk_id": null,
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 1,
+        "page": 0,
+        "text": "- Căn cứ các Quy chế tuyển sinh, Quy chế đào tạo của Bộ Giáo dục và Đào tạo và của Học viện Công nghệ Bưu chính Viễn thông.",
+        "distinctive_terms": [
+          "tuyển",
+          "giáo",
+          "nghệ",
+          "chính",
+          "viễn"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-95767d38a51a3cc7dce2138e",
+          "doc_id": "6a4d204944e99bb8b2f2ae11",
+          "page": 0,
+          "snippet": "n sinh của Bộ Giáo dục và Đào tạo theo kế hoạch chung (Mục G). 3. Địa chỉ đăng nhập Hệ thống: https://xettuyen.ptit.edu.vn . 4. Thời gian: Từ ngày 09/6/2025 đến ngày 30/6/2025 5. Lệ phí xét duyệt hồ sơ: 100.000/hồ sơ 6. Danh mục minh chứng 6.1 . Đối với Phương",
+          "distinctive_terms": [
+            "tuyển",
+            "nguyện",
+            "vọng",
+            "thpt",
+            "chụp",
+            "trường"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-10e867227ac1a8f7c21929b7",
+          "doc_id": "69e6a195b990474f7e81c713",
+          "page": 0,
+          "snippet": "ệ chuyên). c) Bản chụp Học bạ THPT, trong trường hợp thí sinh chưa xin được học bạ THPT thì có thể thay thế bằng bản xác nhận kết quả học tập các môn học năm lớp 10, lớp 11, lớp 12 có ký và đóng dấu của trường THPT; d) Bản chụp Căn cước công dân; e) Bản chụp c",
+          "distinctive_terms": [
+            "tuyển",
+            "nguyện",
+            "vọng",
+            "chụp",
+            "thpt",
+            "tiên"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-71a9adad6882371986724096",
+          "doc_id": "69e6a195b990474f7e81c701",
+          "page": 0,
+          "snippet": "ng); b) Xét tuyển dựa vào kết quả điểm thi tốt nghiệp THPT; c) Xét tuyển kết hợp giữa kết quả học tập ở bậc THPT với một trong các loại Chứng chỉ quốc tế hoặc Thành tích cá nhân trong các kỳ thi tuyển chọn học sinh giỏi như đã nêu trong điểm c) mục 1. về Đối t",
+          "distinctive_terms": [
+            "tuyển",
+            "chọn",
+            "trình",
+            "https",
+            "apiquanlydaotao",
+            "ptit"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-0ee305e093dafc96c311e594",
+          "doc_id": "69e6a195b990474f7e81c6f8",
+          "page": 0,
+          "snippet": "; – Là học sinh chuyên các môn Toán, Lý, Hóa, Tin học của trường THPT chuyên trên phạm vi toàn quốc (các trường THPT chuyên thuộc Tỉnh, Thành phố trực thuộc TW và các trường THPT chuyên thuộc Cơ sở giáo dục đại học) hoặc hệ chuyên thuộc các trường THPT trọng đ",
+          "distinctive_terms": [
+            "tuyển",
+            "điểm",
+            "đánh",
+            "chuyên",
+            "thpt",
+            "hoặc"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-b35f667b2ccb2cb5374f1c62",
+          "doc_id": "6a4d204944e99bb8b2f2ae11",
+          "page": 0,
+          "snippet": "với các thí sinh bằng điểm xét tuyển ở cuối danh sách, nếu vẫn còn vượt chỉ tiêu thì ưu tiên thí sinh có nguyện vọng cao hơn theo Quy chế tuyển sinh của Bộ GD&ĐT, Học viện không sử dụng tiêu chí phụ riêng để xét tuyển; Thí sinh trúng tuyển phải xác nhận nhập h",
+          "distinctive_terms": [
+            "https",
+            "tuyển",
+            "ptit",
+            "2025",
+            "phía",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-45841cab5a53058b6075fff1",
+          "doc_id": "6a4d204b44e99bb8b2f2ae19",
+          "page": 0,
+          "snippet": "u vào và điểm trúng tuyển giữa các tổ hợp, phương thức tuyển sinh 3.1. N gưỡng đầu vào Đối với phương thức 5, Học viện công bố điểm ngưỡng đầu vào sau khi có kết quả quả kỳ thi tốt nghiệp trung học phổ thông năm 2025 của Bộ Giáo dục và Đào tạo. Đối với các phư",
+          "distinctive_terms": [
+            "toán",
+            "nghệ",
+            "phương",
+            "tuyển",
+            "điện",
+            "ngành"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "tuyển giáo nghệ chính viễn",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt tuyển nguyện vọng với tuyển",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-95767d38a51a3cc7dce2138e",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "text_09_van_phong_hoc_vien",
+      "modality": "text",
+      "current_query": "Cơ cấu tổ chức chức năng nhiệm vụ Văn phòng Học viện",
+      "current_xfail": false,
+      "expected_doc_id": "6a76b17be99630d5fb739774",
+      "expected_chunk_id": null,
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 1,
+        "page": 0,
+        "text": "ọp, buổi lễ, kỷ niệm, hội nghị, hội thảo của Học viện;\n– Xây dựng nội quy, quy trình, quy định quản lý, sử dụng cơ sở vật chất; định mức xăng xe, văn phòng phẩm …; kiểm tra, phát hiện, đề nghị xử lý các trường hợp vi phạm; đề xuất các biện pháp sử dụng tiết kiệm, hiệu quả; giám sát và xử lý khắc phục các sự cố về điện, nước, thông tin liên lạc của Cơ quan Học viện và các đơn vị đào tạo tại Hà Nội.\n6. Làm việc trực tiếp với cơ quan chức năng cấp trên, các cơ quan quản lý chuyên ngành của nhà nước trong phạm vi chức năng nhiệm vụ được giao. Đại diện cho các đơn vị làm việc tại trụ sở Hà Đông đảm bảo mối quan hệ với địa phương trong những hoạt động có liên quan theo quy định của pháp luật.\n7. Quyết định những biện pháp khẩn cấp để bảo vệ tài sản, tính mạng của con người trong những trường hợp xảy ra sự cố bất ngờ; báo cáo Giám đốc Học viện.\n8. Yêu cầu các đơn vị và cá nhân có liên quan trong Học viện về việc phối hợp thực hiện các nhiệm vụ được giao.\n9. Chánh Văn phòng là đầu mối phát ngôn, cung cấp thông tin có liên quan tới mọi mặt hoạt động của Học viện; được thừa lệnh Giám đốc Học viện ký các giấy tờ trong phạm vi chức năng nhiệm vụ được giao; được Giám đốc Học viện ủy quyền chủ trì các cuộc thanh tra kiểm tra những nội dung công tác có liên quan; chủ trì một số cuộc họp với các đơn vị liên quan để triển khai các hoạt động của Học viện.\n10. Chánh văn phòng tham gia các hội đồng tư vấn có liên quan; chủ động sắp xếp, bố trí, sử dụng, điều hành, quản lý lao động, tài sản được giao. Đề xuất việc thành lập, giải thể các tổ công tác trực thuộc, bổ nhiệm, miễn nhiệm tổ trưởng. Tham gia việc xét khen thưởng, kỷ luật, nâng hạ bậc lương, tuyển dụng, điều động, cho thôi việc cán bộ viên chức, người lao động của Văn phòng.\n11. Thực hiện các nhiệm vụ khác chưa được giao cho các đơn vị chức năng thuộc Học viện và những công việc khác do Giám đốc Học viện giao.",
+        "distinctive_terms": [
+          "quan",
+          "liên",
+          "việc",
+          "động",
+          "nhiệm",
+          "giao"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-fbe79161aabe67d77f16d95d",
+          "doc_id": "6a745a8c4ca91135f2da4769",
+          "page": 0,
+          "snippet": "url: https://ptit.edu.vn/gioi-thieu/co-cau-to-chuc/phong-chinh-tri-va-cong-tac-sinh-vien PHÒNG CHÍNH TRỊ VÀ CÔNG TÁC SINH VIÊN HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG PHÒNG (Tầng 1, Nhà A1 – Học viện Công nghệ Bưu chính Viễn thông) - Địa chỉ: Tầng 1, nhà A1, H",
+          "distinctive_terms": [
+            "chức",
+            "chính",
+            "quan",
+            "truyền",
+            "quản",
+            "giám"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-0d39715e384202bfa070b6ac",
+          "doc_id": "6a744b547712e5c2c5f88750",
+          "page": 0,
+          "snippet": "url: https://ptit.edu.vn/gioi-thieu/co-cau-to-chuc/phong-giao-vu PHÒNG GIÁO VỤ HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG Địa chỉ: Tầng 1, nhà A1 – Km10, Nguyễn Trãi, Hà Đông, Hà Nội Điện thoại: (024) 38 547 797 Trưởng phòng: Ông Nguyễn Chí Thành E-mail: thanhnc@",
+          "distinctive_terms": [
+            "giáo",
+            "hoạch",
+            "chức",
+            "giảng",
+            "quản",
+            "thực"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-574e83439431732d8b4d970a",
+          "doc_id": "6a745ab04ca91135f2da476a",
+          "page": 0,
+          "snippet": "url: https://ptit.edu.vn/gioi-thieu/co-cau-to-chuc/phong-ke-hoach-dau-tu PHÒNG KẾ HOẠCH – ĐẦU TƯ HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG Địa chỉ: Km10, Nguyễn Trãi, Hà Đông, Hà Nội Điện thoại Phó trưởng phòng Phụ trách phòng: Ông Đinh Hồng Hải E-mail: haidh@pt",
+          "distinctive_terms": [
+            "chức",
+            "phòng",
+            "giám",
+            "thực",
+            "hiện",
+            "hoạch"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-ac6312ae1ee381a24bc06125",
+          "doc_id": "6a744aab7712e5c2c5f8874f",
+          "page": 0,
+          "snippet": "url: https://ptit.edu.vn/gioi-thieu/co-cau-to-chuc/phong-tai-chinh-ke-toan PHÒNG TÀI CHÍNH KẾ TOÁN HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG Địa chỉ: Tầng1, nhà A1 – Km10, Nguyễn Trãi, Hà Đông, Hà Nội Điện thoại Trưởng phòng: Bà Đặng Bích Ngọc Điện thoại: 024.37",
+          "distinctive_terms": [
+            "chính",
+            "toán",
+            "chức",
+            "định",
+            "thực",
+            "hiện"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-967fa2e0f2f8107b3b13ef45",
+          "doc_id": "6a744a527712e5c2c5f8874e",
+          "page": 0,
+          "snippet": "url: https://ptit.edu.vn/gioi-thieu/co-cau-to-chuc/phong-to-chuc-can-bo-lao-dong PHÒNG TỔ CHỨC CÁN BỘ – LAO ĐỘNG HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG Địa chỉ: Tầng 2, nhà A1, Km10, Nguyễn Trãi, Hà Đông, Hà Nội Điện thoại Trưởng phòng: Bà Đặng Thu Hà E-mail:",
+          "distinctive_terms": [
+            "chức",
+            "động",
+            "thực",
+            "hiện",
+            "quản",
+            "khen"
+          ]
+        },
+        {
+          "vector_rank": 8,
+          "chunk_id": "chunk-3f88af88a00b041ebb1f2b2c",
+          "doc_id": "6a744b547712e5c2c5f88750",
+          "page": 0,
+          "snippet": "ực hiện các chế độ học tập của sinh viên; Tiếp nhận yêu cầu, xử lý, giải quyết các thủ tục chuyển đổi chương trình đào tạo; làm thẻ sinh viên; bảo lưu kết quả học tập; miễn học; miễn thi; tạm hoãn học; học 2 chương trình đào tạo đồng thời; chuyển lớp; phân lớp",
+          "distinctive_terms": [
+            "giảng",
+            "hiện",
+            "thực",
+            "quản",
+            "định",
+            "nhận"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "quan liên việc động nhiệm giao",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt chức chính quan với quan",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-fbe79161aabe67d77f16d95d",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "text_10_phong_giao_vu",
+      "modality": "text",
+      "current_query": "Chức năng nhiệm vụ Phòng Giáo vụ Học viện Công nghệ Bưu chính Viễn thông",
+      "current_xfail": false,
+      "expected_doc_id": "6a744b547712e5c2c5f88750",
+      "expected_chunk_id": null,
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 1,
+        "page": 0,
+        "text": "url: https://ptit.edu.vn/gioi-thieu/co-cau-to-chuc/phong-giao-vu\nPHÒNG GIÁO VỤ\nHỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG\nĐịa chỉ:\t Tầng 1, nhà A1 – Km10, Nguyễn Trãi, Hà Đông, Hà Nội\nĐiện thoại:\t (024) 38 547 797\nTrưởng phòng:\tÔng Nguyễn Chí Thành\nE-mail:\t thanhnc@ptit.edu.vn\nPhó trưởng phòng:\tÔng Ngô Xuân Thành\nE-mail:\tthanhnx@ptit.edu.vn\nChức năng:\nTham mưu và giúp việc cho Giám đốc Học viện về tổ chức quản lý, điều hành chung toàn Học viện về các công tác: kế hoạch đào tạo; giáo vụ, xét và cấp bằng tốt nghiệp; quản trị cơ sở dữ liệu giáo vụ-sinh viên và công tác thanh tra giáo dục;\nTổ chức triển khai các công tác: kế hoạch đào tạo; giáo vụ, xét và cấp bằng tốt nghiệp; quản trị cơ sở dữ liệu giáo vụ – sinh viên và công tác thanh tra giáo dục tại Cơ sở Đào tạo Hà Nội của Học viện;\nTổ chức triển khai thực hiện, giám sát, kiểm tra, tổng hợp, đánh giá kết quả, tình hình hoạt động của các mặt công tác nêu trên theo nhiệm vụ được giao.\nNhiệm vụ:\n1. Nhiệm vụ chung:\nNghiên cứu, xây dựng, đề xuất ban hành, sửa đổi, bổ sung các văn bản quản lý, chế độ báo cáo về các công tác: kế hoạch đào tạo; giáo vụ; xét và cấp bằng tốt nghiệp; quản trị cơ sở dữ liệu giáo vụ-sinh viên và công tác thanh tra giáo dục của Học viện;\nTổ chức xây dựng, đề xuất ban hành, hướng dẫn và giám sát việc thực hiện kế hoạch đào tạo và các kế hoạch thành phần; công tác giáo vụ; kế hoạch thi, xét và quản lý, cấp phát văn bằng tốt nghiệp; công tác quản trị cơ sở dữ liệu giáo vụ – sinh viên của Học viện; công tác thanh tra giáo dục của Học viện;\nThẩm định và thực hiện các thủ tục: ra quyết định thành lập lớp; xử lý lên lớp, ngừng học, buộc thôi học, cảnh báo học vụ theo kết quả học tập; xét cấp học bổng khuyến khích học tập; xét điều kiện dự thi tốt nghiệp; xét điều kiện tốt nghiệp; giám sát việc thực hiện các chế độ học tập của sinh viên tại các đơn vị quản lý giáo vụ trong toàn Học viện;\nTổ chức đào tạo bồi dưỡng, tập huấn chuyên môn, nghiệp vụ cho cán bộ làm các công tác: kế hoạch đào tạo; giáo vụ, xét và cấp bằng tốt nghiệp; quản trị cơ sở dữ liệu giáo vụ-sinh viên và công tác thanh tra giáo dục trong toàn Học viện.\n2. Công tác kế hoạch đào tạo:\nXây dựng khung kế hoạch đào tạo hàng năm; kế hoạch đào tạo cho các lớp, khóa, các hệ đào tạo theo chương trình, quy chế đào tạo;\nTổ chức xây dựng, thẩm định và trình ban hành các kế hoạch thành phần liên quan đào tạo đối với các lĩnh vực: tuyển sinh, giảng dạy – học tập, thi kiểm tra, thu nộp học phí, xét và cấp phát văn bằng tốt nghiệp… của các cấp, hệ, loại hình đào tạo tại tất cả các cơ sở đào tạo của Học viện.\nHướng dẫn việc tổ chức thực hiện, thực hiện việc kiểm tra, giám sát, tổng hợp số liệu và báo cáo đánh giá kết quả thực hiện công tác kế hoạch đào tạo và các kế hoạch thành phần;\nĐịnh kỳ tổ chức tổng hợp, báo cáo và cung cấp thông tin, phổ biến thông tin kế hoạch đào tạo, thông tin dữ liệu sinh viên cho các đơn vị liên quan, cho sinh viên theo quy định.\n3. Công tác giáo vụ:\nPhối hợp nghiên cứu, đề xuất các cơ chế chính sách phát triển đội ngũ giảng viên cơ hữu, giảng viên kiêm giảng và giảng viên thỉnh giảng;\nChủ trì, phối hợp với các Khoa/Viện, Bộ môn và các đơn vị chức năng liên quan xây dựng kế hoạch công tác của giảng viên cơ hữu, giảng viên kiêm giảng và giảng viên thỉnh giảng theo kỳ học, năm học;\nLập kế hoạch bố trí, sử dụng hợp lý, hiệu quả phòng học, giảng đường cho các cấp, hệ, loại hình đào tạo tại Cơ sở đào tạo Hà Nội;\nXây dựng và tổ chức thực hiện kế hoạch giảng dạy, thời khoá biểu, lịch thi cho các lớp (bao gồm cả các lớp học bổ sung kiến thức, ôn thi đầu vào, học lại, học 2 chương trình đào tạo đồng thời);\nPhối hợp với Ban tuyển sinh và các đơn vị có liên quan tổ chức tiếp nhận sinh viên khóa mới; lập danh sách lớp; làm thẻ sinh viên tạm thời; bố trí lịch làm việc đầu khóa cho Cố vấn học tập; tiếp nhận và quản lý hồ sơ sinh viên trong suốt quá trình đào tạo; phối hợp với Ban tuyển sinh xác minh thông tin văn bằng, thông tin sinh viên trúng tuyển nhập học;\nTổ chức cho sinh viên đăng ký học tập, xếp lớp môn học theo chương trình, kế hoạch và các quy định về đào tạo;\nTiếp nhận, sử dụng kết quả thi do Trung tâm Khảo thí & Đảm bảo chất lượng Giáo dục quản lý, cung cấp để thực hiện các nghiệp vụ quản lý: xét, xử lý kết quả học tập của sinh viên; tổng hợp, đánh giá, phân loại kết quả học tập của sinh viên theo học kỳ, năm học và khoá học; thực hiện các chế độ học tập của sinh viên;\nTiếp nhận yêu cầu, xử lý, giải quyết các thủ tục chuyển đổi chương trình đào tạo; làm thẻ sinh viên; bảo lưu kết quả học tập; miễn học; miễn thi; tạm hoãn học; học 2 chương trình đào tạo đồng thời; chuyển lớp; phân lớp chuyên ngành cho sinh viên; sinh viên chuyển đi khỏi Học viện;\nLập và phối hợp tổ chức thực hiện kế hoạch thực tập, ôn thi, thi tốt nghiệp;",
+        "distinctive_terms": [
+          "giáo",
+          "hoạch",
+          "chức",
+          "giảng",
+          "quản",
+          "thực"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-fbe79161aabe67d77f16d95d",
+          "doc_id": "6a745a8c4ca91135f2da4769",
+          "page": 0,
+          "snippet": "url: https://ptit.edu.vn/gioi-thieu/co-cau-to-chuc/phong-chinh-tri-va-cong-tac-sinh-vien PHÒNG CHÍNH TRỊ VÀ CÔNG TÁC SINH VIÊN HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG PHÒNG (Tầng 1, Nhà A1 – Học viện Công nghệ Bưu chính Viễn thông) - Địa chỉ: Tầng 1, nhà A1, H",
+          "distinctive_terms": [
+            "chức",
+            "chính",
+            "quan",
+            "truyền",
+            "quản",
+            "giám"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-46077d4d5bed9aaac7e14b29",
+          "doc_id": "6a76b17be99630d5fb739774",
+          "page": 0,
+          "snippet": "url: https://ptit.edu.vn/gioi-thieu/co-cau-to-chuc/van-phong VĂN PHÒNG HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG Địa chỉ: Tầng 2, nhà A1, Học viện Công nghệ Bưu chính Viễn thông Điện thoại: (024) 37.540.408 (HQV); (024) 38.544.451 (HĐ) Fax: (024) 37.562.036 (HQV",
+          "distinctive_terms": [
+            "chức",
+            "quản",
+            "hiện",
+            "định",
+            "quan",
+            "thực"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-250934a8301a80325c141fd0",
+          "doc_id": "6a745a6e4ca91135f2da4768",
+          "page": 0,
+          "snippet": "url: https://ptit.edu.vn/gioi-thieu/co-cau-to-chuc/phong-dao-tao PHÒNG ĐÀO TẠO HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG Địa chỉ Tầng 2, nhà A1 – Km10, Nguyễn Trãi, Hà Đông, Hà Nội Điện thoại Quyền trưởng phòng Ông Đặng Văn Tùng E-mail tungdv@ptit.edu.vn Phó trư",
+          "distinctive_terms": [
+            "chức",
+            "tuyển",
+            "quản",
+            "thực",
+            "hiện",
+            "việc"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-574e83439431732d8b4d970a",
+          "doc_id": "6a745ab04ca91135f2da476a",
+          "page": 0,
+          "snippet": "url: https://ptit.edu.vn/gioi-thieu/co-cau-to-chuc/phong-ke-hoach-dau-tu PHÒNG KẾ HOẠCH – ĐẦU TƯ HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG Địa chỉ: Km10, Nguyễn Trãi, Hà Đông, Hà Nội Điện thoại Phó trưởng phòng Phụ trách phòng: Ông Đinh Hồng Hải E-mail: haidh@pt",
+          "distinctive_terms": [
+            "chức",
+            "phòng",
+            "giám",
+            "thực",
+            "hiện",
+            "hoạch"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-ecbf39f60c33c6d1be9a9152",
+          "doc_id": "6a76af2fe99630d5fb73976d",
+          "page": 0,
+          "snippet": "url: https://ptit.edu.vn/gioi-thieu/co-cau-to-chuc/trung-tam-dich-vu TRUNG TÂM DỊCH VỤ HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG Địa chỉ Tầng G, Nhà A2, Km10, Đường Nguyễn Trãi, Q.Hà Đông, Hà Nội Giám đốc Trung tâm Ông Nguyễn Xuân Trường E-mail truongnx@ptit.edu",
+          "distinctive_terms": [
+            "chức",
+            "dịch",
+            "động",
+            "giao",
+            "trung",
+            "định"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-e47b998bf92f79075bdb9e41",
+          "doc_id": "6a745ac64ca91135f2da476b",
+          "page": 0,
+          "snippet": "url: https://ptit.edu.vn/gioi-thieu/co-cau-to-chuc/phong-quan-ly-khoa-hoc-cong-nghe-hop-tac-quoc-te PHÒNG QUẢN LÝ KHOA HỌC CÔNG NGHỆ – HỢP TÁC QUỐC TẾ HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG Địa chỉ: Tầng 2, nhà A1, Km10, Nguyễn Trãi, Hà Đông, Hà Nội Điện thoạ",
+          "distinctive_terms": [
+            "khoa",
+            "nghệ",
+            "chức",
+            "quốc",
+            "định",
+            "nghiên"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "giáo hoạch chức giảng quản thực",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt chức chính quan với giáo",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-fbe79161aabe67d77f16d95d",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "table_01_lanh_dao_vien",
+      "modality": "table",
+      "current_query": "Thông tin liên hệ Viện trưởng Lê Nhật Thắng số điện thoại email",
+      "current_xfail": false,
+      "expected_doc_id": "6a8ee761694f1f325e516aa9",
+      "expected_chunk_id": "chunk-ed8ccd06f84ddff0d3d93c8d",
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 1,
+        "page": 19,
+        "text": "[Table Content]\nCaption: Không có\nMô tả: \n<table><tr><td>ĐON VI</td><td>H VÀ TÊN</td><td>CHC V</td><td>DIÊN THOAI</td><td>EMAIL</td></tr><tr><td rowspan=\"3\">Lãnh đo Vin</td><td>PGS. TS. Lê Nht</td><td>Vin trưng</td><td>090 434</td><td>thangln@ptit.edu.vn</td></tr><tr><td>Thăng</td><td>Phó Vin</td><td>2557 093 619</td><td></td></tr><tr><td>TS. Phm Vū Hà Thanh</td><td>trưng</td><td>8686</td><td>thanhpmh@ptit.edu.vn</td></tr></table>",
+        "distinctive_terms": [
+          "table",
+          "trưng",
+          "ptit",
+          "content",
+          "caption",
+          "diên"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-49db826b75a5025f1f9591c5",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 18,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td>ĐON VI</td><td>HQ VÀ TÊN</td><td>H V</td><td>DIÉN THOAI</td><td>EMAIL</td></tr><tr><td>Lãnh đao Vin</td><td>PGS.TS. Ngô Quôc Dūng TS. Tràn Thin Chính</td><td>Vin trưòng Phó Vin truòng</td><td>0913 579 683",
+          "distinctive_terms": [
+            "table",
+            "0913",
+            "ptit",
+            "content",
+            "caption",
+            "dién"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-38341009c5e16c404c71d339",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 15,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td>ĐON VI H VÀ TÊN</td><td>CHC V</td><td>DIÉN THOAI</td><td>EMAIL</td></tr><tr><td>Lãnh đao TS. Nguyn Trung Hiu Khoa</td><td>Trưng khoa</td><td>0916 566 268</td><td>hieunt@ptit.edu.vn</td></tr><tr><td>BMXLTH",
+          "distinctive_terms": [
+            "ptit",
+            "table",
+            "khoa",
+            "trưng",
+            "trách",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-b5be6ae69994bd6fd4a38c7b",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 17,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td rowspan=1 colspan=1>ĐON VI</td><td rowspan=1 colspan=1>HO VÀ TÊN</td><td rowspan=1 colspan=1>CHC V</td><td rowspan=1 colspan=1>DIÉNTHOAI</td><td rowspan=1 colspan=1>EMAIL</td></tr><tr><td rowspan=1 colspa",
+          "distinctive_terms": [
+            "rowspan",
+            "colspan",
+            "ptit",
+            "table",
+            "trưng",
+            "0912"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-eca98739f9af033d93e6768e",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 16,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td colspan=\"2\" rowspan=\"1\">DON VI</td><td colspan=\"1\" rowspan=\"1\">H VÀ TÊN H V</td><td colspan=\"1\" rowspan=\"1\">DIÉNTHOAI</td><td colspan=\"1\" rowspan=\"1\">EMAIL</td></tr><tr><td colspan=\"2\" rowspan=\"1\">Lãnh đo",
+          "distinctive_terms": [
+            "colspan",
+            "rowspan",
+            "ptit",
+            "table",
+            "khoa",
+            "trách"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-ae3ca024d91b5a0aa4832d52",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 15,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td>DON VI</td><td>H VÀ TÊN</td><td>CHC V</td><td>DIÉN THOAI</td><td>EMAIL</td></tr><tr><td>Lãnh đo Khoa</td><td>PGS.TS. Đng Th Ngoc PGS.TS. Nguyn Chin Trinh</td><td>Ph trách khoa Phó Trưng khoa</td><td>0918 ",
+          "distinctive_terms": [
+            "ptit",
+            "table",
+            "khoa",
+            "nguyn",
+            "trách",
+            "chin"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-6cdbba448ab769e5b4a29b87",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 18,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td>DON VI</td><td>H VÀ TÊN</td><td>CHC V</td><td>DIÊN THOAI</td><td>EMAIL</td></tr><tr><td>Lãnh đo Vin</td><td>TS. Cao Minh Thng</td><td>Phó Vin trưng - Ph trách Vin</td><td>0936 133 144</td><td>thangcm@ptit",
+          "distinctive_terms": [
+            "table",
+            "trưng",
+            "ptit",
+            "content",
+            "caption",
+            "diên"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "table trưng ptit content caption diên",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt table 0913 ptit với table",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-49db826b75a5025f1f9591c5",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "table_02_discrete_math",
+      "modality": "table",
+      "current_query": "Môn học Discrete Mathematics Toán rời rạc 1 số tín chỉ học kỳ 3",
+      "current_xfail": false,
+      "expected_doc_id": "6a8ee761694f1f325e516aa9",
+      "expected_chunk_id": "chunk-95f29f938f0bcd4cf5f4a9c7",
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 1,
+        "page": 41,
+        "text": "[Table Content]\nCaption: Không có\nMô tả: \n<table><tr><td>TT</td><td>Tên môn hc/hc phn (Name courses)</td><td>Só TC Credit</td><td>Hoc kò /Sem</td></tr><tr><td>1</td><td>Discrete Mathematics 1 (Toán ri rc 1)</td><td>3</td><td>HK3</td></tr><tr><td>2</td><td>Data Structutes and Algorithms (Cu trúc d liu và gii</td><td>3</td><td>HK3</td></tr><tr><td>3</td><td>thut) Probability and Statistics (Xác sut thng kê)</td><td>3</td><td>HK3</td></tr><tr><td>4</td><td>Ting Anh (Course 3 CLC) K năng mm 1</td><td>8</td><td>HK3</td></tr></table>",
+        "distinctive_terms": [
+          "table",
+          "content",
+          "caption",
+          "name",
+          "courses",
+          "credit"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-0dcbe3faa69bf6cd1db9215e",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 41,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td></td><td>17</td><td></td></tr><tr><td>5 Trit hc Mác Lênin</td><td>3</td><td>HK4</td></tr><tr><td>6 Digital Electronics (Đin t s)</td><td>3</td><td>HK4</td></tr><tr><td>7 Python Programming (Lp trình Pytho",
+          "distinctive_terms": [
+            "table",
+            "python",
+            "pháp",
+            "content",
+            "caption",
+            "trit"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-17d223859ce50006abe63044",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 58,
+          "snippet": "[Table Content] Caption: NĂM HC THÚ BA Mô tả: NĂM HC THÚ BA <table><tr><td>TT</td><td>Tên môn hc/hc phn</td><td>S TC</td><td>Hc kò</td></tr><tr><td>1</td><td>Kin trúc máy tính và H thông trên chip</td><td>3</td><td>HK5</td></tr><tr><td>2</td><td>Thit k logic s",
+          "distinctive_terms": [
+            "table",
+            "khoa",
+            "content",
+            "caption",
+            "trúc",
+            "tính"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-d2d5162c1ea63748d2a4aec6",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 43,
+          "snippet": "[Table Content] Caption: NĂM HC THÚ TU Mô tả: NĂM HC THÚ TU <table><tr><td rowspan=\"2\">TT</td><td rowspan=\"2\">Tên môn hc/hc phn (Name courses)</td><td rowspan=\"2\">Só TC Credit</td><td rowspan=\"2\">Hoc k /Sem</td><td rowspan=\"2\">TT</td><td rowspan=\"2\">Tên môn hc",
+          "distinctive_terms": [
+            "rowspan",
+            "table",
+            "systems",
+            "elective",
+            "name",
+            "courses"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-7e8ede8e5e441eafedfb8e7b",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 88,
+          "snippet": "[Table Content] Caption: NÅM HQC THÚ HAI Mô tả: NÅM HQC THÚ HAI <table><tr><td>TT</td><td>Tên môn hc/hc phn</td><td>S TC</td><td>Hoc kò</td></tr><tr><td>1</td><td>Ch nghĩa xã hi khoa hc Nguyên lý co bn v</td><td>2</td><td>HK3</td></tr><tr><td>2</td><td>logisti",
+          "distinctive_terms": [
+            "table",
+            "kinh",
+            "toán",
+            "ting",
+            "course",
+            "doanh"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-abf6d740c3588a922cefa338",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 44,
+          "snippet": "[Table Content] Caption: NĂM HC THÚ TU Mô tả: NĂM HC THÚ TU <table><tr><td>TT</td><td>Tên môn hc/hc phλn (Name courses)</td><td>Sô TC Credit</td><td>Hoc kò /Sem</td><td>TT</td><td>Tên môn hc/hc phn (Name courses)</td><td>Sô TC Credit</td><td>Hoc kò /Sem</td></",
+          "distinctive_terms": [
+            "table",
+            "elective",
+            "name",
+            "courses",
+            "credit",
+            "thit"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-60ece6f3f8084f4b620e4710",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 41,
+          "snippet": "[Table Content] Caption: NĂM HC THÚ NHÁT NĂM HC THÚ HAI Mô tả: NĂM HC THÚ NHÁT NĂM HC THÚ HAI <table><tr><td>TT</td><td>Tên môn hc/hc phn (Name courses)</td><td>Só TC Credit</td><td>Hoc k /Sem</td></tr><tr><td>1</td><td>Introduction to Computing and Programmin",
+          "distinctive_terms": [
+            "table",
+            "giáo",
+            "nhát",
+            "programming",
+            "trình",
+            "calculus"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "table content caption name courses credit",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt table python pháp với table",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-0dcbe3faa69bf6cd1db9215e",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "table_03_thac_si_tich_hop",
+      "modality": "table",
+      "current_query": "Chương trình Thạc sĩ tích hợp cử nhân Người phụ trách tư vấn",
+      "current_xfail": false,
+      "expected_doc_id": "6a8eec753b7bc85ec8357ed7",
+      "expected_chunk_id": "chunk-5180ae60c2eb3904c9806b69",
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 1,
+        "page": 3,
+        "text": "[Table Content]\nCaption: Không có\nMô tả: \n<table><tr><td rowspan=1 colspan=1>TT</td><td rowspan=1 colspan=1>Chưong trình Thc sĩ tích hp c nhân</td><td rowspan=1 colspan=1>Ngưòi phų trách tư vn</td></tr><tr><td rowspan=1 colspan=3>I. Co s phía Bc</td></tr><tr><td rowspan=1 colspan=1>1</td><td rowspan=1 colspan=1>Khoa hc máy tính(Cp bng Thc sĩ ngành Khoa hc máytính và C nhân ngành Trí tu nhân to)</td><td rowspan=1 colspan=1>- TS. Đng Hoàng Long - Trưng B mônKHMT, Trưng Lab Uơm mm tài năng –Khoa CNTT1- Điên thoai: 0335.229.386- Email: longdh@ptit.edu.vn</td></tr><tr><td rowspan=1 colspan=1>2</td><td rowspan=1 colspan=1>H thông thông tin(Cp bng Thc sĩ ngành H thng thôngtin và C nhân ngành Công ngh thôngtin)</td><td rowspan=1 colspan=1>- TS. Nguyn Th Thanh Thy – Trưng bmôn H thông thông tin - Khoa CNTT1- Đin thoąi: 0898.981.205- Email: thuyntt@ptit.edu.vn</td></tr><tr><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1>An toàn thông tin(Cp bng Thc sĩ ngành An toàn thôngtin và C nhân ngành An toàn thông tin)</td><td rowspan=1 colspan=1>- PGS.TS. Hoàng Xuân Du - Trưng khoaATTT1- Đin thoi: 0904.534.390- Email: dauhx@ptit.edu.vn</td></tr><tr><td rowspan=1 colspan=1>4</td><td rowspan=1 colspan=1>K thut vin thông(Cp bng Thc sĩ ngành K thut vinthông và C nhân ngành K thut đin tvin thông)</td><td rowspan=1 colspan=1>- TS. Phm Anh Thư - Ging viên KhoaVin thông 1- Đin thoi: 0912.528.188- Email: thupa@ptit.edu.vn</td></tr><tr><td rowspan=1 colspan=1>5</td><td rowspan=1 colspan=1>K thut đin t(Cp bng Thc sĩ ngành K thut đin tvà C nhân ngành Công ngh Ky thutđin − đin t)</td><td rowspan=1 colspan=1>- TS. Nguyn Trung Hiu – Trưng khoaKTDT1- Đin thoi: 0916.566.268- Email: hieunt@ptit.edu.vn</td></tr><tr><td rowspan=1 colspan=3>II. Co s phía Nam</td></tr><tr><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>H thông thông tin(Cp bng Thc sĩ ngành H thng thôngtin và C nhân ngành Công ngh thôngtin)</td><td rowspan=1 colspan=1>TS. Hunh Trng Thưa – Phó trưng khoa,Ph trách khoa CNTT2Đin thoi: 0909.899.791Email: thuaht@ptit.edu.vn</td></tr></table>",
+        "distinctive_terms": [
+          "rowspan",
+          "colspan",
+          "ngành",
+          "nhân",
+          "khoa",
+          "trưng"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-84a59824464b9953b1e230e4",
+          "doc_id": "6a8f144188f0aede5ebc8828",
+          "page": 13,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td colspan=\"1\" rowspan=\"1\">Ni dung đánh giá</td><td colspan=\"1\" rowspan=\"1\">Thangđiêm</td><td colspan=\"1\" rowspan=\"1\">SV tđánh giá</td><td colspan=\"1\" rowspan=\"1\">TT lóđánh giá</td><td colspan=\"1\" rowspan=\"1",
+          "distinctive_terms": [
+            "colspan",
+            "rowspan",
+            "tham",
+            "hành",
+            "tích",
+            "thái"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-47911a25b6cfb45ed2671de1",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 209,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td colspan=\"1\" rowspan=\"2\">TT</td><td colspan=\"1\" rowspan=\"2\">Ni dung đánh giá</td><td colspan=\"1\" rowspan=\"2\">Điêmquyđnh</td><td colspan=\"3\" rowspan=\"1\">Đim đánh giá</td><td colspan=\"1\" rowspan=\"2\">Ghi chú<",
+          "distinctive_terms": [
+            "colspan",
+            "rowspan",
+            "đánh",
+            "tham",
+            "khoa",
+            "tiêu"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-36a0e3cd169baa40d1cc686c",
+          "doc_id": "6a8eec423b7bc85ec8357ed6",
+          "page": 2,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td rowspan=1 colspan=1>TT</td><td rowspan=1 colspan=1>CTĐT tài năng đưc đăng ký</td><td rowspan=1 colspan=1>Mc đim sàn yêu cu</td></tr><tr><td rowspan=1 colspan=3>I. Co&#x27; s đào to phía Bc</td></tr><tr><t",
+          "distinctive_terms": [
+            "rowspan",
+            "colspan",
+            "table",
+            "phía",
+            "thut",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-4b094f94b37929ebb6c3bf65",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 227,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td colspan=\"1\" rowspan=\"2\">TT</td><td colspan=\"1\" rowspan=\"2\">Ni dung</td><td colspan=\"2\" rowspan=\"1\">Mc chi (đồng)</td></tr><tr><td colspan=\"1\" rowspan=\"1\">Tâp th</td><td colspan=\"1\" rowspan=\"1\">Cá nhân</td",
+          "distinctive_terms": [
+            "colspan",
+            "rowspan",
+            "chưong",
+            "khen",
+            "đồng",
+            "thưng"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-1f37f66e74cabfd3a4bd0394",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 16,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td>ĐON VI</td><td>H VÀ TÊN</td><td>CHC V</td><td>DIN THOAI</td><td>EMAIL</td></tr><tr><td>Lãnh đo Khoa</td><td>PGS.TS. Pham Văn Cưòng TS. Tràn Tin Công</td><td>Trung khoa Phó trưng khoa</td><td>0944643166 09",
+          "distinctive_terms": [
+            "ptit",
+            "table",
+            "khoa",
+            "trách",
+            "content",
+            "caption"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-ae3ca024d91b5a0aa4832d52",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 15,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td>DON VI</td><td>H VÀ TÊN</td><td>CHC V</td><td>DIÉN THOAI</td><td>EMAIL</td></tr><tr><td>Lãnh đo Khoa</td><td>PGS.TS. Đng Th Ngoc PGS.TS. Nguyn Chin Trinh</td><td>Ph trách khoa Phó Trưng khoa</td><td>0918 ",
+          "distinctive_terms": [
+            "ptit",
+            "table",
+            "khoa",
+            "nguyn",
+            "trách",
+            "chin"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "rowspan colspan ngành nhân khoa trưng",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt colspan rowspan tham với rowspan",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-84a59824464b9953b1e230e4",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "table_04_data_analysis",
+      "modality": "table",
+      "current_query": "Môn Phân tích dữ liệu cho kinh doanh Data Analysis for Business số tín chỉ",
+      "current_xfail": false,
+      "expected_doc_id": "6a8ee761694f1f325e516aa9",
+      "expected_chunk_id": "chunk-6b9c98e4485ba85a6a965277",
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 1,
+        "page": 100,
+        "text": "[Table Content]\nCaption: NĂM HC TH TU\nMô tả: NĂM HC TH TU\n<table><tr><td>TT</td><td>Tên môn hc/hc phn</td><td>Sô TC</td><td>Hc kò</td></tr><tr><td>1</td><td>Phân tích d liu cho kinh doanh (Data Analysis for Business)</td><td>2</td><td>HK7</td></tr><tr><td>2</td><td>Chính ph đin t</td><td>2</td><td>HK7</td></tr><tr><td>3</td><td>Bán lě trc tuyn</td><td>3</td><td>HK7</td></tr><tr><td>4</td><td>Chuyên đ Qun tr TMDT</td><td>2</td><td>HK7</td></tr><tr><td>5</td><td>Chuyên đ tác nghip thương mi đin t</td><td>2</td><td>HK7</td></tr><tr><td>6</td><td>E-Marketing</td><td>2</td><td>HK7</td></tr><tr><td>7</td><td>An toàn HTTT kinh doanh</td><td>2</td><td>HK7</td></tr><tr><td rowspan=\"3\">8</td><td>02 hc phàn t chn (b)</td><td>4</td><td>HK7</td></tr><tr><td></td><td>19</td><td></td></tr><tr><td>Thc tp và khóa lun tt nghip (c)</td><td>10</td><td>HK8</td></tr></table>",
+        "distinctive_terms": [
+          "table",
+          "kinh",
+          "doanh",
+          "chuyên",
+          "nghip",
+          "content"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-a39ad4465b9a813abca2c110",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 64,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td colspan=\"1\" rowspan=\"1\">I</td><td colspan=\"1\" rowspan=\"1\">T hp t chn 3</td><td colspan=\"1\" rowspan=\"1\"></td></tr><tr><td colspan=\"1\" rowspan=\"1\">1</td><td colspan=\"1\" rowspan=\"1\">Công ngh và d liu ktoán (",
+          "distinctive_terms": [
+            "colspan",
+            "rowspan",
+            "table",
+            "content",
+            "caption",
+            "ktoán"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-fa6cba1724e5db4be92fc92a",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 83,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td colspan=\"4\">NÅM HOC THÚ NHÁT</td><td colspan=\"3\">NĂM HQC THÚ HAI</td></tr><tr><td></td><td>TT Tên môn hc/hc phn (Name courses)</td><td>Só TC Credit</td><td>Hoc kò /Šem</td><td>TT Tên môn hc/hc phn (Name c",
+          "distinctive_terms": [
+            "marketing",
+            "kinh",
+            "course",
+            "table",
+            "colspan",
+            "quality"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-4c877a7928fa91e9087ce1c1",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 193,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td colspan=\"11\">XEM MÔN TIN QUYÉT</td></tr><tr><td colspan=\"11\">Tiên quyêt In Xuat Excel</td></tr><tr><td colspan=\"3\">Mă mn đăng ký Stt</td><td>Tiên quyt Tn môn đăn Hoctruác</td><td>M mn yu cu</td><td></td><",
+          "distinctive_terms": [
+            "colspan",
+            "thuc",
+            "bsa1443",
+            "cdt1433",
+            "nghip",
+            "table"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-52e9c79e86000fff42d5272d",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 84,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td></td><td>(Name courses)</td><td>TC Credit</td><td>kò /Sem</td></tr><tr><td>1</td><td>Ch nghĩa xã hi khoa hc (Scientific Socialism)</td><td>2</td><td>5</td></tr><tr><td>2</td><td>Qun tr bán hàng (Sales Man",
+          "distinctive_terms": [
+            "marketing",
+            "elective",
+            "course",
+            "table",
+            "digital",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-95f29f938f0bcd4cf5f4a9c7",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 41,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td>TT</td><td>Tên môn hc/hc phn (Name courses)</td><td>Só TC Credit</td><td>Hoc kò /Sem</td></tr><tr><td>1</td><td>Discrete Mathematics 1 (Toán ri rc 1)</td><td>3</td><td>HK3</td></tr><tr><td>2</td><td>Data ",
+          "distinctive_terms": [
+            "table",
+            "content",
+            "caption",
+            "name",
+            "courses",
+            "credit"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-369fdb4227a928b2a7e2d5f5",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 63,
+          "snippet": "[Table Content] Caption: NĂM HC THÚ HAI Mô tả: NĂM HC THÚ HAI <table><tr><td>T T</td><td>Tên môn hc/hc phàn (Name courses)</td><td>S TC Credit</td><td>Hoc k /Šem</td></tr><tr><td>1</td><td>Chů nghĩa xã hi khoa hc (Scientific socialism)</td><td>2</td><td>HK3</t",
+          "distinctive_terms": [
+            "acca",
+            "table",
+            "course",
+            "content",
+            "caption",
+            "phàn"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "table kinh doanh chuyên nghip content",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt colspan rowspan table với table",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-a39ad4465b9a813abca2c110",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "table_05_diem_san_tai_nang",
+      "modality": "table",
+      "current_query": "CTĐT tài năng được đăng ký Mức điểm sàn yêu cầu cơ sở phía Bắc",
+      "current_xfail": false,
+      "expected_doc_id": "6a8eec423b7bc85ec8357ed6",
+      "expected_chunk_id": "chunk-36a0e3cd169baa40d1cc686c",
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 1,
+        "page": 2,
+        "text": "[Table Content]\nCaption: Không có\nMô tả: \n<table><tr><td rowspan=1 colspan=1>TT</td><td rowspan=1 colspan=1>CTĐT tài năng đưc đăng ký</td><td rowspan=1 colspan=1>Mc đim sàn yêu cu</td></tr><tr><td rowspan=1 colspan=3>I. Co&#x27; s đào to phía Bc</td></tr><tr><td rowspan=1 colspan=1>1</td><td rowspan=1 colspan=1>Khoa hc máy tính</td><td rowspan=1 colspan=1>24.25</td></tr><tr><td rowspan=1 colspan=1>2</td><td rowspan=1 colspan=1>H thông thông tin</td><td rowspan=1 colspan=1>24.40</td></tr><tr><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1>An toàn thông tin</td><td rowspan=1 colspan=1>23.75</td></tr><tr><td rowspan=1 colspan=1>4</td><td rowspan=1 colspan=1>K thut vin thông</td><td rowspan=1 colspan=1>23.72</td></tr><tr><td rowspan=1 colspan=1>5</td><td rowspan=1 colspan=1>K thut đin t</td><td rowspan=1 colspan=1>24.00</td></tr><tr><td rowspan=1 colspan=3>II. Co s đào to phía Nam</td></tr><tr><td rowspan=1 colspan=1>1</td><td rowspan=1 colspan=1>H thông thông tin</td><td rowspan=1 colspan=1>23.50</td></tr></table>",
+        "distinctive_terms": [
+          "rowspan",
+          "colspan",
+          "table",
+          "phía",
+          "thut",
+          "content"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-81bbc3603e5ed9a0eeb46ea0",
+          "doc_id": "6a8eec423b7bc85ec8357ed6",
+          "page": 0,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td colspan=\"1\" rowspan=\"1\">TT</td><td colspan=\"1\" rowspan=\"1\">CTĐT trúng tuyn ban đu</td><td colspan=\"1\" rowspan=\"1\">CTĐT tài năng đưcđăng ký</td></tr><tr><td colspan=\"1\" rowspan=\"1\">1</td><td colspan=\"1\" ro",
+          "distinctive_terms": [
+            "colspan",
+            "rowspan",
+            "nhân",
+            "thut",
+            "table",
+            "khoa"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-e676c579bf4764f079e59cdd",
+          "doc_id": "6a8eec423b7bc85ec8357ed6",
+          "page": 1,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td rowspan=1 colspan=1>TT</td><td rowspan=1 colspan=1>CTĐT trúng tuyn ban đu</td><td rowspan=1 colspan=1>CTĐT tài năng đưcđăng ký</td></tr><tr><td rowspan=1 colspan=1>1</td><td rowspan=1 colspan=1>Công ngh t",
+          "distinctive_terms": [
+            "rowspan",
+            "colspan",
+            "table",
+            "ctđt",
+            "content",
+            "caption"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-84a59824464b9953b1e230e4",
+          "doc_id": "6a8f144188f0aede5ebc8828",
+          "page": 13,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td colspan=\"1\" rowspan=\"1\">Ni dung đánh giá</td><td colspan=\"1\" rowspan=\"1\">Thangđiêm</td><td colspan=\"1\" rowspan=\"1\">SV tđánh giá</td><td colspan=\"1\" rowspan=\"1\">TT lóđánh giá</td><td colspan=\"1\" rowspan=\"1",
+          "distinctive_terms": [
+            "colspan",
+            "rowspan",
+            "tham",
+            "hành",
+            "tích",
+            "thái"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-6266285d10c3cf5101eaf540",
+          "doc_id": "6a8eec753b7bc85ec8357ed7",
+          "page": 1,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td rowspan=1 colspan=1>TT</td><td rowspan=1 colspan=1>Mā xéttuyn</td><td rowspan=1 colspan=1>Tên ngành/chuongtrình xét tuyn</td><td rowspan=1 colspan=1>Mãngành</td><td rowspan=1 colspan=1>Tên ngành theoDanh ",
+          "distinctive_terms": [
+            "rowspan",
+            "colspan",
+            "thut",
+            "table",
+            "ngành",
+            "phía"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-c17158f7bd2c437382d8f516",
+          "doc_id": "6a8eec423b7bc85ec8357ed6",
+          "page": 0,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td rowspan=1 colspan=1>TT</td><td rowspan=1 colspan=1>Mā xét tuyn</td><td rowspan=1 colspan=1>Tên ngành/chuongtrình xét tuyn</td><td rowspan=1 colspan=1>Khoa phųtrách</td><td rowspan=1 colspan=1>Chi tiêutuyn",
+          "distinctive_terms": [
+            "rowspan",
+            "colspan",
+            "table",
+            "tuyn",
+            "khoa",
+            "phía"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-47911a25b6cfb45ed2671de1",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 209,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td colspan=\"1\" rowspan=\"2\">TT</td><td colspan=\"1\" rowspan=\"2\">Ni dung đánh giá</td><td colspan=\"1\" rowspan=\"2\">Điêmquyđnh</td><td colspan=\"3\" rowspan=\"1\">Đim đánh giá</td><td colspan=\"1\" rowspan=\"2\">Ghi chú<",
+          "distinctive_terms": [
+            "colspan",
+            "rowspan",
+            "đánh",
+            "tham",
+            "khoa",
+            "tiêu"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "rowspan colspan table phía thut content",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt colspan rowspan nhân với rowspan",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-81bbc3603e5ed9a0eeb46ea0",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "table_06_ngoai_ngu_2",
+      "modality": "table",
+      "current_query": "Môn Ngoại ngữ 2 tự chọn Tiếng Hàn Quốc Tiếng Nhật Tiếng Trung tín chỉ",
+      "current_xfail": true,
+      "expected_doc_id": "6a8ee761694f1f325e516aa9",
+      "expected_chunk_id": "chunk-c28db26722a88fefcdbb2807",
+      "target": {
+        "found_in_pool_at_probe_depth": false,
+        "vector_rank": null,
+        "page": 59,
+        "text": "[Table Content]\nCaption: Ngoi ng 2 (3*) (t chn): 2 tín chi\nMô tả: Ngoi ng 2 (3*) (t chn): 2 tín chi\n<table><tr><td rowspan=1 colspan=1>1</td><td rowspan=1 colspan=1>Ting Hàn Quôc</td><td rowspan=1 colspan=1>2</td></tr><tr><td rowspan=1 colspan=1>2</td><td rowspan=1 colspan=1>Ting Nht</td><td rowspan=1 colspan=1>2</td></tr><tr><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1>Ting Pháp</td><td rowspan=1 colspan=1>2</td></tr><tr><td rowspan=1 colspan=1>4</td><td rowspan=1 colspan=1>Ting Nga</td><td rowspan=1 colspan=1>2</td></tr><tr><td rowspan=1 colspan=1>5</td><td rowspan=1 colspan=1>Ting Trung</td><td rowspan=1 colspan=1>2</td></tr></table>",
+        "distinctive_terms": [
+          "rowspan",
+          "colspan",
+          "ting",
+          "table",
+          "ngoi",
+          "content"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 1,
+          "chunk_id": "chunk-e596972d32f1a7b20dccc70e",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 59,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td rowspan=1 colspan=1>1</td><td rowspan=1 colspan=1>Ting Anh cho phn t vàmch tích hp bán dn cobånsemiconductor IC anddevices English forfundamental</td><td rowspan=1 colspan=1>4</td></tr><tr><td rowspan=1 c",
+          "distinctive_terms": [
+            "rowspan",
+            "colspan",
+            "table",
+            "ting",
+            "content",
+            "caption"
+          ]
+        },
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-20126c936f7527858f621a8f",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 77,
+          "snippet": "[Table Content] Caption: NĂM HC THÚ BA Mô tả: NĂM HC THÚ BA <table><tr><td>TT</td><td>Tên môn hc/hc phn</td><td>Só TC</td><td>Hoc k</td></tr><tr><td>1</td><td>Tư tưng Hò Chí Minh</td><td>2</td><td>HK5</td></tr><tr><td>2</td><td>Nhp môn trí tu nhân to</td><td>3",
+          "distinctive_terms": [
+            "table",
+            "tưng",
+            "toán",
+            "phưong",
+            "pháp",
+            "song"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-27e8d69e9a665dd0eaf3f8ea",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 98,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td>TT</td><td>Tên môn hc/hc phn</td><td>S TC</td><td>Hoc kò</td></tr><tr><td>1</td><td>Ch nghĩa xã hi khoa hc</td><td>2</td><td>HK3</td></tr><tr><td>2</td><td>English Course 3_CLC</td><td>8</td><td>HK3</td><",
+          "distinctive_terms": [
+            "truyn",
+            "table",
+            "phưong",
+            "pháp",
+            "thit",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-5f366116051607e6bdcb69c2",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 110,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td>TT Tên môn hc/hc phn</td><td></td><td>Só TC</td><td>Hoc k</td></tr><tr><td>1</td><td>Trit hc Mác Lênin Nhp môn công ngh s và úng</td><td>3</td><td>HK1</td></tr><tr><td>2</td><td>dng AI</td><td>2</td><td>H",
+          "distinctive_terms": [
+            "table",
+            "giáo",
+            "thut",
+            "lênin",
+            "content",
+            "caption"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-ae88ecab2a23938380013969",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 157,
+          "snippet": "[Table Content] Caption: Điu 3. Khung chưong trình đào tąo chun môn hoc ting Anh theo chun TOEIC quc tê Mô tả: Điu 3. Khung chưong trình đào tąo chun môn hoc ting Anh theo chun TOEIC quc tê <table><tr><td colspan=\"1\" rowspan=\"2\">Khóahoc</td><td colspan=\"1\" row",
+          "distinctive_terms": [
+            "colspan",
+            "rowspan",
+            "chun",
+            "ting",
+            "tínchi",
+            "unit"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-ab4ae5ba76f51738286cd55c",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 100,
+          "snippet": "[Table Content] Caption: NĂM HQC THÚ NHÁT Mô tả: NĂM HQC THÚ NHÁT <table><tr><td>TT</td><td>Tên môn hc/hc phn</td><td>Só TC</td><td>Hc k</td></tr><tr><td>1</td><td>Trit hc Mác - Lê nin</td><td>3</td><td>HK1</td></tr><tr><td>2</td><td>Toán cao cp 1</td><td>2</t",
+          "distinctive_terms": [
+            "table",
+            "giáo",
+            "nhát",
+            "toán",
+            "pháp",
+            "kinh"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "rowspan colspan ting table ngoi content",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt rowspan colspan table với rowspan",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-e596972d32f1a7b20dccc70e",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "table_07_quan_tri_du_an",
+      "modality": "table",
+      "current_query": "Môn Quản trị dự án số tín chỉ học phần",
+      "current_xfail": true,
+      "expected_doc_id": "6a8ee761694f1f325e516aa9",
+      "expected_chunk_id": "chunk-b3485bd4e6e8d55bc100ae17",
+      "target": {
+        "found_in_pool_at_probe_depth": false,
+        "vector_rank": null,
+        "page": 89,
+        "text": "[Table Content]\nCaption: Không có\nMô tả: \n<table><tr><td rowspan=1 colspan=1>1</td><td rowspan=1 colspan=1>Qun tr d án</td><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>2</td><td rowspan=1 colspan=1>Giao tip và đàm phántrong kinh doanh</td><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1>Trí tu nhân to</td><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>4</td><td rowspan=1 colspan=1>Thit k và qun tr co sd liu</td><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>5</td><td rowspan=1 colspan=1>Kinh doanh dch v</td><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>Qun tri công ngh và đimi sáng to</td><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>7</td><td rowspan=1 colspan=1>Hành vi tô chúc</td><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>K toán quån tri</td><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1></td></tr><tr><td rowspan=1 colspan=1>9</td><td rowspan=1 colspan=1>Đao đc, văn hóa kinhdoanh và trách nhim xãhi ca doanh nghip</td><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1></td></tr></table>",
+        "distinctive_terms": [
+          "rowspan",
+          "colspan",
+          "table",
+          "doanh",
+          "kinh",
+          "content"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 1,
+          "chunk_id": "chunk-ef70673645da07da16107943",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 42,
+          "snippet": "[Table Content] Caption: NĂM HC THÚ TU Mô tả: NĂM HC THÚ TU <table><tr><td>TT</td><td>Tên môn hc/hc phn (Name courses)</td><td>S TC Credit</td><td>Hoc kò /Sem</td><td>TT</td><td>Tên môn hc/hc phn (Name courses)</td><td>S TC Credit</td><td>Hoc kò /Sem</td></tr>",
+          "distinctive_terms": [
+            "software",
+            "table",
+            "thit",
+            "elective",
+            "name",
+            "courses"
+          ]
+        },
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-4c877a7928fa91e9087ce1c1",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 193,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td colspan=\"11\">XEM MÔN TIN QUYÉT</td></tr><tr><td colspan=\"11\">Tiên quyêt In Xuat Excel</td></tr><tr><td colspan=\"3\">Mă mn đăng ký Stt</td><td>Tiên quyt Tn môn đăn Hoctruác</td><td>M mn yu cu</td><td></td><",
+          "distinctive_terms": [
+            "colspan",
+            "thuc",
+            "bsa1443",
+            "cdt1433",
+            "nghip",
+            "table"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-13009f2cf71511e61dd00b6b",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 40,
+          "snippet": "[Table Content] Caption: CHUYÊN NGÀNH CÔNG NGH PHÀN MÈM Mô tả: CHUYÊN NGÀNH CÔNG NGH PHÀN MÈM <table><tr><td colspan=\"4\">NĂM HC THÚ BA</td></tr><tr><td>TT</td><td>Tên môn hc/hc phn</td><td>Só TC</td><td>Hoc k</td></tr><tr><td>1</td><td>Ch nghĩa xã hi khoa hc</",
+          "distinctive_terms": [
+            "phàn",
+            "table",
+            "thit",
+            "chuyên",
+            "ngành",
+            "trúc"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-abf6d740c3588a922cefa338",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 44,
+          "snippet": "[Table Content] Caption: NĂM HC THÚ TU Mô tả: NĂM HC THÚ TU <table><tr><td>TT</td><td>Tên môn hc/hc phλn (Name courses)</td><td>Sô TC Credit</td><td>Hoc kò /Sem</td><td>TT</td><td>Tên môn hc/hc phn (Name courses)</td><td>Sô TC Credit</td><td>Hoc kò /Sem</td></",
+          "distinctive_terms": [
+            "table",
+            "elective",
+            "name",
+            "courses",
+            "credit",
+            "thit"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-d2d5162c1ea63748d2a4aec6",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 43,
+          "snippet": "[Table Content] Caption: NĂM HC THÚ TU Mô tả: NĂM HC THÚ TU <table><tr><td rowspan=\"2\">TT</td><td rowspan=\"2\">Tên môn hc/hc phn (Name courses)</td><td rowspan=\"2\">Só TC Credit</td><td rowspan=\"2\">Hoc k /Sem</td><td rowspan=\"2\">TT</td><td rowspan=\"2\">Tên môn hc",
+          "distinctive_terms": [
+            "rowspan",
+            "table",
+            "systems",
+            "elective",
+            "name",
+            "courses"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-c728473f8578eb077c8b40b6",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 93,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td rowspan=1 colspan=1>1</td><td rowspan=1 colspan=1>Nhâp môn robotics</td><td rowspan=1 colspan=1>3</td></tr><tr><td rowspan=1 colspan=1>2</td><td rowspan=1 colspan=1>Lâp trình song song</td><td rowspan=1 c",
+          "distinctive_terms": [
+            "rowspan",
+            "colspan",
+            "table",
+            "song",
+            "hình",
+            "dung"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "rowspan colspan table doanh kinh content",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt software table thit với rowspan",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-ef70673645da07da16107943",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "table_08_tieng_anh_course_1",
+      "modality": "table",
+      "current_query": "Môn học Tiếng Anh Course 1 danh mục học phần",
+      "current_xfail": true,
+      "expected_doc_id": "6a8ee761694f1f325e516aa9",
+      "expected_chunk_id": "chunk-ea6ad4fd07d74c6615220f2a",
+      "target": {
+        "found_in_pool_at_probe_depth": false,
+        "vector_rank": null,
+        "page": 31,
+        "text": "[Table Content]\nCaption: Không có\nMô tả: \n<table><tr><td colspan=\"2\"></td><td>15</td><td></td></tr><tr><td>6</td><td>Ting Anh (Course 1)</td><td>4</td><td>HK2</td></tr><tr><td>7</td><td>Gii tích 2</td><td>3</td><td>HK2</td></tr><tr><td>8</td><td>Toán ri rc 1</td><td>3</td><td>HK2</td></tr><tr><td>9</td><td>Mng máy tính</td><td>3</td><td>HK2</td></tr><tr><td>10</td><td>Kin trúc máy tính và h điu hành</td><td>3</td><td>HK2</td></tr><tr><td>11</td><td>Co s an toàn thông tin Giáo dc th cht 2</td><td>3</td><td>HK2</td></tr></table>",
+        "distinctive_terms": [
+          "table",
+          "tính",
+          "content",
+          "caption",
+          "colspan",
+          "ting"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 1,
+          "chunk_id": "chunk-7d1359e63363a12681cbb65a",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 112,
+          "snippet": "[Table Content] Caption: NĂM HQC THÚ NHÁT Mô tả: NĂM HQC THÚ NHÁT <table><tr><td>TT</td><td>Tên môn hc/hc phàn</td><td>Só TC</td><td>Hc k</td></tr><tr><td>1</td><td>Đąi s</td><td>3</td><td>HK1</td></tr><tr><td>2</td><td>Gii tích 1</td><td>3</td><td>HK1</td></t",
+          "distinctive_terms": [
+            "table",
+            "giáo",
+            "nhát",
+            "tích",
+            "nghim",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-ab4ae5ba76f51738286cd55c",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 100,
+          "snippet": "[Table Content] Caption: NĂM HQC THÚ NHÁT Mô tả: NĂM HQC THÚ NHÁT <table><tr><td>TT</td><td>Tên môn hc/hc phn</td><td>Só TC</td><td>Hc k</td></tr><tr><td>1</td><td>Trit hc Mác - Lê nin</td><td>3</td><td>HK1</td></tr><tr><td>2</td><td>Toán cao cp 1</td><td>2</t",
+          "distinctive_terms": [
+            "table",
+            "giáo",
+            "nhát",
+            "toán",
+            "pháp",
+            "kinh"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-d1ffb5abf8100d28878d7598",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 58,
+          "snippet": "[Table Content] Caption: NĂM HQC THÚ NHÁT Mô tả: NĂM HQC THÚ NHÁT <table><tr><td>TT</td><td>Tên môn hc/hc phn</td><td>S TC</td><td>Hoc kò</td></tr><tr><td>1</td><td>Gii tích 1</td><td>3</td><td>HK1</td></tr><tr><td>2</td><td>Nhp môn Công ngh s và Úng dng AI</t",
+          "distinctive_terms": [
+            "table",
+            "rowspan",
+            "giáo",
+            "nhát",
+            "tích",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-5f366116051607e6bdcb69c2",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 110,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td>TT Tên môn hc/hc phn</td><td></td><td>Só TC</td><td>Hoc k</td></tr><tr><td>1</td><td>Trit hc Mác Lênin Nhp môn công ngh s và úng</td><td>3</td><td>HK1</td></tr><tr><td>2</td><td>dng AI</td><td>2</td><td>H",
+          "distinctive_terms": [
+            "table",
+            "giáo",
+            "thut",
+            "lênin",
+            "content",
+            "caption"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-75d9fa7dca8409a402d24031",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 98,
+          "snippet": "[Table Content] Caption: NĂM HC THÚ HAI Mô tả: NĂM HC THÚ HAI <table><tr><td>TT</td><td>Tên môn hc/hc phn</td><td>S TC</td><td>Hoc kò</td></tr><tr><td>1</td><td>English Course 1_CLC</td><td>8</td><td>HK1</td></tr><tr><td>2</td><td>Pháp lut đi cưong</td><td>2</",
+          "distinctive_terms": [
+            "table",
+            "giáo",
+            "english",
+            "course",
+            "lênin",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-62003536daa94f8a9f552aca",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 77,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td>TT</td><td>Tên môn hc/hc phàn</td><td>Só TC</td><td>Hoc k</td></tr><tr><td>1</td><td>Ch nghĩa xã hi khoa hc</td><td>2</td><td>HK3</td></tr><tr><td>2</td><td>Ting Anh (Course 2)</td><td>4</td><td>HK3</td><",
+          "distinctive_terms": [
+            "table",
+            "ting",
+            "course",
+            "thut",
+            "nghim",
+            "content"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "table tính content caption colspan ting",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt table giáo nhát với table",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-7d1359e63363a12681cbb65a",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "table_09_thiet_ke_tuong_tac",
+      "modality": "table",
+      "current_query": "Thiết kế tương tác trong báo chí số học phần",
+      "current_xfail": true,
+      "expected_doc_id": "6a8ee761694f1f325e516aa9",
+      "expected_chunk_id": "chunk-83b6f9586defe5003be9213d",
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 2,
+        "page": 49,
+        "text": "[Table Content]\nCaption: Không có\nMô tả: \n<table><tr><td rowspan=1 colspan=1>1</td><td rowspan=1 colspan=1>Thit k tưong tác trongbáo chí só</td><td rowspan=1 colspan=1>2</td></tr><tr><td rowspan=1 colspan=1>2</td><td rowspan=1 colspan=1>Văn hóa đi chúng châuÁ</td><td rowspan=1 colspan=1>2</td></tr><tr><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1>Thông kê xã hi hoc</td><td rowspan=1 colspan=1>2</td></tr><tr><td rowspan=1 colspan=1>4</td><td rowspan=1 colspan=1>Truyn thông và pháttrin xã hi</td><td rowspan=1 colspan=1>2</td></tr><tr><td rowspan=1 colspan=1>5</td><td rowspan=1 colspan=1>Qun tri khung hongtruyèn thông</td><td rowspan=1 colspan=1>2</td></tr><tr><td rowspan=1 colspan=1>6</td><td rowspan=1 colspan=1>Tô chc s kin</td><td rowspan=1 colspan=1>2</td></tr><tr><td rowspan=1 colspan=1>7</td><td rowspan=1 colspan=1>Tư duy đôi mói trong báochí</td><td rowspan=1 colspan=1>2</td></tr><tr><td rowspan=1 colspan=1>8</td><td rowspan=1 colspan=1>Giao tiêp kinh doanhtrong báo chí</td><td rowspan=1 colspan=1>2</td></tr><tr><td rowspan=1 colspan=1>9</td><td rowspan=1 colspan=1>Nhp môn Quan h côngchúng</td><td rowspan=1 colspan=1>2</td></tr></table>",
+        "distinctive_terms": [
+          "rowspan",
+          "colspan",
+          "table",
+          "content",
+          "caption",
+          "thit"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 1,
+          "chunk_id": "chunk-9938c8f19f1dcd2f0e99dcf8",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 49,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td rowspan=1 colspan=1>1</td><td rowspan=1 colspan=1>Mô hình kinh doanh trongbáo chí</td><td rowspan=1 colspan=1>2</td></tr><tr><td rowspan=1 colspan=1>2</td><td rowspan=1 colspan=1>Giao tip và phát ngôntron",
+          "distinctive_terms": [
+            "rowspan",
+            "colspan",
+            "table",
+            "giao",
+            "content",
+            "caption"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-d42cf42e553f3154bf5ff5fd",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 105,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td rowspan=\"2\"></td><td colspan=\"5\">(*) Các hc phn t chn (Chn 1 trong 4 t hp) - Tồng s: 12 TC</td></tr><tr><td>T hp t chn 1</td><td></td><td></td><td>T hp t chn 3</td><td></td></tr><tr><td>1</td><td>M thut n",
+          "distinctive_terms": [
+            "thit",
+            "thut",
+            "hinh",
+            "game",
+            "table",
+            "nâng"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-ebe9016ec98e4a4183fce879",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 49,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td rowspan=\"2\">9</td><td></td><td>18</td><td rowspan=\"2\">HK6</td></tr><tr><td>Internet và công ngh web</td><td>3</td></tr><tr><td>10</td><td>Thit k minh ha trong báo chí só</td><td>3</td><td>HK6</td></tr><tr",
+          "distinctive_terms": [
+            "table",
+            "rowspan",
+            "content",
+            "caption",
+            "internet",
+            "thit"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-ebdae773d124f1122e7a36c3",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 230,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td rowspan=1 colspan=1>TT</td><td rowspan=1 colspan=1>Kt qu</td><td rowspan=1 colspan=1>Đim năng lưc</td></tr><tr><td rowspan=1 colspan=1>1</td><td rowspan=1 colspan=1>Bài báo đăng trong tp chí Nature hoc tp",
+          "distinctive_terms": [
+            "rowspan",
+            "colspan",
+            "khoa",
+            "nhóm",
+            "danh",
+            "scopus"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-5496de3f7adadca7d4598780",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 87,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td rowspan=1 colspan=1>1</td><td rowspan=1 colspan=1>Khi s doanh nghip truynthông</td><td rowspan=1 colspan=1>2</td></tr><tr><td rowspan=1 colspan=1>2</td><td rowspan=1 colspan=1>Qun tr và biên tp websitetru",
+          "distinctive_terms": [
+            "rowspan",
+            "colspan",
+            "table",
+            "thuyt",
+            "truyn",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-6a3786f7062fbcf7a193e6e3",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 67,
+          "snippet": "[Table Content] Caption: Không có Mô tả: <table><tr><td></td><td></td><td>18</td><td></td></tr><tr><td>8</td><td>Th giác máy tính</td><td>2</td><td>HK7</td></tr><tr><td>9</td><td>Gii thut cho rô bt thông minh</td><td>2</td><td>HK8</td></tr><tr><td>10</td><td>N",
+          "distinctive_terms": [
+            "table",
+            "chon",
+            "content",
+            "caption",
+            "giác",
+            "tính"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "rowspan colspan table content caption thit",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt rowspan colspan table với rowspan",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-9938c8f19f1dcd2f0e99dcf8",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "image_01_url_ctdt",
+      "modality": "image",
+      "current_query": "Chi tiết về chương trình đào tạo sinh viên xem tại website daotao ptit edu vn",
+      "current_xfail": false,
+      "expected_doc_id": "6a8ee761694f1f325e516aa9",
+      "expected_chunk_id": "chunk-ee55531b83ef6e4bb3c9dabd",
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 3,
+        "page": 35,
+        "text": "[Image Content]\nChi tit v chưong trình đào to sinh viên xem ti: https://daotao.ptit.edu.vn/ctdt/dai-hoc/\nTóm tắt: Chi tit v chưong trình đào to sinh viên xem ti: https://daotao.ptit.edu.vn/ctdt/dai-hoc/",
+        "distinctive_terms": [
+          "chưong",
+          "trình",
+          "https",
+          "daotao",
+          "ptit",
+          "ctdt"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 1,
+          "chunk_id": "chunk-2f647b3e9dd3dd298c8d1d9c",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 185,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-96e443943cfd1e0a409e0be1",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 9,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-bbfbaf6cd1d8388a9018be35",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 10,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-4aea9c39d9e1849af814cc4e",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 8,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-ecf5a3869fbbb8b4f3ecad69",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 188,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-24ff145c9956a253f37d63b6",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 7,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "chưong trình https daotao ptit ctdt",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt image content với chưong",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-2f647b3e9dd3dd298c8d1d9c",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "image_02_nam_hoc_3_4",
+      "modality": "image",
+      "current_query": "NĂM HỌC THỨ BA NĂM HỌC THỨ TƯ",
+      "current_xfail": true,
+      "expected_doc_id": "6a8ee761694f1f325e516aa9",
+      "expected_chunk_id": "chunk-5dc9c117e5053e98f8575276",
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 9,
+        "page": 53,
+        "text": "[Image Content]\nNĂM HC THÚ BA NĂM HC TH TU\nTóm tắt: NĂM HC THÚ BA NĂM HC TH TU",
+        "distinctive_terms": [
+          "image",
+          "content"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 1,
+          "chunk_id": "chunk-2f647b3e9dd3dd298c8d1d9c",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 185,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-bbfbaf6cd1d8388a9018be35",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 10,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-ee55531b83ef6e4bb3c9dabd",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 35,
+          "snippet": "[Image Content] Chi tit v chưong trình đào to sinh viên xem ti: https://daotao.ptit.edu.vn/ctdt/dai-hoc/ Tóm tắt: Chi tit v chưong trình đào to sinh viên xem ti: https://daotao.ptit.edu.vn/ctdt/dai-hoc/",
+          "distinctive_terms": [
+            "chưong",
+            "trình",
+            "https",
+            "daotao",
+            "ptit",
+            "ctdt"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-ecf5a3869fbbb8b4f3ecad69",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 188,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-efa8f29c621489b80fb143e2",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 193,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-8deb88ddb360b55f4b5d6247",
+          "doc_id": "6a8f144188f0aede5ebc8828",
+          "page": 7,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "image content",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt image content với image",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-2f647b3e9dd3dd298c8d1d9c",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "image_03_hoc_phan_tu_chon",
+      "modality": "image",
+      "current_query": "Các học phần tự chọn TỔNG CỘNG sơ đồ",
+      "current_xfail": true,
+      "expected_doc_id": "6a8ee761694f1f325e516aa9",
+      "expected_chunk_id": "chunk-7ceff1503c6c77b94cba2e79",
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 11,
+        "page": 97,
+        "text": "[Image Content]\n(*): Các hc phn t chn TÔNG CÔNG:\nTóm tắt: (*): Các hc phn t chn TÔNG CÔNG:",
+        "distinctive_terms": [
+          "tông",
+          "image",
+          "content"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 1,
+          "chunk_id": "chunk-ee55531b83ef6e4bb3c9dabd",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 35,
+          "snippet": "[Image Content] Chi tit v chưong trình đào to sinh viên xem ti: https://daotao.ptit.edu.vn/ctdt/dai-hoc/ Tóm tắt: Chi tit v chưong trình đào to sinh viên xem ti: https://daotao.ptit.edu.vn/ctdt/dai-hoc/",
+          "distinctive_terms": [
+            "chưong",
+            "trình",
+            "https",
+            "daotao",
+            "ptit",
+            "ctdt"
+          ]
+        },
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-bbfbaf6cd1d8388a9018be35",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 10,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-2f647b3e9dd3dd298c8d1d9c",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 185,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-2e33fe71fdd26aa68562a01f",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 87,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-93995145b2ff4e7b87f2480d",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 13,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-ecf5a3869fbbb8b4f3ecad69",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 188,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "tông image content",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt chưong trình https với tông",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-ee55531b83ef6e4bb3c9dabd",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "image_map_01_so_do_truong",
+      "modality": "image",
+      "current_query": "Sơ đồ trường Học viện Công nghệ Bưu chính Viễn thông",
+      "current_xfail": false,
+      "expected_doc_id": "6a8ee761694f1f325e516aa9",
+      "expected_chunk_id": "chunk-93995145b2ff4e7b87f2480d",
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 2,
+        "page": 13,
+        "text": "[Image Content]\n\nTóm tắt: Không có",
+        "distinctive_terms": [
+          "image",
+          "content"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 1,
+          "chunk_id": "chunk-bbfbaf6cd1d8388a9018be35",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 10,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-96e443943cfd1e0a409e0be1",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 9,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-ee55531b83ef6e4bb3c9dabd",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 35,
+          "snippet": "[Image Content] Chi tit v chưong trình đào to sinh viên xem ti: https://daotao.ptit.edu.vn/ctdt/dai-hoc/ Tóm tắt: Chi tit v chưong trình đào to sinh viên xem ti: https://daotao.ptit.edu.vn/ctdt/dai-hoc/",
+          "distinctive_terms": [
+            "chưong",
+            "trình",
+            "https",
+            "daotao",
+            "ptit",
+            "ctdt"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-2f647b3e9dd3dd298c8d1d9c",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 185,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-8deb88ddb360b55f4b5d6247",
+          "doc_id": "6a8f144188f0aede5ebc8828",
+          "page": 7,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-f814fe9a7ed8d494d590e315",
+          "doc_id": "6a8f144188f0aede5ebc8828",
+          "page": 0,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "image content",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt image content với image",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-bbfbaf6cd1d8388a9018be35",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "image_map_02_mat_bang_ha_dong",
+      "modality": "image",
+      "current_query": "Bản đồ mặt bằng khuôn viên cơ sở đào tạo Hà Đông PTIT",
+      "current_xfail": true,
+      "expected_doc_id": "6a8ee761694f1f325e516aa9",
+      "expected_chunk_id": "chunk-93995145b2ff4e7b87f2480d",
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 6,
+        "page": 13,
+        "text": "[Image Content]\n\nTóm tắt: Không có",
+        "distinctive_terms": [
+          "image",
+          "content"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 1,
+          "chunk_id": "chunk-96e443943cfd1e0a409e0be1",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 9,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-24ff145c9956a253f37d63b6",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 7,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-4aea9c39d9e1849af814cc4e",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 8,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-bbfbaf6cd1d8388a9018be35",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 10,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-ee55531b83ef6e4bb3c9dabd",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 35,
+          "snippet": "[Image Content] Chi tit v chưong trình đào to sinh viên xem ti: https://daotao.ptit.edu.vn/ctdt/dai-hoc/ Tóm tắt: Chi tit v chưong trình đào to sinh viên xem ti: https://daotao.ptit.edu.vn/ctdt/dai-hoc/",
+          "distinctive_terms": [
+            "chưong",
+            "trình",
+            "https",
+            "daotao",
+            "ptit",
+            "ctdt"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-2f647b3e9dd3dd298c8d1d9c",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 185,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "image content",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt image content với image",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-96e443943cfd1e0a409e0be1",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "image_map_03_toa_nha_a1_a2_a3",
+      "modality": "image",
+      "current_query": "Sơ đồ chỉ dẫn các tòa nhà nhà A1 A2 A3 trong trường Học viện",
+      "current_xfail": false,
+      "expected_doc_id": "6a8ee761694f1f325e516aa9",
+      "expected_chunk_id": "chunk-93995145b2ff4e7b87f2480d",
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 1,
+        "page": 13,
+        "text": "[Image Content]\n\nTóm tắt: Không có",
+        "distinctive_terms": [
+          "image",
+          "content"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-96e443943cfd1e0a409e0be1",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 9,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-ee55531b83ef6e4bb3c9dabd",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 35,
+          "snippet": "[Image Content] Chi tit v chưong trình đào to sinh viên xem ti: https://daotao.ptit.edu.vn/ctdt/dai-hoc/ Tóm tắt: Chi tit v chưong trình đào to sinh viên xem ti: https://daotao.ptit.edu.vn/ctdt/dai-hoc/",
+          "distinctive_terms": [
+            "chưong",
+            "trình",
+            "https",
+            "daotao",
+            "ptit",
+            "ctdt"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-bbfbaf6cd1d8388a9018be35",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 10,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-2f647b3e9dd3dd298c8d1d9c",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 185,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-ecf5a3869fbbb8b4f3ecad69",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 188,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-4aea9c39d9e1849af814cc4e",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 8,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "image content",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt image content với image",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-96e443943cfd1e0a409e0be1",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "image_org_01_co_cau_to_chuc",
+      "modality": "image",
+      "current_query": "Sơ đồ cơ cấu tổ chức của Học viện Công nghệ Bưu chính Viễn thông",
+      "current_xfail": false,
+      "expected_doc_id": "6a8ee761694f1f325e516aa9",
+      "expected_chunk_id": "chunk-bbfbaf6cd1d8388a9018be35",
+      "target": {
+        "found_in_pool_at_probe_depth": true,
+        "vector_rank": 1,
+        "page": 10,
+        "text": "[Image Content]\n\nTóm tắt: Không có",
+        "distinctive_terms": [
+          "image",
+          "content"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-93995145b2ff4e7b87f2480d",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 13,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-ee55531b83ef6e4bb3c9dabd",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 35,
+          "snippet": "[Image Content] Chi tit v chưong trình đào to sinh viên xem ti: https://daotao.ptit.edu.vn/ctdt/dai-hoc/ Tóm tắt: Chi tit v chưong trình đào to sinh viên xem ti: https://daotao.ptit.edu.vn/ctdt/dai-hoc/",
+          "distinctive_terms": [
+            "chưong",
+            "trình",
+            "https",
+            "daotao",
+            "ptit",
+            "ctdt"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-96e443943cfd1e0a409e0be1",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 9,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-f814fe9a7ed8d494d590e315",
+          "doc_id": "6a8f144188f0aede5ebc8828",
+          "page": 0,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-2f647b3e9dd3dd298c8d1d9c",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 185,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 7,
+          "chunk_id": "chunk-8deb88ddb360b55f4b5d6247",
+          "doc_id": "6a8f144188f0aede5ebc8828",
+          "page": 7,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "image content",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt image content với image",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-93995145b2ff4e7b87f2480d",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "image_overview_01_tong_quan",
+      "modality": "image",
+      "current_query": "Hình ảnh tổng quan về Học viện Công nghệ Bưu chính Viễn thông",
+      "current_xfail": true,
+      "expected_doc_id": "6a8ee761694f1f325e516aa9",
+      "expected_chunk_id": "chunk-a7002bf74b528efb35c82526",
+      "target": {
+        "found_in_pool_at_probe_depth": false,
+        "vector_rank": null,
+        "page": 4,
+        "text": "[Image Content]\n\nTóm tắt: Không có",
+        "distinctive_terms": [
+          "image",
+          "content"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 1,
+          "chunk_id": "chunk-96e443943cfd1e0a409e0be1",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 9,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-24ff145c9956a253f37d63b6",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 7,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-4aea9c39d9e1849af814cc4e",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 8,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-bbfbaf6cd1d8388a9018be35",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 10,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-7ceff1503c6c77b94cba2e79",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 97,
+          "snippet": "[Image Content] (*): Các hc phn t chn TÔNG CÔNG: Tóm tắt: (*): Các hc phn t chn TÔNG CÔNG:",
+          "distinctive_terms": [
+            "tông",
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-f814fe9a7ed8d494d590e315",
+          "doc_id": "6a8f144188f0aede5ebc8828",
+          "page": 0,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "image content",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt image content với image",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-96e443943cfd1e0a409e0be1",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    },
+    {
+      "source_case_id": "image_units_01_don_vi_ha_noi",
+      "modality": "image",
+      "current_query": "Sơ đồ các đơn vị trong Học viện và cơ sở đào tạo Hà Nội",
+      "current_xfail": true,
+      "expected_doc_id": "6a8ee761694f1f325e516aa9",
+      "expected_chunk_id": "chunk-a41def57c7e34c8f63e70017",
+      "target": {
+        "found_in_pool_at_probe_depth": false,
+        "vector_rank": null,
+        "page": 11,
+        "text": "[Image Content]\n\nTóm tắt: Không có",
+        "distinctive_terms": [
+          "image",
+          "content"
+        ]
+      },
+      "confusables": [
+        {
+          "vector_rank": 1,
+          "chunk_id": "chunk-bbfbaf6cd1d8388a9018be35",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 10,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 2,
+          "chunk_id": "chunk-ee55531b83ef6e4bb3c9dabd",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 35,
+          "snippet": "[Image Content] Chi tit v chưong trình đào to sinh viên xem ti: https://daotao.ptit.edu.vn/ctdt/dai-hoc/ Tóm tắt: Chi tit v chưong trình đào to sinh viên xem ti: https://daotao.ptit.edu.vn/ctdt/dai-hoc/",
+          "distinctive_terms": [
+            "chưong",
+            "trình",
+            "https",
+            "daotao",
+            "ptit",
+            "ctdt"
+          ]
+        },
+        {
+          "vector_rank": 3,
+          "chunk_id": "chunk-93995145b2ff4e7b87f2480d",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 13,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 4,
+          "chunk_id": "chunk-2f647b3e9dd3dd298c8d1d9c",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 185,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 5,
+          "chunk_id": "chunk-8deb88ddb360b55f4b5d6247",
+          "doc_id": "6a8f144188f0aede5ebc8828",
+          "page": 7,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        },
+        {
+          "vector_rank": 6,
+          "chunk_id": "chunk-96e443943cfd1e0a409e0be1",
+          "doc_id": "6a8ee761694f1f325e516aa9",
+          "page": 9,
+          "snippet": "[Image Content] Tóm tắt: Không có",
+          "distinctive_terms": [
+            "image",
+            "content"
+          ]
+        }
+      ],
+      "mechanical_drafts": [
+        {
+          "kind": "keyword_rephrase",
+          "query": "image content",
+          "needs_authoring": true,
+          "note": "Ghép từ khoá đặc trưng; phải viết lại thành câu hỏi."
+        },
+        {
+          "kind": "minimal_pair",
+          "query": "Phân biệt image content với image",
+          "needs_authoring": true,
+          "against_chunk_id": "chunk-bbfbaf6cd1d8388a9018be35",
+          "note": "Câu hỏi buộc phải tách target khỏi chunk dễ nhầm nhất; đáp án phải là target."
+        }
+      ],
+      "validate": {
+        "how": "Đưa câu hỏi mới vào retrieval_cases.json với expected_chunk_id/expected_doc_id của target rồi chạy `python scripts/probe_pool_recall.py --cases ...` để xem target có nằm trong pool @15 không.",
+        "keep_if": "target nằm trong pool @15 (exact_rank <= 15). Nếu > 15 thì case đó sẽ hỏng vì pool sâu, đánh dấu xfail với vector_rank ghi lại."
+      }
+    }
+  ]
+}

@@ -1,0 +1,642 @@
+{
+  "meta": {
+    "generated_at": "2026-10-08T01:36:33",
+    "collection": "multimodal__llama-nemotron-embed-vl-1b-v2__v1",
+    "embed_model": "nvidia/llama-nemotron-embed-vl-1b-v2",
+    "depths": [
+      5,
+      15,
+      30,
+      50
+    ],
+    "modalities": [
+      "text",
+      "table",
+      "image"
+    ],
+    "method": "vector search only, no rerank / no fusion / no gate",
+    "note": "exact_rank = vị trí đúng target của case trong pool: case text (không có expected_chunk_id) dùng expected_doc_id, case table/image dùng expected_chunk_id. doc_rank = vị trí chunk đầu tiên của tài liệu chứa target, cho biết tài liệu có tới được hay không."
+  },
+  "recall_over_all_cases": {
+    "text": {
+      "pool_size": 4862,
+      "probed_depth": 50,
+      "exact_target_found": 10,
+      "total_cases": 28,
+      "median_rank": 1.0,
+      "recall": {
+        "5": {
+          "hit": 9,
+          "total": 28,
+          "rate": 0.3214
+        },
+        "15": {
+          "hit": 10,
+          "total": 28,
+          "rate": 0.3571
+        },
+        "30": {
+          "hit": 10,
+          "total": 28,
+          "rate": 0.3571
+        },
+        "50": {
+          "hit": 10,
+          "total": 28,
+          "rate": 0.3571
+        }
+      }
+    },
+    "table": {
+      "pool_size": 413,
+      "probed_depth": 50,
+      "exact_target_found": 9,
+      "total_cases": 28,
+      "median_rank": 1,
+      "recall": {
+        "5": {
+          "hit": 8,
+          "total": 28,
+          "rate": 0.2857
+        },
+        "15": {
+          "hit": 8,
+          "total": 28,
+          "rate": 0.2857
+        },
+        "30": {
+          "hit": 8,
+          "total": 28,
+          "rate": 0.2857
+        },
+        "50": {
+          "hit": 9,
+          "total": 28,
+          "rate": 0.3214
+        }
+      }
+    },
+    "image": {
+      "pool_size": 70,
+      "probed_depth": 50,
+      "exact_target_found": 10,
+      "total_cases": 28,
+      "median_rank": 7.0,
+      "recall": {
+        "5": {
+          "hit": 4,
+          "total": 28,
+          "rate": 0.1429
+        },
+        "15": {
+          "hit": 8,
+          "total": 28,
+          "rate": 0.2857
+        },
+        "30": {
+          "hit": 10,
+          "total": 28,
+          "rate": 0.3571
+        },
+        "50": {
+          "hit": 10,
+          "total": 28,
+          "rate": 0.3571
+        }
+      }
+    }
+  },
+  "recall_by_case_modality": {
+    "text": {
+      "cases": 10,
+      "recall": {
+        "5": {
+          "hit": 9,
+          "total": 10,
+          "rate": 0.9
+        },
+        "15": {
+          "hit": 10,
+          "total": 10,
+          "rate": 1.0
+        },
+        "30": {
+          "hit": 10,
+          "total": 10,
+          "rate": 1.0
+        },
+        "50": {
+          "hit": 10,
+          "total": 10,
+          "rate": 1.0
+        }
+      },
+      "unreachable_at_probe_depth": []
+    },
+    "table": {
+      "cases": 9,
+      "recall": {
+        "5": {
+          "hit": 6,
+          "total": 9,
+          "rate": 0.6667
+        },
+        "15": {
+          "hit": 6,
+          "total": 9,
+          "rate": 0.6667
+        },
+        "30": {
+          "hit": 6,
+          "total": 9,
+          "rate": 0.6667
+        },
+        "50": {
+          "hit": 7,
+          "total": 9,
+          "rate": 0.7778
+        }
+      },
+      "unreachable_at_probe_depth": [
+        "table_06_ngoai_ngu_2",
+        "table_07_quan_tri_du_an"
+      ]
+    },
+    "image": {
+      "cases": 9,
+      "recall": {
+        "5": {
+          "hit": 4,
+          "total": 9,
+          "rate": 0.4444
+        },
+        "15": {
+          "hit": 7,
+          "total": 9,
+          "rate": 0.7778
+        },
+        "30": {
+          "hit": 9,
+          "total": 9,
+          "rate": 1.0
+        },
+        "50": {
+          "hit": 9,
+          "total": 9,
+          "rate": 1.0
+        }
+      },
+      "unreachable_at_probe_depth": []
+    }
+  },
+  "cases": [
+    {
+      "id": "text_01_lihong_zhang",
+      "modality": "text",
+      "xfail": false,
+      "exact_rank": {
+        "text": 1,
+        "table": null,
+        "image": null
+      },
+      "doc_rank": {
+        "text": 1,
+        "table": null,
+        "image": null
+      },
+      "embed_ms": 120.3
+    },
+    {
+      "id": "text_02_thu_khoa_minh",
+      "modality": "text",
+      "xfail": false,
+      "exact_rank": {
+        "text": 1,
+        "table": null,
+        "image": null
+      },
+      "doc_rank": {
+        "text": 1,
+        "table": null,
+        "image": null
+      },
+      "embed_ms": 85.2
+    },
+    {
+      "id": "text_03_nghi_quyet_tw3",
+      "modality": "text",
+      "xfail": false,
+      "exact_rank": {
+        "text": 1,
+        "table": null,
+        "image": null
+      },
+      "doc_rank": {
+        "text": 1,
+        "table": null,
+        "image": null
+      },
+      "embed_ms": 83.2
+    },
+    {
+      "id": "text_04_tong_ket_dang",
+      "modality": "text",
+      "xfail": false,
+      "exact_rank": {
+        "text": 1,
+        "table": null,
+        "image": null
+      },
+      "doc_rank": {
+        "text": 1,
+        "table": null,
+        "image": null
+      },
+      "embed_ms": 85.3
+    },
+    {
+      "id": "text_05_co_van_hoc_tap",
+      "modality": "text",
+      "xfail": false,
+      "exact_rank": {
+        "text": 3,
+        "table": 2,
+        "image": 8
+      },
+      "doc_rank": {
+        "text": 3,
+        "table": 2,
+        "image": 8
+      },
+      "embed_ms": 80.6
+    },
+    {
+      "id": "text_06_xet_tuyen_dai_hoc",
+      "modality": "text",
+      "xfail": false,
+      "exact_rank": {
+        "text": 1,
+        "table": null,
+        "image": null
+      },
+      "doc_rank": {
+        "text": 1,
+        "table": null,
+        "image": null
+      },
+      "embed_ms": 80.9
+    },
+    {
+      "id": "text_07_thiet_ke_game",
+      "modality": "text",
+      "xfail": false,
+      "exact_rank": {
+        "text": 11,
+        "table": null,
+        "image": null
+      },
+      "doc_rank": {
+        "text": 11,
+        "table": null,
+        "image": null
+      },
+      "embed_ms": 88.7
+    },
+    {
+      "id": "text_08_quy_che_dao_tao",
+      "modality": "text",
+      "xfail": false,
+      "exact_rank": {
+        "text": 1,
+        "table": 1,
+        "image": null
+      },
+      "doc_rank": {
+        "text": 1,
+        "table": 1,
+        "image": null
+      },
+      "embed_ms": 80.1
+    },
+    {
+      "id": "text_09_van_phong_hoc_vien",
+      "modality": "text",
+      "xfail": false,
+      "exact_rank": {
+        "text": 1,
+        "table": null,
+        "image": null
+      },
+      "doc_rank": {
+        "text": 1,
+        "table": null,
+        "image": null
+      },
+      "embed_ms": 81.6
+    },
+    {
+      "id": "text_10_phong_giao_vu",
+      "modality": "text",
+      "xfail": false,
+      "exact_rank": {
+        "text": 1,
+        "table": null,
+        "image": null
+      },
+      "doc_rank": {
+        "text": 1,
+        "table": null,
+        "image": null
+      },
+      "embed_ms": 81.6
+    },
+    {
+      "id": "table_01_lanh_dao_vien",
+      "modality": "table",
+      "xfail": false,
+      "exact_rank": {
+        "text": null,
+        "table": 1,
+        "image": null
+      },
+      "doc_rank": {
+        "text": 1,
+        "table": 1,
+        "image": 1
+      },
+      "embed_ms": 83.8
+    },
+    {
+      "id": "table_02_discrete_math",
+      "modality": "table",
+      "xfail": false,
+      "exact_rank": {
+        "text": null,
+        "table": 1,
+        "image": null
+      },
+      "doc_rank": {
+        "text": 33,
+        "table": 1,
+        "image": 1
+      },
+      "embed_ms": 75.4
+    },
+    {
+      "id": "table_03_thac_si_tich_hop",
+      "modality": "table",
+      "xfail": false,
+      "exact_rank": {
+        "text": null,
+        "table": 1,
+        "image": null
+      },
+      "doc_rank": {
+        "text": 1,
+        "table": 1,
+        "image": null
+      },
+      "embed_ms": 102.5
+    },
+    {
+      "id": "table_04_data_analysis",
+      "modality": "table",
+      "xfail": false,
+      "exact_rank": {
+        "text": null,
+        "table": 1,
+        "image": null
+      },
+      "doc_rank": {
+        "text": null,
+        "table": 1,
+        "image": 1
+      },
+      "embed_ms": 93.5
+    },
+    {
+      "id": "table_05_diem_san_tai_nang",
+      "modality": "table",
+      "xfail": false,
+      "exact_rank": {
+        "text": null,
+        "table": 1,
+        "image": null
+      },
+      "doc_rank": {
+        "text": 2,
+        "table": 1,
+        "image": null
+      },
+      "embed_ms": 79.3
+    },
+    {
+      "id": "table_06_ngoai_ngu_2",
+      "modality": "table",
+      "xfail": true,
+      "exact_rank": {
+        "text": null,
+        "table": null,
+        "image": null
+      },
+      "doc_rank": {
+        "text": 5,
+        "table": 1,
+        "image": 1
+      },
+      "embed_ms": 101.8
+    },
+    {
+      "id": "table_07_quan_tri_du_an",
+      "modality": "table",
+      "xfail": true,
+      "exact_rank": {
+        "text": null,
+        "table": null,
+        "image": null
+      },
+      "doc_rank": {
+        "text": null,
+        "table": 1,
+        "image": 1
+      },
+      "embed_ms": 77.0
+    },
+    {
+      "id": "table_08_tieng_anh_course_1",
+      "modality": "table",
+      "xfail": true,
+      "exact_rank": {
+        "text": null,
+        "table": 43,
+        "image": null
+      },
+      "doc_rank": {
+        "text": 1,
+        "table": 1,
+        "image": 1
+      },
+      "embed_ms": 75.4
+    },
+    {
+      "id": "table_09_thiet_ke_tuong_tac",
+      "modality": "table",
+      "xfail": true,
+      "exact_rank": {
+        "text": null,
+        "table": 2,
+        "image": null
+      },
+      "doc_rank": {
+        "text": 26,
+        "table": 1,
+        "image": 1
+      },
+      "embed_ms": 83.6
+    },
+    {
+      "id": "image_01_url_ctdt",
+      "modality": "image",
+      "xfail": false,
+      "exact_rank": {
+        "text": null,
+        "table": null,
+        "image": 3
+      },
+      "doc_rank": {
+        "text": 1,
+        "table": 1,
+        "image": 1
+      },
+      "embed_ms": 79.6
+    },
+    {
+      "id": "image_02_nam_hoc_3_4",
+      "modality": "image",
+      "xfail": true,
+      "exact_rank": {
+        "text": null,
+        "table": null,
+        "image": 9
+      },
+      "doc_rank": {
+        "text": 1,
+        "table": 1,
+        "image": 1
+      },
+      "embed_ms": 83.3
+    },
+    {
+      "id": "image_03_hoc_phan_tu_chon",
+      "modality": "image",
+      "xfail": true,
+      "exact_rank": {
+        "text": null,
+        "table": null,
+        "image": 11
+      },
+      "doc_rank": {
+        "text": null,
+        "table": 1,
+        "image": 1
+      },
+      "embed_ms": 78.5
+    },
+    {
+      "id": "image_map_01_so_do_truong",
+      "modality": "image",
+      "xfail": false,
+      "exact_rank": {
+        "text": null,
+        "table": null,
+        "image": 2
+      },
+      "doc_rank": {
+        "text": null,
+        "table": 1,
+        "image": 1
+      },
+      "embed_ms": 90.6
+    },
+    {
+      "id": "image_map_02_mat_bang_ha_dong",
+      "modality": "image",
+      "xfail": true,
+      "exact_rank": {
+        "text": null,
+        "table": null,
+        "image": 6
+      },
+      "doc_rank": {
+        "text": null,
+        "table": 1,
+        "image": 1
+      },
+      "embed_ms": 84.4
+    },
+    {
+      "id": "image_map_03_toa_nha_a1_a2_a3",
+      "modality": "image",
+      "xfail": false,
+      "exact_rank": {
+        "text": null,
+        "table": null,
+        "image": 1
+      },
+      "doc_rank": {
+        "text": 1,
+        "table": 1,
+        "image": 1
+      },
+      "embed_ms": 82.0
+    },
+    {
+      "id": "image_org_01_co_cau_to_chuc",
+      "modality": "image",
+      "xfail": false,
+      "exact_rank": {
+        "text": null,
+        "table": null,
+        "image": 1
+      },
+      "doc_rank": {
+        "text": null,
+        "table": 1,
+        "image": 1
+      },
+      "embed_ms": 84.6
+    },
+    {
+      "id": "image_overview_01_tong_quan",
+      "modality": "image",
+      "xfail": true,
+      "exact_rank": {
+        "text": null,
+        "table": null,
+        "image": 22
+      },
+      "doc_rank": {
+        "text": null,
+        "table": 1,
+        "image": 1
+      },
+      "embed_ms": 84.1
+    },
+    {
+      "id": "image_units_01_don_vi_ha_noi",
+      "modality": "image",
+      "xfail": true,
+      "exact_rank": {
+        "text": null,
+        "table": null,
+        "image": 30
+      },
+      "doc_rank": {
+        "text": null,
+        "table": 1,
+        "image": 1
+      },
+      "embed_ms": 83.5
+    }
+  ]
+}
