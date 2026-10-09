@@ -17,6 +17,7 @@ ami_rag worker  (ami-rag-worker, hoặc nhúng trong API khi WORKER_ENABLED=true
    ├─ upload ảnh/bảng/công thức lên MinIO  rag-assets/{doc_id}/…  (gắn item["asset_key"])
    ├─ lưu content_list.json vào MinIO
    ├─ describe: mô tả modal (LLM, tuỳ chọn) → descriptions.json
+   │    └─ ảnh: có VLM → gửi ảnh cho VLM; không → text-only (OCR trong ảnh + caption + ngữ cảnh, mục 5.3)
    ├─ chunk: cắt chunk theo token (CHUNK_SIZE/CHUNK_OVERLAP) → chunks.json
    ├─ embed: RemoteEmbedder (HTTP máy B) → upsert Qdrant (delete_by_doc trước, idempotent)
    └─ mark_indexed: ghi trạng thái vào DocStatusStore
@@ -32,7 +33,7 @@ Hệ thống AI ──POST /v2/rag──▶ ami_rag API: embed_query (máy B) �
 - Doc id = MongoDB ObjectId. Mỗi chunk payload mang `doc_id` trực tiếp nên API tra ngược về Mongo (`ami_rag/api/resolver.py::resolve_doc_id`).
 - `created`/`updated` → `ensure_pending` + chạy pipeline từ stage `parse`; `deleted` → xoá vector Qdrant + asset MinIO + dòng registry. Nguồn không đổi (`content_hash` trùng, status `indexed`, đúng `embed_model`/`chunker_version`) thì bị bỏ qua, cả ở worker lẫn ở CLI `reindex`.
 - Pipeline (`ami_rag/core/vector_pipeline.py`): 5 stage `parse → describe → chunk → embed → indexed`, mỗi stage ghi trạng thái vào DocStatusStore. Kết quả trung gian lưu MinIO (`content_list.json`, `descriptions.json`, `chunks.json`) nên retry chạy tiếp từ stage lỗi, không cần parse lại.
-- Embed: stage duy nhất gọi mạng thật; luôn `delete_by_doc` trước khi upsert (idempotent) rồi verify count. Describe là stage duy nhất có thể gọi LLM (tuỳ chọn).
+- Embed: stage duy nhất gọi mạng thật; luôn `delete_by_doc` trước khi upsert (idempotent) rồi verify count. Describe là stage duy nhất có thể gọi LLM (tuỳ chọn): có `QWEN_VLM_MODEL` thì gửi ảnh cho VLM; không thì ảnh được mô tả bằng Qwen **text-only** từ chữ OCR trong ảnh (OCR service, bọc ảnh vào PDF) + caption + ngữ cảnh xung quanh (`IMAGE_DESCRIBE_MODE` — xem mục 5.3).
 - Retry: `WORKER_MAX_DELIVERY` lần; quá ngưỡng thì dòng registry được đánh dấu `failed` và message được ack. Event lỗi chưa đủ ngưỡng được để pending và tự giao lại (XAUTOCLAIM) sau `WORKER_RETRY_IDLE_MS` (mặc định 10 phút; cần Redis ≥ 6.2) — đặt đủ lớn hơn thời gian parse MinerU dài nhất để worker khác không "cướp" message đang xử lý. Khi `failed`, `attempts` được reset nên `reprocess_failed`/`retry --all-failed` có đủ ngân sách thử lại.
 - LLM (describe): profile `qwen-selfhost` (vLLM, OpenAI-compatible) qua `QWEN_LLM_*`. Gemini không còn được hỗ trợ (đã gỡ). Rerank là service ngoài `POST {RERANK_BASE_URL}/rerank` (mặc định vLLM `nvidia/llama-nemotron-rerank-vl-1b-v2`, multimodal: chunk image/table/equation kèm ảnh + text; lỗi rerank thì trả chunk không điểm (fallback)).
 - Embedding: mặc định `nvidia/llama-nemotron-embed-vl-1b-v2` serve qua **gateway** `nemotron-vl-vllm` (máy B, repo riêng: gateway FastAPI trước 2 vLLM embed + rerank, port 8080; endpoint `/v1/embeddings` với `{"input", "input_type": "query"|"document"}`, item text/ảnh base64/bảng); client `OpenAIEmbedder` (`ami_rag/core/openai_embedder.py`). Còn hỗ trợ `Qwen/Qwen3-VL-Embedding-2B` trên `qwen-embedding-server` (port 8007) qua backend `custom` (`RemoteEmbedder`, `ami_rag/core/remote_embedder.py`). Chọn qua `EMBED_BACKEND` (`auto`: prefix `Qwen/` → custom, còn lại → openai). Máy A chỉ gọi HTTP — không cài torch/transformers, không cần GPU cho embed. Chunk image/table/equation có asset_key được embed dạng image+text (ảnh asset từ MinIO).
@@ -140,7 +141,16 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | Nhóm | Biến | Mặc định | Ý nghĩa |
 |---|---|---|---|
 | LLM | `QWEN_LLM_BASE_URL` / `QWEN_LLM_MODEL` / `QWEN_LLM_API_KEY` | `http://vllm:8000/v1` / `Qwen/Qwen3-32B` / rỗng | qwen-selfhost (OpenAI-compatible), dùng cho `describe_func` |
-| | `QWEN_VLM_MODEL` | rỗng | rỗng = dùng `QWEN_LLM_MODEL` |
+| | `QWEN_VLM_MODEL` | rỗng | VLM cho describe ảnh. Rỗng = **không có VLM** → ảnh mô tả ở chế độ text-only (`IMAGE_DESCRIBE_MODE`, bên dưới) |
+| Describe ảnh | `IMAGE_DESCRIBE_MODE` | `auto` | `auto`/`vision`/`text`. `auto`: có `QWEN_VLM_MODEL` → `vision` (gửi ảnh cho VLM), không → `text`. `text`: OCR chữ trong ảnh (OCR service) + caption + ngữ cảnh xung quanh, Qwen text tổng hợp mô tả |
+| | `DESCRIBE_IMAGE_OCR` | `true` | OCR chữ trong ảnh (chỉ ở chế độ `text`): bọc ảnh vào PDF 1 trang → endpoint `hierarchy-parse` → đọc chữ OCR (`heading`) + `summary` + `key_points`. Ảnh không chữ → mô tả chỉ từ caption/ngữ cảnh |
+| | `DESCRIBE_IMAGE_OCR_SKIP_IF_CAPTION` | `true` | bỏ qua OCR khi ảnh đã có caption (MinerU trích sẵn) — tiết kiệm (~30s/ảnh OCR) |
+| | `DESCRIBE_IMAGE_OCR_MAX_CONCURRENCY` | `3` | giới hạn request OCR đồng thời (tránh đè OCR service) |
+| | `DESCRIBE_IMAGE_OCR_TIMEOUT` | `120` | giây/request OCR ảnh; quá → bỏ qua, fallback ngữ cảnh |
+| OCR service (backend_data) | `PARSE_TEXT_SOURCE` | `backend_data` | nguồn text/table khi parse PDF/DOCX: `backend_data` (pdfplumber/fitz + OCR service) / `mineru` (giữ MinerU). Ảnh vẫn từ MinerU |
+| | `OCR_SERVICE_URL` | `http://171.226.10.153:12006` | service ngoài (chỉ nhận PDF/DOCX/TXT; ảnh đơn lẻ được bọc PDF) |
+| | `OCR_SERVICE_TIMEOUT` | `300` | giây |
+| | `OCR_TABLE_ENDPOINT` / `OCR_TEXT_ENDPOINT` | `/api/v1/raw_miner_ocr/qwen` / `/api/v1/hierarchy-parse` | bảng Qwen / text + OCR |
 | Embed server | `EMBED_SERVER_URL` | `http://localhost:8080` | trỏ đúng server tương ứng `EMBED_BACKEND` (gateway nemotron-vl-vllm: 8080; qwen-embedding-server: 8007) |
 | | `EMBED_SERVER_TOKEN` | rỗng | **chỉ từ env**, không ghi vào file trong git |
 | | `EMBED_MODEL` | `nvidia/llama-nemotron-embed-vl-1b-v2` | dùng để xác minh với server lúc handshake |
@@ -284,6 +294,27 @@ Khuyến nghị:
 - Hết credit/quota hay model quá tải trên server (5xx sau retry) → doc ở stage `embed` thành `failed` với lý do rõ ràng; chạy lại `retry` sau khi server ổn định.
 - Redis: `redis-py` ≥ 8 mặc định `socket_timeout=5s`, trùng với `XREADGROUP BLOCK` (`WORKER_POLL_BLOCK_MS`) nên worker báo `queue read failed: Timeout reading from redis`. Client của worker đặt `socket_timeout = WORKER_POLL_BLOCK_MS/1000 + 5` và `health_check_interval=30` (`ingest_worker.py::_build_default_deps`).
 
+### 5.3 Describe ảnh không cần VLM (`IMAGE_DESCRIBE_MODE=text`)
+
+Vấn đề: khi không có vision model (`QWEN_VLM_MODEL` rỗng), ảnh từng được mô tả bằng VLM-fallback là Qwen text-only **nhận base64 ảnh nhưng không đọc được ảnh** → mô tả rỗng, chunk ảnh chỉ còn `[Image Content]\nTóm tắt: Không có` → không có text phân biệt cho vector search lẫn rerank. Đo thực tế trên bộ 28 case (`tests/retrieval_cases.json`): image Hit@5 chỉ **1/9** (text 10/10, table 5/9).
+
+Giải pháp (chế độ `text`, mặc định khi `IMAGE_DESCRIBE_MODE=auto` và không có VLM): mô tả ảnh được tổng hợp bằng Qwen **text-only** từ 3 nguồn, không gửi ảnh cho LLM:
+
+1. **Chữ OCR trong ảnh** (`DESCRIBE_IMAGE_OCR`): ảnh lấy từ MinIO theo `asset_key` (file local của parse stage đã bị xoá — temp dir) → bọc vào PDF 1 trang (`image_to_pdf_bytes`, PyMuPDF) → gửi OCR service `hierarchy-parse` (service chỉ nhận PDF/DOCX/TXT, coi PDF-ảnh như scan) → chữ OCR nằm ở `heading` của cây hierarchy (không phải `text` — parser riêng `_flatten_hierarchy_headings`), kèm `summary` + `key_points` service sinh sẵn. Đã verify thực tế: ảnh sơ đồ tổ chức → trích đúng tiêu đề + tên các phòng ban.
+2. **Caption/footnote** MinerU trích sẵn.
+3. **Ngữ cảnh text xung quanh**: describe stage gọi `set_content_source(content_list, "minerU")` cho mọi processor → `ContextExtractor` lấy text cùng trang ±1 (processor không có context extractor → pipeline tự trích các trang lân cận, tối đa 4000 ký tự).
+
+Prompt `image_text_only_prompt` (EN + ZH trong `raganything/prompt.py`/`prompts_zh.py`) yêu cầu trả JSON `detailed_description` + `entity_info`, **cấm bịa chi tiết không có trong thông tin cung cấp**; `_parse_image_description` trích `detailed_description`, JSON hỏng → dùng raw text.
+
+Guard chi phí + an toàn (mỗi ảnh OCR ~30s):
+- `DESCRIBE_IMAGE_OCR_SKIP_IF_CAPTION=true` (mặc định): ảnh đã có caption thì **bỏ qua OCR**.
+- `DESCRIBE_IMAGE_OCR_MAX_CONCURRENCY=3`: semaphore giới hạn request OCR đồng thời (các item describe trong doc chạy song song qua `asyncio.gather`).
+- `DESCRIBE_IMAGE_OCR_TIMEOUT=120`: quá → bỏ OCR, fallback ngữ cảnh.
+- OCR lỗi/rỗng, ảnh không `asset_key`, LLM lỗi/thiếu (`llm_func=None`) → **không crash**: ghép text thô caption+OCR+ngữ cảnh (không bao giờ rỗng như trước).
+- Ảnh **không chứa chữ** (ảnh chụp, minh hoạ): OCR không giúp được — mô tả chỉ từ caption/ngữ cảnh. Đây là giới hạn đã biết; khi có VLM thì đặt `QWEN_VLM_MODEL` (auto → `vision`, hành vi cũ).
+
+Doc đã index trước khi có tính năng này mang `descriptions.json` với mô tả ảnh rỗng — cần reindex từ stage `describe` (xem mục `reindex` bên dưới).
+
 ## 6. API
 
 Mọi route `/v2/rag/*` và `/admin/*` yêu cầu `Authorization: Bearer <RAG_API_KEY>` khi `RAG_API_KEY` khác rỗng (rỗng = mở; nên chỉ dùng trong mạng nội bộ). `/`, `/healthz`, `/readyz`, `/metrics` không yêu cầu auth; chặn `/metrics` ở reverse proxy nếu cần.
@@ -401,6 +432,12 @@ In workspace, config đang dùng (`embed_model`/`embed_dim`/`chunker_version`), 
 
 - Trước khi embed, kiểm tra tương thích `embed_model`/`embed_dim`/`chunker_version` với collection đích (qua preflight `/info`).
 - Khoá bất đồng bộ: lệnh từ chối chạy nếu một `retry`/`reindex` khác đang giữ lockfile.
+- **Doc index trước khi có describe text-only (mục 5.3)** mang `descriptions.json` với mô tả ảnh rỗng — chạy `--from-stage describe` để sinh lại mô tả + chunk + embed:
+  ```bash
+  ami-rag reindex --all --from-stage describe --dry-run   # xem phạm vi trước
+  ami-rag reindex --all --from-stage describe --yes       # hoặc --doc <id> để thử vài doc
+  ```
+  Chi phí: mỗi ảnh không caption tốn ~30s OCR + 1 call LLM (`DESCRIBE_IMAGE_OCR_*`); text chunk ảnh đổi → cache embedding miss → re-embed các chunk ảnh (text chunk không đổi vẫn trúng cache).
 
 Mã thoát: `0` xong, `1` một số doc thất bại, `2` dừng sớm (preflight embed server, lockfile, validation).
 
@@ -576,4 +613,4 @@ Toàn bộ test dùng fake (không cần dịch vụ ngoài, không cần lightr
 
 `mineru[core]>=3.4.1,<4`: MinerU 4.x đổi CLI (`mineru parse <path>`, `-p` = pages) nên không tương thích với lệnh `mineru -p <file> -o <dir> -m ...` mà `raganything/parser.py` gọi; bắt buộc ghim `<4`. MinerU 3.4.x mặc định backend `hybrid-engine` (nặng VRAM) khi không truyền `-b`, và chọn thiết bị bằng biến môi trường `MINERU_DEVICE_MODE` (không có cờ `-d`); `MINERU_VIRTUAL_VRAM_SIZE` (GB) buộc MinerU chọn batch size như thể GPU có chừng đó VRAM.
 
-Chunk multimodal: parse-only (`raganything/processor.py`) + mô tả modal (`generate_description_only`/`generate_chunk_sections`); metadata có cấu trúc (`original_type`, `page_idx`, `asset_key`, `table_body`, `caption`) đi thẳng vào chunk payload để API trả về client.
+Chunk multimodal: parse-only (`raganything/processor.py`) + mô tả modal (`generate_description_only`/`generate_chunk_sections`); riêng ảnh ở chế độ text-only (không VLM) do pipeline tự mô tả từ OCR + caption + ngữ cảnh (mục 5.3). Metadata có cấu trúc (`original_type`, `page_idx`, `asset_key`, `table_body`, `caption`) đi thẳng vào chunk payload để API trả về client.
