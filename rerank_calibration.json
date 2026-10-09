@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "method": "platt",
+    "num_cases": 28,
+    "num_samples": 650
+  },
+  "models": {
+    "text": {
+      "method": "platt",
+      "a": 2.9198557839387145,
+      "b": -0.5020283101717643,
+      "x": [],
+      "y": [],
+      "samples_pos": 28,
+      "samples_neg": 465
+    },
+    "table": {
+      "method": "platt",
+      "a": 38.56093191542096,
+      "b": -1.900684787700196,
+      "x": [],
+      "y": [],
+      "samples_pos": 6,
+      "samples_neg": 59
+    },
+    "image": {
+      "method": "platt",
+      "a": 92.71138687596587,
+      "b": -2.0313337621942726,
+      "x": [],
+      "y": [],
+      "samples_pos": 7,
+      "samples_neg": 85
+    },
+    "default": {
+      "method": "platt",
+      "a": 2.7239457983640367,
+      "b": -0.3584557587462363,
+      "x": [],
+      "y": [],
+      "samples_pos": 41,
+      "samples_neg": 609
+    }
+  }
+}
