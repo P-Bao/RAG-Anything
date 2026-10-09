@@ -1,8 +1,10 @@
 huggingface_hub
 # MinerU 2.0 packages (replaces magic-pdf) - handles PDF parsing with multiple backends
+# Pinned exact: MinerU 4.x is a full rewrite (entrypoint/backends/output schema all
+# changed, see AGENTS.md) and the parser wrapper + table splice below target 3.4.5.
 # >=3.4.1: earlier versions iterate pdftext's PageChars return value directly and
 # crash with "TypeError: 'PageChars' object is not iterable" against pdftext>=0.7
-mineru[core]>=3.4.1,<4
+mineru[core]==3.4.5
 # Progress bars for batch processing
 tqdm
 # Note: Optional dependencies are now defined in setup.py extras_require:

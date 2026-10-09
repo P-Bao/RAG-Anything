@@ -14,6 +14,22 @@ services:
       WORKER_ENABLED: "false"
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_SERVICE_NAME: multimodal-rag-retrieval
+      # Per-modality fusion knobs. Interpolated (not hardcoded) so a strategy can
+      # be swept without editing .env, e.g.
+      #   RETRIEVAL_FUSION_MODE=quota docker compose -f docker-compose.ami.yml up -d --build ami-rag-api
+      # Default `single` keeps the original single-pool retrieve -> rerank flow.
+      # Các default dưới đây PHẢI khớp `ami_rag/settings.py`; compose `environment:`
+      # đè lên default của pydantic-settings nên lệch ở đây là container chạy sai
+      # cấu hình. `tests/ami_service/test_config_consistency.py` chặn lệch.
+      RETRIEVAL_FUSION_MODE: ${RETRIEVAL_FUSION_MODE:-single}
+      RETRIEVAL_FUSION_POOLS: ${RETRIEVAL_FUSION_POOLS:-text+table,image}
+      RETRIEVAL_FUSION_POOL_SIZES: ${RETRIEVAL_FUSION_POOL_SIZES:-text=50,image=15}
+      RETRIEVAL_FUSION_RRF_K: ${RETRIEVAL_FUSION_RRF_K:-60}
+      RETRIEVAL_FUSION_QUOTA: ${RETRIEVAL_FUSION_QUOTA:-text=3,image=2}
+      RETRIEVAL_FUSION_IMAGE_GATE: ${RETRIEVAL_FUSION_IMAGE_GATE:-true}
+      RETRIEVAL_FUSION_VL_POOLS: ${RETRIEVAL_FUSION_VL_POOLS:-text,image}
+      # Re-exposed so a bench run can toggle it; `environment` wins over `env_file`.
+      RERANK_CALIBRATION_ENABLED: ${RERANK_CALIBRATION_ENABLED:-true}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

@@ -105,6 +105,21 @@ PRESIGN_FAILURES_TOTAL = Counter(
     "multimodal_rag_retrieval_presign_failures_total",
     "Presigned asset URL generation failures.",
 )
+FUSION_POOL_CANDIDATES = Histogram(
+    "multimodal_rag_retrieval_fusion_pool_candidates",
+    "Candidates retrieved per modality pool before reranking (fusion modes only).",
+    ["pool"],
+    buckets=(0, 1, 5, 10, 20, 30, 40, 60, 80, 100),
+)
+FUSION_DOCS_SELECTED_TOTAL = Counter(
+    "multimodal_rag_retrieval_fusion_docs_selected_total",
+    "Documents selected per pool after fusion (fusion modes only).",
+    ["pool"],
+)
+FUSION_IMAGE_GATE_DROPPED_TOTAL = Counter(
+    "multimodal_rag_retrieval_fusion_image_gate_dropped_total",
+    "Images dropped by the image gate for scoring below the text cut line.",
+)
 
 # --- Ingest worker metrics (prefix multimodal_rag_ingest_) ------------------
 

@@ -1,26 +1,52 @@
-FROM python:3.12-slim
+FROM python:3.12-slim AS builder
 
-WORKDIR /app
+WORKDIR /build
 
-# libreoffice: Office (doc/docx) -> PDF before MinerU parsing
-# libgl1/libglib2.0-0: OpenCV runtime used by MinerU
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libreoffice-writer \
-    libgl1 \
-    libglib2.0-0 \
-    fonts-dejavu-core \
-    fonts-liberation \
-    && rm -rf /var/lib/apt/lists/*
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=0
 
 COPY pyproject.toml setup.py requirements.txt MANIFEST.in README.md LICENSE ./
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m venv /opt/venv && \
+    /opt/venv/bin/pip install -r requirements.txt
+
 COPY raganything ./raganything
 COPY ami_rag ./ami_rag
 
-RUN pip install --no-cache-dir ".[service]"
+RUN --mount=type=cache,target=/root/.cache/pip \
+    /opt/venv/bin/pip install --no-deps ".[service]" && \
+    /opt/venv/bin/pip install ".[service]"
 
-# MinerU model cache (mount a volume here to avoid re-downloading)
-ENV MINERU_MODEL_SOURCE=huggingface \
+FROM python:3.12-slim AS runtime
+
+# libreoffice-writer đã đủ cho doc/docx -> PDF
+# --no-install-recommends + dọn cache apt trong cùng layer
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update && apt-get install -y --no-install-recommends \
+        libreoffice-writer \
+        libgl1 \
+        libglib2.0-0 \
+        fonts-dejavu-core \
+        fonts-liberation
+
+COPY --from=builder /opt/venv /opt/venv
+
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    MINERU_MODEL_SOURCE=huggingface \
     HF_HOME=/models/huggingface
+
+WORKDIR /app
+
+RUN useradd -m -u 1000 app && mkdir -p /models && chown -R app:app /models /app
+
+COPY --chown=app:app rerank_calibration.json rerank_calibration_isotonic.json /app/
+
+USER app
 
 EXPOSE 8009 9109
 

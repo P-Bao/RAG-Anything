@@ -106,11 +106,51 @@ class Settings(BaseSettings):
     # budget bị head-truncate (kèm ảnh -> trừ image token reserve).
     RERANK_MAX_INPUT_TOKENS: int = 6000
     RERANK_IMAGE_TOKEN_RESERVE: int = 1792
+    RERANK_CALIBRATION_ENABLED: bool = False
+    RERANK_CALIBRATION_PATH: str = "./rerank_calibration.json"
 
     # candidates fetched = final top_k * RETRIEVAL_OVERFETCH, so rerank always yields top_k docs
     RETRIEVAL_CHUNK_TOP_K: int = 40
     RETRIEVAL_OVERFETCH: int = 4
     # docs repaired in parallel by `reindex --repair` (low: avoids provider 429)
+
+# --- Hai nhánh retrieve + rerank + fusion (thử nghiệm) ---
+    # single: 1 pool chung như cũ (retrieve không filter -> rerank 1 lần -> sort).
+    # calibrated | rrf | quota: tách đúng 2 nhánh, mỗi nhánh 1 lệnh rerank:
+    #   • `text+table` — văn xuất + bảng cùng nhau, 1 lệnh rerank chung.
+    #   • `image` — VL rerank riêng. Tách ở đúng chỗ này vì độ chênh lệch thang
+    #     điểm chỉ tồn tại ở ảnh, không có ở bảng và text.
+    # Cổng lọc ảnh: xem ami_rag.core.fusion.gate_image_hits.
+    RETRIEVAL_FUSION_MODE: str = "single"
+    # Pool = nhóm modality, phân cách nhau bằng `+`. Ví dụ: "text+table,image".
+    # Modality không thuộc về pool nào -> pool "other".
+    RETRIEVAL_FUSION_POOLS: str = "text+table,image"
+    # Sâu retrieve của từng pool (key là TÊN pool, không phải nhóm modality).
+    # Đo thực tế (28 case, scripts/run_fusion_bench.py): chunk đích của text
+    # nằm trong top-11 vector. Trong pool gộp, table phải cạnh tranh với text:
+    # `table_08` ở vector rank 44 nên cần depth >= 50 (depth 60 không thêm gì).
+    RETRIEVAL_FUSION_POOL_SIZES: str = "text=50,image=15"
+    # RRF: score = weight / (k + rank). Với pool rời nhau + weight bằng nhau thì
+    # k không đổi thứ tự (RRF trở thành round-robin theo rank) -- giữ 60 theo
+    # thông lệ.
+    RETRIEVAL_FUSION_RRF_K: int = 60
+    # quota: "pool=slots[@ngưỡng]" -- key là TÊN pool, không phải nhóm modality.
+    # KHÔNG kèm ngưỡng là cấu hình đo tốt nhất (28 case: 22/28, table 7/9): reserve
+    # slot cứng cho từng pool để modality yếu vẫn lên trang, rồi điền nốt. Có
+    # ngưỡng thì slot bị chặn và rơi về đúng bằng `calibrated` (21/28).
+    RETRIEVAL_FUSION_QUOTA: str = "text=3,image=2"
+    # Pool được rerank KÈM ảnh render (VL reranker).
+    # Mặc định LÀ "text,image", tức bảng cũng được gửi ảnh vào rerank chung.
+    # Đo thực tế (28 case): bảng rerank TEXT-THUẦN -> table 3/9; bảng kèm ảnh ->
+    # 5/9 @ depth 40, 6/9 @ depth 50. Điểm rerank của text và bảng đúng cùng
+    # thang đo nên KHÔNG cần tách pool riêng, nhưng 1 chi phí nữa là phải chảy
+    # qua calibrator. Đặt "image" để bảng rerank thuần text: nhanh hơn nhưng MẤT
+    # 2 hit bảng.
+    RETRIEVAL_FUSION_VL_POOLS: str = "text,image"
+    # Cổng lọc ảnh: ảnh chỉ được vào nếu điểm >= điểm text tại đường cắt
+    # (thiếu chỉ so điểm) để vào LLM. Tắt để so số ảnh bị loại điểm và
+    # giữ nguyên số ảnh được mang vào context.
+    RETRIEVAL_FUSION_IMAGE_GATE: bool = True
 
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"
@@ -161,6 +201,51 @@ def resolve_rerank_backend(settings) -> str:
         return backend
     model = (getattr(settings, "RERANK_MODEL", "") or "").lower()
     return "vllm" if model and "bge" not in model else "legacy"
+
+
+def resolve_fusion(settings) -> dict:
+    """Parse + validate the per-modality fusion settings into one ready-to-use dict.
+
+    Returns `None` when fusion is off (`RETRIEVAL_FUSION_MODE=single`), i.e. the
+    query path keeps the original single-pool retrieve -> rerank -> sort flow.
+    Parsing delegates to `ami_rag.core.fusion` so there is one source of truth for
+    the spec grammar, and an invalid spec fails here rather than mid-request.
+    """
+    from ami_rag.core.fusion import (
+        STRATEGIES,
+        parse_pool_groups,
+        parse_pool_sizes,
+        parse_quota,
+    )
+
+    mode = (getattr(settings, "RETRIEVAL_FUSION_MODE", "single") or "single").lower()
+    if mode == "single":
+        return None
+    if mode not in STRATEGIES:
+        raise ValueError(
+            f"RETRIEVAL_FUSION_MODE không hợp lệ: {mode} (single | {' | '.join(STRATEGIES)})"
+        )
+
+    groups = parse_pool_groups(settings.RETRIEVAL_FUSION_POOLS)
+    sizes = parse_pool_sizes(settings.RETRIEVAL_FUSION_POOL_SIZES)
+    missing = [name for name in groups if name not in sizes]
+    if missing:
+        raise ValueError(
+            f"RETRIEVAL_FUSION_POOL_SIZES thiếu depth cho pool: {', '.join(missing)}"
+        )
+    return {
+        "mode": mode,
+        "groups": groups,
+        "sizes": sizes,
+        "rrf_k": int(settings.RETRIEVAL_FUSION_RRF_K),
+        "quotas": parse_quota(settings.RETRIEVAL_FUSION_QUOTA),
+        "image_gate": bool(getattr(settings, "RETRIEVAL_FUSION_IMAGE_GATE", True)),
+        "vl_pools": {
+            name.strip().lower()
+            for name in (settings.RETRIEVAL_FUSION_VL_POOLS or "").split(",")
+            if name.strip()
+        },
+    }
 
 
 def parser_kwargs(settings) -> dict:

@@ -1,8 +1,11 @@
+import logging
 from pathlib import Path
 
 import pytest
 
 from ami_rag.queue.events import RagEvent
+
+logger = logging.getLogger(__name__)
 
 
 class FakeDocsRepo:
@@ -118,12 +121,30 @@ class FakeEmbedder:
         pass
 
 
+def _filter_modalities(query_filter):
+    """(include, exclude) modality sets encoded in a Qdrant filter.
+
+    A pool selects its modalities with `should` (an OR), so `include` collects
+    every value across should and must.
+    """
+    include, exclude = set(), set()
+    for attr, target in (("should", include), ("must", include), ("must_not", exclude)):
+        for cond in getattr(query_filter, attr, None) or []:
+            if getattr(cond, "key", None) != "modality":
+                continue
+            value = getattr(getattr(cond, "match", None), "value", None)
+            if value is not None:
+                target.add(value)
+    return include, exclude
+
+
 class FakeVectorStore:
     """Stand-in for VectorStore (in-memory)."""
 
     def __init__(self):
         self.points: dict[str, dict] = {}
         self.collections: dict[str, int] = {}
+        self.searches: list[dict] = []
 
     async def ensure_collection(self, name: str, dim: int) -> None:
         self.collections[name] = dim
@@ -132,12 +153,20 @@ class FakeVectorStore:
         for r in records:
             self.points[r.id] = dict(r.payload)
 
-    async def search(self, collection, vector, top_k):
+    async def search(self, collection, vector, top_k, query_filter=None, **kwargs):
         from ami_rag.core.vector_store import SearchHit
 
+        pts = list(self.points.items())
+        self.searches.append({"top_k": top_k, "filter": query_filter})
+        if query_filter is not None:
+            include, exclude = _filter_modalities(query_filter)
+            if include:
+                pts = [(k, p) for k, p in pts if p.get("modality") in include]
+            if exclude:
+                pts = [(k, p) for k, p in pts if p.get("modality") not in exclude]
         return [
             SearchHit(id=k, score=0.9, payload=dict(p))
-            for k, p in list(self.points.items())[:top_k]
+            for k, p in pts[:top_k]
         ]
 
     async def delete_by_doc(self, collection, doc_id):

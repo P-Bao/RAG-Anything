@@ -22,7 +22,7 @@ classifiers = [
 ]
 dependencies = [
     "huggingface_hub",
-    "mineru[core]>=3.4.1,<4",
+    "mineru[core]==3.4.5",
     "tqdm",
 ]
 
@@ -59,6 +59,10 @@ service = [
     "opentelemetry-sdk>=1.28.0",
     "opentelemetry-exporter-otlp-proto-http>=1.28.0",
     "openai>=2.0",
+]
+calibration = [
+    "scikit-learn>=1.4",
+    "numpy",
 ]
 all = [
     "Pillow>=10.0.0",
@@ -135,3 +139,6 @@ target-version = "py310"
 testpaths = ["tests"]
 python_files = ["test*.py"]
 asyncio_mode = "auto"
+markers = [
+    "live: tests that require running live ami-rag services",
+]

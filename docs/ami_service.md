@@ -191,6 +191,13 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `RERANK_IMAGE_TOKEN_RESERVE` | `1792` | như `EMBED_IMAGE_TOKEN_RESERVE` |
 | Retrieval | `RETRIEVAL_CHUNK_TOP_K` | `40` | số chunk tối thiểu lấy từ Qdrant trước khi rerank |
 | | `RETRIEVAL_OVERFETCH` | `4` | hệ số nhân lấy ứng viên: `max(RETRIEVAL_CHUNK_TOP_K, top_k * RETRIEVAL_OVERFETCH)` để sau khi rerank vẫn đủ `top_k` kết quả |
+| | `RETRIEVAL_FUSION_MODE` | `single` | `single` = một pool chung (retrieve không filter + 1 query ảnh top-5, 1 lệnh rerank). `calibrated` \| `rrf` \| `quota` = retrieve + rerank **2 nhánh** rồi fuse xếp hạng (xem [6.1](#61-two-branch-retrieve--rerank--fusion-experimental)) |
+| | `RETRIEVAL_FUSION_POOLS` | `text+table,image` | pool = nhóm modality, phân cách bằng `+`. Văn xuất và bảng dùng chung 1 lệnh rerank; ảnh tách riêng. Modality không thuộc pool nào vào pool `other` |
+| | `RETRIEVAL_FUSION_POOL_SIZES` | `text=50,image=15` | sâu retrieve từng pool, key là **tên pool** (`text`, không phải `text+table`). Cần ≥ 50 vì `table_08` ở vector rank 44 trong pool gộp |
+| | `RETRIEVAL_FUSION_VL_POOLS` | `text,image` | pool nào rerank **kèm ảnh render**. `text,image` = bảng cũng gửi ảnh; `image` = bảng rerank text thuần → **mất 2 hit bảng** (3/9) |
+| | `RETRIEVAL_FUSION_IMAGE_GATE` | `true` | cổng lọc ảnh: ảnh chỉ vào nếu điểm ≥ điểm text tại đường cắt |
+| | `RETRIEVAL_FUSION_RRF_K` | `60` | chỉ dùng cho mode `rrf`; với pool rời nhau + weight bằng nhau thì `k` **không** đổi thứ tự |
+| | `RETRIEVAL_FUSION_QUOTA` | `text=3,image=2` | chỉ dùng cho mode `quota`: `tên_pool=slots[@ngưỡng]`. **Bỏ ngưỡng** là cấu hình đo tốt nhất (22/28); thêm ngưỡng rơi về 21/28 |
 | Pipeline/CLI | `CHUNKER_VERSION` | `v1` | gắn vào collection + registry để kiểm tra tương thích lúc reindex |
 | | `CLI_STUCK_PROCESSING_MINUTES` | `60` | doc `processing` quá lâu bị `status` báo là treo |
 | MinIO | `MINIO_ENDPOINT` | `localhost:9000` | |
@@ -327,247 +334,173 @@ Luồng: `embed_query` (máy B) → vector search Qdrant (`max(RETRIEVAL_CHUNK_T
 - `artifact_url`: presigned URL (hết hạn sau `MINIO_PRESIGN_EXPIRES`) của `asset_key`; `null` khi chunk không có asset hoặc presign lỗi (tăng `presign_failures_total`).
 - `references`: dedup theo document, chỉ có khi `include_references: true`.
 - Lỗi rerank → trả chunk không điểm (fallback, đo `rerank_fallback_total`).
+- Khi bật fusion, `meta` có thêm `fusion: {mode, pools: {pool: số ứng viên}}`.
 
-### POST /v2/rag/stream
+### 6.1 Two-branch retrieve + rerank + fusion (thử nghiệm)
 
-Cùng request, trả NDJSON (`application/x-ndjson`): `{"status": "retrieving"}`, rồi mỗi document một dòng `{"documents": [{"text", "metadata", "score", "modality", "artifact_url"}]}`, cuối cùng `{"status": "done"}`.
+`RETRIEVAL_FUSION_MODE` khác `single` sẽ **retrieve + rerank theo 2 nhánh**, rồi merge
+các bảng xếp hạng (`ami_rag/core/fusion.py`, thuần Python — không numpy/sklearn, giống
+`ami_rag/core/calibration.py`):
 
-### Admin (`/admin/*`)
-
-| Endpoint | Mô tả |
-|---|---|
-| `GET /admin/pipeline_status` | `{workspace, doc_status_counts (DocStatusStore), queue_pending}` |
-| `POST /admin/reprocess_failed` | publish lại event `updated` cho mọi doc `failed` trong registry → `{requeued}` |
-| `POST /admin/reindex` | body `{"all": true}` hoặc `{"document_ids": [...]}`; publish event `updated` → `{published}` |
-| `GET /admin/documents/{id}` | trạng thái DocStatusStore: `status, stage, source, counts, page_count, parser, document_type, title, organization_unit_id, owner_id, error, updated_at` (ObjectId trả về dạng string, `null` nếu dòng chưa `indexed`); 404 nếu chưa có |
-| `GET /admin/documents/{id}/content` | từ `content_list.json` trên MinIO: `{document_id, markdown, blocks, tables}` (block có `type`, `page_idx`, `text`/`table_body`/`caption`/`latex`, `asset_url`); 404 nếu chưa có |
-
-Khác: `GET /healthz`, `GET /readyz`, `GET /metrics`.
-
-## 7. CLI `ami-rag`
-
-CLI phục vụ 4 việc: xem trạng thái doc, chạy lại doc lỗi/hỏng, reindex thủ công, dọn collection legacy.
-
-```bash
-ami-rag status [--failed] [--stale] [--doc <id|path>] [--check-embed-server]
-ami-rag retry (--doc <id|path> [...] | --all-failed) [--from-stage S] [--max-attempts N] [--yes]
-ami-rag reindex [--stale | --all | --doc <id|path> [...]] [--scan] [--from-stage S] [--dry-run] [--yes]
-ami-rag cleanup [--dry-run] [--mongo-only | --qdrant-only] [--yes]
+```
+embed_query
+  ├─ vector search (filter modality = text|table, depth 50) ─► Rerank ─► list T
+  └─ vector search (filter modality = image,       depth 15) ─► VL Rerank ─► list I
+                                                                  │
+                                          cổng lọc ảnh (gate) ─► fuse ─► top_k
 ```
 
-### `status` — xem trạng thái (mặc định chỉ đọc local: 0 LLM, 0 embed, 0 model call)
+Ranh giới tách nằm ở **text-vs-image**, không phải table-vs-image: điểm rerank của văn xuất
+và bảng cùng thang đo, còn ảnh thì không — nên chỉ cần một lần sửa thang điểm cho ảnh. Bảng và
+text dùng **chung một lệnh rerank**; chỉ nhánh ảnh mới gọi VL reranker.
 
-In workspace, config đang dùng (`embed_model`/`embed_dim`/`chunker_version`), collection đang dùng theo quy ước `{WORKSPACE}__{embed_model_slug}__{CHUNKER_VERSION}`, số doc theo trạng thái, doc thiếu bản ghi (báo `pending`), doc `processing` quá lâu (`CLI_STUCK_PROCESSING_MINUTES`, mặc định 60 phút) được báo `TREO`.
+| mode | cách gộp |
+| --- | --- |
+| `single` | pool chung, sort theo điểm rerank |
+| `calibrated` | sort toàn cục theo P(relevant) của `RerankCalibrator` |
+| `rrf` | `weight / (k + rank)` |
+| `quota` | reserve slot/pool + ngưỡng, phần dư fill theo điểm calibrated |
 
-| Cờ | Ý nghĩa |
-|---|---|
-| `--failed` | chỉ hiện doc `failed` (kèm stage lỗi, error, attempts, updated_at) |
-| `--stale` | chỉ hiện doc `stale` (lệch embed_model/chunker_version, file đổi hash, pipeline cũ `processed`) |
-| `--doc <id\|path>` | xem chi tiết một doc |
-| `--check-embed-server` | gọi `/health` + handshake của embed server: sẵn sàng không, đúng model/dim theo config không |
+#### Kết quả đo (28 case `tests/retrieval_cases.json`, top_k=5)
 
-### `retry` — chạy lại doc `failed` từ stage lỗi (bằng dữ liệu trung gian đã lưu)
+Cấu hình chung: `text=50`, `image=15`, bảng rerank kèm ảnh, gate bật. Chỉ đổi tham số được ghi.
 
-| Cờ | Mặc định | Ý nghĩa |
-|---|---|---|
-| `--doc <id\|path> [...]` / `--all-failed` | - | chọn doc để retry (không phải `failed` thì bỏ qua) |
-| `--from-stage` | stage lỗi đã lưu | `parse`/`describe`/`chunk`/`embed`; ép làm lại từ stage đó |
-| `--max-attempts` | `3` | chỉ retry doc có `attempts < N` |
-| `--yes` | hỏi xác nhận | bỏ qua xác nhận |
-| `--embed-server-url` / `--embed-batch-size` | - | override tối thiểu |
+| cấu hình | Hit@5 | text | table | image | MRR | p50 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `single` (baseline) | 19/28 | 10/10 | 5/9 | 4/9 | 0.6161 | 876 ms |
+| `quota` **không ngưỡng** `text=3,image=2` | **22/28** | 10/10 | **7/9** | 5/9 | 0.644 | 1345 ms |
+| `rrf` k=60 | 22/28 | 10/10 | 7/9 | 5/9 | 0.6131 | 1353 ms |
+| `calibrated` | 21/28 | 10/10 | 6/9 | 5/9 | 0.637 | 1353 ms |
+| `quota` **có ngưỡng** `text=3@0.45,image=2@0.40` | 21/28 | 10/10 | 6/9 | 5/9 | 0.6369 | 1353 ms |
+| … `calibrated`, tắt gate | 21/28 | 10/10 | 6/9 | 5/9 | 0.6339 | 1354 ms |
+| … `calibrated`, `image=30` | 21/28 | 10/10 | 6/9 | 5/9 | 0.6339 | 2048 ms |
+| … `calibrated`, `text=60` | 21/28 | 10/10 | 6/9 | 5/9 | 0.6458 | 1470 ms |
+| … `calibrated`, `text=40` | 20/28 | 10/10 | 5/9 | 5/9 | 0.6280 | 1187 ms |
+| … `calibrated`, bảng rerank text thuần | 18/28 | 10/10 | **3/9** | 5/9 | 0.5804 | 1249 ms |
+| … `calibrated`, tắt calibration | 18/28 | 10/10 | 7/9 | 1/9 | 0.5458 | 1341 ms |
 
-- Trước khi chạy, kiểm tra embed server (health + handshake); không với tới thì **dừng sớm** (không đánh fail từng doc).
-- Một doc lỗi không dừng cả lô; cuối lệnh in tổng kết thành công/thất bại/bỏ qua.
-- Lockfile `./.ami_rag_cli.lock` chống chạy hai `retry`/`reindex` cùng lúc trên một kho dữ liệu.
+> **Tính tất định**: chạy lại `single` + `calibrated` + `quota` + `rrf` hai lần cho **Hit@5 và
+> số hit theo modality giống hệt**, nhưng MRR dao động ±0.01 (reranker hơi không tất định nên
+> thứ tự *trong* top 5 đổi). Hãy tin Hit@5, đừng tin chênh lệch MRR dưới ~0.01.
 
-### `reindex` — xử lý lại thủ công (chunk → embed từ dữ liệu parse + mô tả modal đã lưu)
+Kết luận đo được:
 
-| Cờ | Mặc định | Ý nghĩa |
-|---|---|---|
-| `--stale` | **mặc định** | chỉ doc `stale` |
-| `--all` | - | mọi doc có bản ghi |
-| `--scan` | - | quét `organization_db.documents` active: tạo `pending` cho doc chưa có bản ghi, rồi xử lý pending + stale (dùng cho migration từ pipeline cũ — chỉ đọc Mongo, 0 LLM/0 embed) |
-| `--doc <id\|path> [...]` | - | doc cụ thể |
-| `--from-stage` | theo từng doc | `chunk` khi `content_list.json` đã có trong MinIO, full parse khi thiếu; giá trị explicit override tất cả |
-| `--dry-run` | - | in số doc, số chunk cần embed, số chunk trúng cache; không gọi embed, không ghi gì |
-| `--yes` | hỏi xác nhận | bỏ qua xác nhận |
-| `--embed-server-url` / `--embed-batch-size` | - | override tối thiểu |
+- **Bảng CẦN ảnh render trong rerank.** Đây là điểm đắt nhất và dễ sai nhất: rerank bảng thuần
+  text làm table tụt **6/9 → 3/9** (mất `table_01`, `table_03`), dù raw rerank xếp bảng rất tốt
+  (`table_01` rank 2, `table_03` rank 1 trong pool 60) — tức **calibrator hạ bảng**, không phải
+  reranker. Nguyên nhân hợp lý: calibrator cho modality `table` được fit trên bảng đã rerank kèm
+  ảnh, nên áp cho điểm bảng rerank text thuần là lệch phân phối. Bù lại chỉ tốn ~72 ms.
+  ⇒ Đừng tin rằng "bỏ ảnh khỏi rerank bảng là tiết kiệm miễn phí".
+- **Ép đa dạng modality thắng sort thuần.** `quota` không ngưỡng và `rrf` đều 22/28, hơn
+  `calibrated` 21/28 — cả hai đều **ép** slot cho modality yếu (`quota` reserve cứng, `rrf` với
+  pool rời nhau + weight bằng nhau là round-robin theo rank). Cả hai cùng thắp thêm `table_09`,
+  mà `calibrated` xếp nó dưới top 5. Nói cách khác: calibrated không sai, nhưng nó **xếp hạng
+  thuần theo điểm** nên modality yếu không bao giờ có mặt ở cuối trang.
+- **Ngưỡng của quota phá chính quota.** `quota` có ngưỡng rơi về đúng bằng `calibrated` (21/28):
+  slot dự phòng bị chặn khi ứng viên dưới ngưỡng, và ứng viên đó lại là ứng viên đúng.
+- **Calibration vẫn là tiên quyết**: tắt → 18/28, image 5/9 → 1/9 (dù table lên 7/9, tức ảnh mất
+  sạch vì điểm thô của text ~0.9 ≫ image ~0.14).
+- **Depth 50 là đủ.** `table_08` nằm ở vector rank 44 trong pool gộp; depth 60 không thêm hit nào
+  mà thêm ~120 ms. Cần depth sâu vì trong pool gộp, bảng phải cạnh tranh với text theo điểm vector
+  (`table_08` rank 43 trong pool table riêng → rank 44+ trong pool gộp). `image=30` cũng không
+  thêm hit mà tốn thêm ~700 ms.
+- **Cổng lọc ảnh không đổi kết quả** với `calibrated` (21/28 cả bật lẫn tắt). Lý do nằm ngay
+  trong định nghĩa: ảnh dưới đường cắt không thể thắng phép sort toàn cục, nên cổng chỉ **chặn
+  việc mang ảnh thừa vào context**, không đổi trang kết quả. Nó *có* đổi với `quota`: ảnh bị
+  lọc thì trả lại slot dự phòng cho pool khác. Đừng kỳ vọng nó nâng recall.
+- `rrf` với pool rời nhau + weight bằng nhau là round-robin theo rank ⇒ `k` không đổi thứ tự.
+- 7/9 case `xfail` vẫn hỏng vì **chunk đích không nằm trong pool**: `table_06/07` (vượt depth 280
+  trong pool gộp) và `image_overview_01`/`image_units_01` (vector rank 22/30, cần pool image ≥ 30
+  nhưng khi đó rerank rank 12/15 — vẫn không kịp vào top 5).
 
-- Trước khi embed, kiểm tra tương thích `embed_model`/`embed_dim`/`chunker_version` với collection đích (qua preflight `/info`).
-- Khoá bất đồng bộ: lệnh từ chối chạy nếu một `retry`/`reindex` khác đang giữ lockfile.
+#### So với thiết kế 3 pool (text / table / image)
 
-Mã thoát: `0` xong, `1` một số doc thất bại, `2` dừng sớm (preflight embed server, lockfile, validation).
+Cùng đạt 21–22/28, nhưng 2 nhánh **nhanh hơn 38%** (1345 ms vs 2178 ms) và chỉ còn 2 lệnh rerank thay
+vì 3: gộp bảng vào nhánh text nghĩa là pool sâu 50 doc chỉ rerank một lần thay vì hai lần.
 
-### `cleanup` — kiểm tra + xoá collection legacy của pipeline LightRAG cũ
+#### Trần recall (vector thuần, không rerank)
 
-Sau migration, các collection của LightRAG không còn được đọc/ghi nhưng vẫn chiếm chỗ. Lệnh dò và xoá chúng (`ami_rag/core/legacy_cleanup.py`):
+Đo bằng `scripts/probe_pool_recall.py`, kết quả lưu ở `tests/pool_recall_probe.json`.
 
-- **Mongo** (`RAG_DB`): mọi collection `{WORKSPACE}_*` trừ registry `RAG_DOCUMENTS_COLLECTION` — tức `multimodal_full_docs`, `multimodal_text_chunks`, `multimodal_llm_response_cache`, `multimodal_doc_status`, `multimodal_chunk_entity_relation`(+`_edges`), `multimodal_parse_cache`, ... Registry được giữ nguyên vì DocStatusStore còn đọc dòng legacy `processed` (như `stale`) để `reindex --scan`.
-- **Qdrant**: mọi collection `{WORKSPACE}_*` **một gạch** (`multimodal_chunks`, `multimodal_entities`, `multimodal_relationships`, ...). Các collection `{WORKSPACE}__*` (hai gạch — quy ước vector pipeline) mặc định luôn giữ; dùng `--stale-models` để dò + xoá các collection embed model/version **cũ** (không phải collection hiện tại) — ví dụ bản Qwen sau khi đổi sang Nemotron.
-- Collection ngoài tiền tố workspace (dịch vụ khác dùng chung Mongo/Qdrant) không bao giờ bị đụng.
+| modality | pool | @5 | @15 | @30 | @50 |
+| --- | --- | --- | --- | --- | --- |
+| text | 4862 | 9/10 | 10/10 | 10/10 | 10/10 |
+| table | 413 | 6/9 | 6/9 | 6/9 | 7/9 |
+| image | **70** | 4/9 | **7/9** | 9/9 | 9/9 |
 
-| Cờ | Ý nghĩa |
-|---|---|
-| `--dry-run` | chỉ liệt kê collection legacy kèm số document/points, không xoá |
-| `--yes` | bỏ qua xác nhận (mặc định hỏi trước khi xoá — không hoàn tác được) |
-| `--mongo-only` / `--qdrant-only` | giới hạn dò/xoá một loại DB |
-| `--stale-models` | xoá thêm collection Qdrant của embed model cũ: mọi `{WORKSPACE}__*` không phải `{WORKSPACE}__{embed_model_slug}__{CHUNKER_VERSION}` hiện tại |
-| `--purge-cache-model MODEL...` | xoá cache embedding SQLite của model (key bắt đầu `{MODEL}|`) — ví dụ `--purge-cache-model "Qwen/Qwen3-VL-Embedding-2B"` |
+Ba điều rút ra:
 
-Mã thoát: `0` xong (hoặc không có gì xoá), `1` một số collection xoá lỗi, `2` không kết nối được Mongo/Qdrant.
+- Collection chỉ có **70 chunk ảnh**, nên `image=15` đã lấy 21% cả pool và không thể mở rộng case ảnh.
+- `table_06` / `table_07` không tới được dù probe depth 50/413. Đã kiểm tra trực tiếp trong
+  collection: cả hai chunk tồn tại, đúng `modality=table`, đúng doc và page ⇒ là lỗi vector rank,
+  **không phải nhãn sai**. Lý do `xfail` ghi "low semantic alignment" là mô tả sai triệu chứng.
+- **Recall@15 ảnh = 7/9 nhưng end-to-end hit ảnh chỉ 5/9**: rerank *nâng* được target từ rank 6–15
+  lên top-5. Hai case hỏng là do rerank hạ chúng xuống, không phải thiếu pool — đó là lý do
+  `image=30` không thêm hit nào.
 
-Ví dụ:
+#### Chi phí ảnh thừa trên truy vấn thuần text
 
-```bash
-ami-rag cleanup --dry-run       # xem cái gì sẽ bị xoá
-ami-rag cleanup --yes           # xoá hết legacy (sau khi reindex --scan thành công)
-ami-rag cleanup --qdrant-only   # chỉ xoá collection Qdrant legacy
-# sau khi đổi EMBED_MODEL (ví dụ Qwen -> Nemotron) và retrieval trên index mới ổn:
-ami-rag cleanup --stale-models --purge-cache-model "Qwen/Qwen3-VL-Embedding-2B" --yes
-```
+10 truy vấn có đáp án ở chunk text, `quota text=3,image=2`, top_k=5:
 
-Lưu ý: MinIO `rag-assets/` không thuộc cleanup — assets/content_list.json vẫn dùng cho resume. Cache embedding key theo model nên tự vô hiệu khi đổi model, nhưng vẫn chiếm chỗ trên đĩa — dùng `--purge-cache-model` để xoá hẳn. Thư mục local `rag_storage/` của LightRAG cũ (nếu còn trên đĩa) xoá tay.
+| cổng lọc ảnh | query có ảnh | slot ảnh chiếm | mất chunk đúng **do** ảnh |
+| --- | --- | --- | --- |
+| **bật** (mặc định) | 1/10 | 2/50 = **4%** | 0 |
+| tắt | 10/10 | 20/50 = **40%** | 0 |
 
-### 7.1 Chạy CLI khi dùng Docker
+Quota reserve 2 slot ảnh cứng, nhưng cổng lọc loại ảnh dưới đường cắt nên slot dự phòng được trả lại
+cho pool text — đây là lý do cổng lọc đáng giữ, dù nó không nâng recall.
 
-`docker-compose.ami.yml` chỉ có hai service: `ami-rag-api` và `ami-rag-worker`. Không có service `ami-rag` riêng; `ami-rag` là lệnh bên trong image (entry point `ami_rag.cli:main`). Chạy lệnh trong container đang chạy, dùng cùng `.env` (Mongo, Redis, Qdrant, MinIO, embed server) với service:
+> Lưu ý: `text_07_thiet_ke_game` không có target trong top-5 **kể cả khi bỏ hết ảnh**. Không quy
+> được lỗi này cho việc chèn ảnh; nó là lỗi retrieval riêng.
 
-```bash
-# từ thư mục gốc repo; -T tắt TTY (cần khi pipe/tee/cron, vô hại khi chạy tay)
-docker compose -f docker-compose.ami.yml exec ami-rag-worker ami-rag status
-docker compose -f docker-compose.ami.yml exec ami-rag-worker ami-rag status --failed
-docker compose -f docker-compose.ami.yml exec ami-rag-worker ami-rag status --check-embed-server
-docker compose -f docker-compose.ami.yml exec ami-rag-worker ami-rag reindex --stale --dry-run
-docker compose -f docker-compose.ami.yml exec ami-rag-worker ami-rag reindex --all --yes
-docker compose -f docker-compose.ami.yml exec ami-rag-worker ami-rag retry --all-failed --yes
-```
+Bộ dữ liệu chấm tay nằm ở `tests/text_only_ab.json` (sinh bằng `scripts/export_text_only_ab.py`):
+mỗi truy vấn có 2 arm lấy từ cùng một lần retrieve, thứ tự arm đảo ngẫu nhiên, kèm rubric và
+prompt mẫu để đưa lên web LLM chấm mù.
 
-Rút gọn bằng Makefile (`make cli`, chạy `ami-rag <lệnh con>` trong `ami-rag-worker`):
+#### ⚠️ Lỗi dữ liệu: text trong bảng mất dấu tiếng Việt (lỗi MinerU)
 
-```bash
-make cli status
-make cli status --failed
-make cli -- reindex --stale --dry-run      # cờ dạng --xxx cần "--" để make không tự parse
-make cli -- reindex --all --yes
-make cli -- retry --all-failed --yes
-make cli CLI_SERVICE=ami-rag-api status    # đổi container
-```
+Toàn bộ 413 chunk `modality=table` mất ký tự dấu ở **cả** `table_body` và `content`:
 
-Chạy nền cho lượng dữ liệu lớn (`reindex --all` trên cả nghìn doc): thêm `BG=1`. Lệnh chạy detached trong container (`exec -d`), sống tiếp khi đóng terminal/SSH; log ghi vào `/app/output/cli/cli-<thời gian>.log` (volume `rag-output`, symlink `latest.log`), dòng cuối `# exit=<mã>`.
+| đúng | đã lưu |
+| --- | --- |
+| Tiếng Anh | Ting Anh |
+| Cấu trúc dữ liệu | Cu trúc d liu |
+| Kinh tế cơ sở | Tin hc cơ s |
+| Giải tích | Gii tích |
+| Quản trị giá | Quån tri giá |
 
-```bash
-make cli BG=1 -- reindex --all --yes    # in đường dẫn log, trả về ngay
-make cli-logs                               # tail -f log của lệnh nền gần nhất (Ctrl-C chỉ dừng tail)
-make cli-ps                                 # liệt kê mọi tiến trình `ami-rag <lệnh>` đang chạy (pid, thời gian)
-make cli-stop                               # dừng lệnh nền gần nhất (chỉ pid đó)
-make cli-stop PID=<pid>                     # dừng pid lấy từ cli-ps
-```
+Truy từng tầng trên PDF `Sổ tay sinh viên 2026` (266 trang):
 
-`cli-stop` chỉ kill đúng pid đã ghi, không đụng worker/API hay phiên `ami-rag` mở tay khác. Dừng giữa chừng an toàn vì `retry`/`reindex` idempotent (stage embed luôn `delete_by_doc` trước khi upsert). `retry`/`reindex` bị khoá bởi lockfile `./.ami_rag_cli.lock`, nên không chạy hai lệnh này song song được.
+| tầng | kết quả |
+| --- | --- |
+| PDF text layer (pypdfium2, độc lập) | **đúng dấu** |
+| `pdftext` 0.7.1 (tầng khai thác char của MinerU) | **đúng dấu** |
+| code chuyển đổi của ta | **vô tội** (không có `unicodedata`/strip dấu) |
+| MinerU `type=text` | **đúng dấu** |
+| MinerU `type=table` → `table_body` | **mất dấu** |
 
-Không có `--`, `make cli reindex --all` báo `unrecognized option '--all'` (lệnh con không cờ như `status` thì không cần). Target kiểm tra container đang chạy theo `docker compose exec`, nên cần `make start_docker` trước.
+⇒ Chỉ nhánh **nhận dạng bảng** của MinerU hỏng. Không phải lỗi PDF, cũng không phải lỗi service.
 
-Sai thường gặp: `docker compose exec ami-rag reindex --all` lỗi vì `ami-rag` là tên lệnh chứ không phải tên service. Đúng: `exec <service> ami-rag <lệnh con>`, với `<service>` là `ami-rag-worker` hoặc `ami-rag-api`.
+> **Cảnh báo**: `PARSE_TABLE=false` **không** phải cách sửa — đo A/B cùng trang cho thấy
+> `table_body` dài **0**, tức MinerU xoá sạch nội dung bảng. Bật thì mất dấu, tắt thì mất bảng.
 
-Chọn container:
+Biến `PARSE_TABLE` (mặc định `true`) tồn tại để hành vi này không còn ẩn trong mặc định MinerU;
+không được đổi sang `false` khi chưa có backend thay thế.
 
-| Lệnh | Nên chạy trong | Lý do |
-|---|---|---|
-| `status` | `ami-rag-worker` hoặc `ami-rag-api` | chỉ đọc Mongo; `--check-embed-server` cần `.env` trỏ đúng embed server |
-| `retry`, `reindex` | `ami-rag-worker` | chạy trực tiếp trong tiến trình CLI; cần tới embed server + Mongo của worker |
+#### Đã đo: chữ mất dấu KHÔNG giới hạn retrieval ⇒ không cần reindex
 
-Lưu ý:
-- Lệnh `exec` dài nên chạy nền, có log: `docker compose -f docker-compose.ami.yml exec -T ami-rag-worker ami-rag reindex --all --yes > reindex.log 2>&1 &`, rồi `tail -f reindex.log`. Hoặc dùng `tmux`/`screen`. Ngắt phiên SSH có thể làm dừng lệnh đang chạy ở foreground; chạy lại là an toàn (idempotent).
-- Container phải đang chạy. Nếu chưa: `make start_docker` (hoặc `docker compose -f docker-compose.ami.yml up -d`). Nếu cần chạy mà không dựa vào container sẵn có (không đụng worker):
-  `docker compose -f docker-compose.ami.yml run --rm --no-deps ami-rag-worker ami-rag status`
-  (`run` tạo container tạm cùng image/`.env`/volume, không publish cổng 9109; `--rm` xoá khi xong).
-- Image đang chạy phải có code CLI mới. Sau khi sửa `ami_rag/`, `docker compose -f docker-compose.ami.yml up -d --build` (lâu, xem mục 5) rồi mới chạy `retry`/`reindex`; image cũ báo `invalid choice` hoặc thiếu cờ mới.
-- Mã thoát của `exec` là mã thoát của lệnh trong container, nên `retry`/`reindex` (trả 1 khi còn doc thất bại) dùng được trong script/CI: `docker compose -f docker-compose.ami.yml exec -T ami-rag-worker ami-rag retry --all-failed --yes || echo "còn doc failed"`.
-- Ngoài Docker (máy dev, đã `uv sync`): `uv run ami-rag <lệnh con>` với cùng cờ; host trong `.env` phải truy cập được từ máy đó (tên container như `redis`, `mongo` chỉ phân giải trong `ami-network`; `EMBED_SERVER_URL` phải trỏ đúng địa chỉ embed server).
+Phép A/B embed lại 389 chunk bảng (có ảnh) theo 3 arm vào collection tạm
+(`scripts/probe_table_embedding.py`, kết quả `tests/table_embed_ab.json`):
 
-## 8. Runbook backfill dữ liệu cũ
+| arm | @5 | @15 | @30 | @50 | reachable | thời gian embed |
+| --- | --- | --- | --- | --- | --- | --- |
+| text+image (đang deploy) | 6 | 6 | 6 | 7 | 7 | 37.4s |
+| **image only** (bỏ chữ mất dấu) | 6 | 6 | 6 | 7 | 7 | 35.0s |
+| text only (không ảnh) | 6 | 7 | 8 | 8 | 8 | 6.0s |
 
-Các lệnh `ami-rag …` dưới đây viết ở dạng ngắn; khi chạy bằng Docker thêm tiền tố `docker compose -f docker-compose.ami.yml exec ami-rag-worker` (mục 7.1).
+Bỏ hẳn chữ mất dấu **không đổi một điểm nào**, và ảnh render đóng góp **0** cho embedding bảng
+trong khi làm chậm **6×**. Nghĩa là thiệt hại thật sự của chữ mất dấu nằm ở **context LLM đọc**,
+không phải ở retrieval — nên không đáng reindex toàn bộ corpus chỉ để sửa nó.
 
-Mục tiêu: nạp toàn bộ doc có sẵn trong `organization_db.documents` vào index mới (collection Qdrant `{WORKSPACE}__{embed_model_slug}__{CHUNKER_VERSION}`, registry `organization_db.multimodal_rag_documents`). Doc cũ của pipeline LightRAG (status `processed` trong registry cũ) được `reindex --scan` quét lại thành `pending` rồi xử lý theo pipeline mới: parse → describe → chunk → embed. Doc cũ chỉ có text/bảng đơn giản trong Mongo vẫn được parse lại từ file MinIO (nếu `original_file_name` không rỗng/`.txt`); text Mongo của pdf/docx **không** được dùng.
-
-1. Chuẩn bị: `.env` đúng, embed server máy B chạy (`ami-rag status --check-embed-server` OK), worker chạy (`make start_docker` hoặc `make start_worker`), `make health` OK, queue pending 0. Worker cần MinerU + model cache sẵn (xem mục 5).
-2. Quét doc cũ chưa có bản ghi: `ami-rag reindex --scan --dry-run` — in số pending/stale sẽ xử lý.
-3. Dry-run toàn bộ, kiểm tra cột `source` (`mongo_text`/`minio_parse`) hợp lý và số chunk trúng cache:
-   `ami-rag reindex --all --dry-run`
-4. Thử text/crawl nhỏ (nhanh, không cần MinerU):
-   `ami-rag reindex --doc <id> --yes` với vài doc text trước.
-5. Thử file thật (MinerU, chậm): `ami-rag reindex --doc <id> --from-stage parse --yes`. Kiểm tra `GET /admin/documents/{id}` (`counts` có `table`/`image`), `GET /admin/documents/{id}/content`, và một truy vấn `POST /v2/rag/`.
-6. Chạy toàn bộ: `ami-rag reindex --all --yes` (hoặc `--scan --yes` để quét + xử lý). Trước đó kiểm tra embed server sẵn sàng bằng `ami-rag status --check-embed-server`, vì embed server chết thì mọi doc ở stage `embed` sẽ thành `failed`.
-7. Theo dõi:
-    - `ami-rag status` (đếm theo status, doc failed, doc treo); queue pending xem qua metric/admin API;
-   - `curl -s localhost:8009/admin/pipeline_status` (thêm header `Authorization: Bearer ...` nếu có `RAG_API_KEY`);
-   - metric worker `:9109/metrics`: `multimodal_rag_ingest_events_total{result}`, `..._stream_pending`, `..._stream_lag`, `..._documents{status}` (đếm theo `status` trong `organization_db.multimodal_rag_documents`), `..._parse_failures_total`; dashboard row "Ingest pipeline".
-   - `make logs SERVICE=ami-rag-worker`.
-8. Xử lý lỗi:
-    - doc `failed`: `ami-rag retry --all-failed` (hoặc `ami-rag retry --doc <id>`);
-    - nạp lại khi đổi model/chunker: `ami-rag reindex --stale` (doc được đánh `stale` tự động khi lệch `embed_model`/`chunker_version`);
-    - ép làm lại toàn bộ từ parse: `ami-rag retry --doc <id> --from-stage parse`;
-    - doc không cần nữa: xoá qua event `deleted` trong queue hoặc xoá dòng registry + asset thủ công (CLI không còn lệnh purge).
-9. Kiểm tra index: `ami-rag status` (đếm theo status/stage; `--check-embed-server` khi nghi ngờ máy B). Doc lỗi nằm ở `failed` với lý do trong `error` + `error_stage`.
-10. Hoàn tất khi không còn `processing`/`failed`/`pending` trong `ami-rag status`, số doc `indexed` xấp xỉ số doc active.
-11. Dọn collection legacy của LightRAG: `ami-rag cleanup --dry-run` rồi `ami-rag cleanup --yes` (xem mục 7 `cleanup`). Chỉ chạy sau khi đã xác nhận retrieval trên index mới hoạt động tốt.
-
-## 9. Monitoring
-
-Chi tiết triển khai: [`monitoring/README.md`](../monitoring/README.md).
-
-Tracing (OTLP/HTTP): chỉ truy vấn `POST /v2/rag` được trace — span `rag.retrieval` (input: attribute `input.query`/`input.mode`/`input.top_k`; output: danh sách document đầy đủ trong event `documents_json`) cùng span con theo stage (`embed_query`/`vector_search`/`rerank`). Worker không trace (ingest chỉ có metric Prometheus) và FastAPI telemetry tự động bị tắt (`FastAPI(telemetry={"auto_configure": False, ...})` trong `ami_rag/api/main.py`), nếu không FastAPI ≥ 0.142 đọc `OTEL_EXPORTER_OTLP_ENDPOINT` rồi trace mọi route và đẩy metrics/logs tới `/v1/metrics`, `/v1/logs` (Tempo trả `404`: log `Failed to export metrics batch code: 404`). Tempo dùng riêng cho service này: release helm `tempo-multimodal-rag` (`monitoring/helm/tempo-multimodal-rag-values.yaml`, chart `grafana/tempo` 1.24.4, tách khỏi Tempo của conversational-agent); datasource Grafana uid `multimodal_rag_log` nạp qua sidecar bằng ConfigMap `monitoring/helm/grafana-datasource-tempo-multimodal-rag.yaml`; URL Grafana `http://tempo-multimodal-rag.monitoring.svc.cluster.local:3200`; `OTEL_EXPORTER_OTLP_ENDPOINT` trỏ tới NodePort OTLP/HTTP 4318 của service (`kubectl get svc tempo-multimodal-rag -n monitoring`).
-
-Metric API (`GET :8009/metrics`, prefix `multimodal_rag_retrieval_`):
-
-| Metric | Loại | Label |
-|---|---|---|
-| `requests_total`, `errors_total` | Counter | `mode` (`vector`) |
-| `requests_by_day_total` / `_by_hour_of_day_total` / `_by_day_hour_total` | Counter | `day` / `hod` / `day,hod` (Asia/Ho_Chi_Minh) |
-| `duration_seconds` | Histogram | `mode` |
-| `stage_duration_seconds` | Histogram | `stage` = `embed_query` / `vector_search` / `rerank` |
-| `docs_returned`, `chunks_retrieved` | Histogram | |
-| `requests_in_flight` | Gauge | |
-| `presign_failures_total` | Counter | |
-| `rerank_fallback_total` | Counter | `reason` = `error` / `empty` |
-| `docs_by_modality_total` | Counter | `modality` |
-
-Metric worker (`:9109/metrics` của `ami-rag-worker`; khi `WORKER_ENABLED=true` chúng nằm chung `/metrics` của API), prefix `multimodal_rag_ingest_`:
-
-| Metric | Loại | Label |
-|---|---|---|
-| `events_total` | Counter | `event` (created/updated/deleted), `result` (indexed/skipped/failed/retry) |
-| `in_flight` | Gauge | |
-| `duration_seconds` | Histogram | `source` (minio_parse/mongo_text/none) |
-| `stage_duration_seconds` | Histogram | `stage` (đường delete của worker; các stage pipeline tính trong `multimodal_rag_retrieval_*` và log) |
-| `parse_failures_total` | Counter | `document_type` |
-| `asset_upload_failures_total`, `pages_total` | Counter | |
-| `items_total` | Counter | `modality` |
-| `stream_pending`, `stream_lag` | Gauge | |
-| `documents` | Gauge | `status` (đọc từ `multimodal_rag_documents`) |
-
-Scrape và dashboard:
-- Service Docker trên host: điền `__NODE_IP__` trong `monitoring/k8s/multimodal-rag-retrieval-metrics-scrape.yaml` rồi `make metrics-scrape-apply`. Service trong k8s: `monitoring/helm/servicemonitor.yaml`. Cả hai có 2 endpoint: `metrics` (8009) và `worker-metrics` (9109).
-- `monitoring/helm/prometheusrule.yaml` (PrometheusRule `multimodal-rag-retrieval`): `RagIngestBacklogHigh` (pending+lag > 50 trong 15 phút), `RagIngestFailures` (> 5 event failed/30 phút), `RagIngestParseFailures` (> 3 parse lỗi/30 phút), `RagIngestWorkerDown` (target `worker-metrics` không UP 5 phút, critical), `RagRetrievalErrorRate` (> 5%), `RagRerankFallback` (> 20%), `RagPresignFailures` (> 10/15 phút), `RagMetricsDown` (target `metrics` không UP 5 phút, critical).
-- Dashboard `monitoring/dashboards/multimodal-rag-retrieval-dashboard.json`: thêm row "Multimodal retrieval" (docs theo modality, presign failures) và "Ingest pipeline" (stream pending/lag, in-flight, events theo kết quả, duration, stage time, documents theo status, parse failures, items theo modality).
-- Lệnh: `make dashboard-apply` (ConfigMap + ServiceMonitor + PrometheusRule, namespace `monitoring`), `make metrics-scrape-apply`, `make health`.
-
-## 10. Tests
-
-Hai bộ chạy riêng:
-
-```bash
-uv run pytest tests --ignore=tests/ami_service     # test gốc RAG-Anything
-uv run pytest tests/ami_service                    # test của ami_rag (hoặc: make test)
-```
-
-Toàn bộ test dùng fake (không cần dịch vụ ngoài, không cần lightrag — đã gỡ). Suite `tests/ami_service` gồm: API/worker/CLI/pipeline (`test_api.py`, `test_worker.py`, `test_cli.py`, `test_vector_pipeline.py`, `test_doc_status_store.py`) với fake embedder/vector store/parser; observability và stream tests. Test gốc (`tests/*.py`) kiểm tra parser, modal processors, prompt, batch_parser của thư viện.
-
-## 11. Phiên bản
-
-`pyproject.toml` không còn `lightrag-hku` — LightRAG đã gỡ hoàn toàn khỏi dependency. Extra `service` thêm FastAPI, uvicorn, pydantic-settings, redis, pymongo, qdrant-client, httpx, minio, prometheus-client, OpenTelemetry, openai. Embedding service nằm ở repo ngoài `qwen-embedding-server` (máy B, port 8007), máy A không cài torch/transformers. Entry point: `ami-rag-api`, `ami-rag-worker`, `ami-rag`.
-
-`mineru[core]>=3.4.1,<4`: MinerU 4.x đổi CLI (`mineru parse <path>`, `-p` = pages) nên không tương thích với lệnh `mineru -p <file> -o <dir> -m ...` mà `raganything/parser.py` gọi; bắt buộc ghim `<4`. MinerU 3.4.x mặc định backend `hybrid-engine` (nặng VRAM) khi không truyền `-b`, và chọn thiết bị bằng biến môi trường `MINERU_DEVICE_MODE` (không có cờ `-d`); `MINERU_VIRTUAL_VRAM_SIZE` (GB) buộc MinerU chọn batch size như thể GPU có chừng đó VRAM.
-
-Chunk multimodal: parse-only (`raganything/processor.py`) + mô tả modal (`generate_description_only`/`generate_chunk_sections`); metadata có cấu trúc (`original_type`, `page_idx`, `asset_key`, `table_body`, `caption`) đi thẳng vào chunk payload để API trả về client.
+Hệ quả cho retrieval: đây là lý do thật sự khiến bảng chỉ dùng được qua ảnh render. Ảnh render là
+kênh sạch duy nhất còn lại cho bảng, không phải một lựa chọn tối ưu hoá.

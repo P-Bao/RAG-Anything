@@ -83,3 +83,7 @@ CLAUDE.md
 # AMI service: tracked despite the generic ignores above
 !.env.ami.example
 !tests/**/test_*.py
+# Dữ liệu đo/bộ case đặt trong tests/ cũng phải được track (rule `test_*` ở trên
+# chỉ dành cho file test ở gốc repo; nó nuốt mất các file .json/.md trong tests/).
+!tests/*.json
+!tests/*.md

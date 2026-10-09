@@ -3285,6 +3285,7 @@ data:
     }
 kind: ConfigMap
 metadata:
+  creationTimestamp: null
   labels:
     grafana_dashboard: "1"
   name: multimodal-rag-retrieval-dashboard

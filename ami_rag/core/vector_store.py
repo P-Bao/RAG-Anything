@@ -54,7 +54,14 @@ class SearchHit:
 class VectorStore(Protocol):
     async def ensure_collection(self, name: str, dim: int) -> None: ...
     async def upsert(self, collection: str, chunks: list[ChunkRecord]) -> None: ...
-    async def search(self, collection: str, vector: list[float], top_k: int) -> list[SearchHit]: ...
+    async def search(
+        self,
+        collection: str,
+        vector: list[float],
+        top_k: int,
+        query_filter: object | None = None,
+        search_params: object | None = None,
+    ) -> list[SearchHit]: ...
     async def delete_by_doc(self, collection: str, doc_id: str) -> int: ...
     async def count(self, collection: str, doc_id: str | None = None) -> int: ...
 
@@ -174,12 +181,24 @@ class QdrantVectorStore:
             batches.append(current)
         return batches
 
-    async def search(self, collection: str, vector: list[float], top_k: int) -> list[SearchHit]:
+    async def search(
+        self,
+        collection: str,
+        vector: list[float],
+        top_k: int,
+        query_filter: object | None = None,
+        search_params: object | None = None,
+    ) -> list[SearchHit]:
+        from qdrant_client.http import models
+
+        params = search_params or models.SearchParams(hnsw_ef=256)
         results = await asyncio.to_thread(
             self._client.query_points,
             collection_name=collection,
             query=vector,
             limit=top_k,
+            query_filter=query_filter,
+            search_params=params,
             with_payload=True,
         )
         return [
