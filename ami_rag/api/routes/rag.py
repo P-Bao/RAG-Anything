@@ -86,35 +86,65 @@ def _last_user_message(payload: RAGRequest) -> str:
     return payload.messages[-1].content
 
 
-async def _rerank_chunks(rerank_func, query: str, chunks: list[dict], top_n: int, asset_store=None):
+async def _rerank_chunks(
+    rerank_func, query: str, chunks: list[dict], top_n: int, asset_store=None
+) -> tuple[list[tuple[dict, float | None]], str]:
+    """Rerank candidates. Trả ([(chunk, raw_score)], fusion) với fusion đã dùng.
+
+    Fusion "rrf" (chỉ backend vllm): xin full scores (top_n = toàn bộ documents,
+    gateway chấm điểm mọi documents rồi mới cắt) rồi so hạng nội bộ 2 nhóm
+    modality (image vs phần còn lại) qua ``fuse_modality_scores`` - điểm
+    cross-encoder không so sánh được giữa image (thấp) và text (cao).
+    """
     if not chunks:
-        return []
+        return [], "empty"
     settings = get_settings()
-    from ami_rag.core.rerank_client import build_rerank_documents
+    from ami_rag.core.rerank_client import (
+        build_rerank_documents,
+        fuse_modality_scores,
+        resolve_rerank_fusion,
+    )
     from ami_rag.settings import resolve_rerank_backend
 
     # Multimodal chỉ với backend vllm (legacy BGE chỉ nhận documents text)
-    multimodal = (
-        getattr(settings, "RERANK_MULTIMODAL", True)
-        and resolve_rerank_backend(settings) == "vllm"
-    )
+    backend = resolve_rerank_backend(settings)
+    multimodal = getattr(settings, "RERANK_MULTIMODAL", True) and backend == "vllm"
     documents = await build_rerank_documents(chunks, asset_store, multimodal=multimodal)
     reason = "empty"
+    # Fusion rrf cần full scores (legacy BGE chỉ trả top_k -> luôn "raw")
+    fusion = backend == "vllm" and resolve_rerank_fusion(settings) == "rrf"
     try:
         with observe_stage("rerank"):
-            results = await rerank_func(query=query, documents=documents, top_n=top_n)
+            results = await rerank_func(
+                query=query,
+                documents=documents,
+                top_n=len(documents) if fusion else top_n,
+            )
         scored = []
         for result in results or []:
             idx = result.get("index")
             if isinstance(idx, int) and 0 <= idx < len(chunks):
                 scored.append((chunks[idx], result.get("relevance_score")))
+        if fusion and scored:
+            fused = fuse_modality_scores(
+                results,
+                chunks,
+                rrf_k=settings.RERANK_RRF_K,
+                visual_weight=settings.RERANK_VISUAL_WEIGHT,
+                visual_floor=settings.RERANK_VISUAL_FLOOR,
+                text_floor=settings.RERANK_TEXT_FLOOR,
+            )
+            return (
+                [(chunks[f["index"]], f["relevance_score"]) for f in fused][:top_n],
+                "rrf",
+            )
         if scored:
-            return scored
+            return scored, "raw"
     except Exception as exc:
         reason = "error"
         logger.warning("rerank service failed, falling back to unscored chunks: %s", exc)
     RERANK_FALLBACK_TOTAL.labels(reason=reason).inc()
-    return [(chunk, None) for chunk in chunks[:top_n]]
+    return [(chunk, None) for chunk in chunks[:top_n]], "raw"
 
 
 async def _presign_asset(asset_store, asset_key: str | None) -> str | None:
@@ -212,7 +242,8 @@ async def _run_search(
     chunks = [hit.payload for hit in hits]
     CHUNKS_RETRIEVED.observe(len(chunks))
     candidates = len(chunks)
-    scored = (await _rerank_chunks(rerank_func, query, chunks, top_k, asset_store))[:top_k]
+    scored, fusion_used = await _rerank_chunks(rerank_func, query, chunks, top_k, asset_store)
+    scored = scored[:top_k]
     documents = await _build_documents(scored, resolver, asset_store)
     references = []
     if payload.include_references:
@@ -231,6 +262,7 @@ async def _run_search(
             "requested_top_k": top_k,
             "returned": len(documents),
             "candidates": candidates,
+            "fusion": fusion_used,
         },
     ).model_dump()
 

@@ -159,6 +159,108 @@ async def test_rerank_failure_degrades_to_unscored_chunks(client, app):
     assert all(d["score"] is None for d in docs)
 
 
+class _IndexedRerank:
+    """Rerank giả: trả điểm theo index cố định (không phụ thuộc top_n)."""
+
+    def __init__(self, scores: dict[int, float], fail=False):
+        self.scores = scores
+        self.fail = fail
+        self.calls: list[int | None] = []
+
+    async def __call__(self, query, documents, top_n=None, **kwargs):
+        self.calls.append(top_n)
+        if self.fail:
+            raise ConnectionError("rerank down")
+        limit = top_n if top_n is not None else len(documents)
+        return [
+            {"index": i, "relevance_score": s}
+            for i, s in sorted(self.scores.items())[:limit]
+        ]
+
+
+_FUSION_POINTS = {
+    "chunk-f1": {
+        "doc_id": "64b000000000000000000001",
+        "content": "text 1",
+        "modality": "text",
+        "chunk_id": "chunk-f1",
+    },
+    "chunk-f2": {
+        "doc_id": "64b000000000000000000001",
+        "content": "text 2",
+        "modality": "text",
+        "chunk_id": "chunk-f2",
+    },
+    "chunk-f3": {
+        "doc_id": "64b000000000000000000001",
+        "content": "[Image Content]\nmô tả image",
+        "modality": "image",
+        "chunk_id": "chunk-f3",
+        "asset_key": "rag-assets/64b000000000000000000001/img1.png",
+    },
+    "chunk-f4": {
+        "doc_id": "64b000000000000000000001",
+        "content": "[Table Content]\nCaption: bảng",
+        "modality": "table",
+        "chunk_id": "chunk-f4",
+    },
+    "chunk-f5": {
+        "doc_id": "64b000000000000000000001",
+        "content": "text 3",
+        "modality": "text",
+        "chunk_id": "chunk-f5",
+    },
+    "chunk-f6": {
+        "doc_id": "64b000000000000000000001",
+        "content": "[Image Content]\nmô tả image 2",
+        "modality": "image",
+        "chunk_id": "chunk-f6",
+        "asset_key": "rag-assets/64b000000000000000000001/img2.png",
+    },
+}
+
+# index theo thứ tự search trả về (thứ tự insert): 0,1=text, 2=image,
+# 3=table (cùng nhóm text), 4=text, 5=image
+# text: idx0 r1, idx1 r2, idx3 r3, idx4 r4; visual: idx2 r1, idx5 r2
+_FUSION_SCORES = {0: 0.9, 1: 0.8, 2: 0.14, 3: 0.7, 4: 0.6, 5: 0.13}
+
+
+async def test_fusion_rrf_promotes_image_over_text(client, app, fake_pipeline, monkeypatch):
+    monkeypatch.setattr(get_settings(), "RERANK_FUSION", "rrf")
+    fake_pipeline.vector_store.points = dict(_FUSION_POINTS)
+    rerank_fake = _IndexedRerank(_FUSION_SCORES)
+    app.dependency_overrides[rag_routes.get_rerank_func] = lambda: rerank_fake
+
+    resp = await client.post("/v2/rag/", json={**BODY, "top_k": 6})
+    body = resp.json()
+    assert body["meta"]["fusion"] == "rrf"
+    # fusion xin full scores (top_n = 6 documents)
+    assert rerank_fake.calls == [6]
+
+    docs = body["documents"]
+    # image raw 0.14 (hạng 1 nhóm visual, 0.8/11) vượt text raw 0.6 (hạng 4, 1/14)
+    assert docs[3]["modality"] == "image"
+    assert docs[3]["score"] == pytest.approx(0.14)
+    assert docs[4]["score"] == pytest.approx(0.6)
+    # score vẫn là raw -> KHÔNG sort desc theo score
+    raw_scores = [d["score"] for d in docs]
+    assert raw_scores != sorted(raw_scores, reverse=True)
+
+
+async def test_fusion_meta_default_raw(client):
+    resp = await client.post("/v2/rag/", json=BODY)
+    assert resp.json()["meta"]["fusion"] == "raw"
+
+
+async def test_fusion_rrf_failure_falls_back_to_raw(client, app, monkeypatch):
+    monkeypatch.setattr(get_settings(), "RERANK_FUSION", "rrf")
+    app.dependency_overrides[rag_routes.get_rerank_func] = lambda: _IndexedRerank({}, fail=True)
+    resp = await client.post("/v2/rag/", json=BODY)
+    body = resp.json()
+    assert body["meta"]["fusion"] == "raw"
+    assert all(d["score"] is None for d in body["documents"])
+
+
 async def test_auth_required_when_key_configured(client, monkeypatch):
     monkeypatch.setattr(get_settings(), "RAG_API_KEY", "secret-key")
     resp = await client.post("/v2/rag/", json=BODY)
