@@ -59,6 +59,9 @@ service = [
     "opentelemetry-sdk>=1.28.0",
     "opentelemetry-exporter-otlp-proto-http>=1.28.0",
     "openai>=2.0",
+    "pdfplumber>=0.11",
+    "pymupdf>=1.24",
+    "python-docx>=1.1",
 ]
 all = [
     "Pillow>=10.0.0",
@@ -130,6 +133,8 @@ target-version = "py310"
 "ami_rag/storage/**" = ["BLE001"]
 "ami_rag/core/**" = ["BLE001", "S110"]
 "tests/ami_service/**" = ["BLE001", "TRY002", "PERF102"]
+# backend_data_extract: fallback có chủ ý khi OCR service/file lỗi (giữ MinerU output)
+"raganything/backend_data_extract.py" = ["BLE001"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

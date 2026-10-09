@@ -9,6 +9,7 @@ from ami_rag.core.vector_pipeline import (
 )
 from ami_rag.settings import Settings
 from ami_rag.storage.doc_status import STATUS_INDEXED
+from raganything.backend_data_extract import BackendDataParseError
 from tests.ami_service.conftest import FakeEmbedder, FakeParser, FakeVectorStore
 
 TEXT_ID = "64b000000000000000000005"
@@ -30,6 +31,7 @@ def pipeline(
         PARSER="mineru",
         PARSE_METHOD="auto",
         MINERU_BACKEND="pipeline",
+        PARSE_TEXT_SOURCE="mineru",
     )
     return VectorPipeline(
         settings,
@@ -325,6 +327,94 @@ def test_build_chunks_with_duplicate_content_assigns_unique_ids(pipeline):
     assert len(chunks) == 4
     ids = [c.id for c in chunks]
     assert len(set(ids)) == 4
+
+
+async def test_stage_parse_backend_data_rebuild(
+    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store, fake_docs_repo, monkeypatch
+):
+    settings = Settings(
+        _env_file=None,
+        WORKSPACE="test",
+        EMBED_MODEL="Qwen/Qwen3-VL-Embedding-2B",
+        EMBED_DIM=8,
+        CHUNKER_VERSION="v1",
+        PARSER="mineru",
+        PARSE_TEXT_SOURCE="backend_data",
+    )
+    pipeline = VectorPipeline(
+        settings,
+        embedder=fake_embedder,
+        vector_store=fake_vector_store,
+        asset_store=fake_asset_store,
+        store=fake_status_store,
+        docs_repo=fake_docs_repo,
+        parser=FakeParser(),
+    )
+
+    rebuilt_list = [
+        {"type": "text", "text": "text backend_data", "page_idx": 0},
+        {"type": "table", "table_body": "<table/>", "page_idx": 0},
+        {"type": "image", "img_path": "kept.png", "page_idx": 1},
+    ]
+    calls = {"rebuild": 0}
+
+    async def fake_rebuild(content_list, file_path, extractor):
+        calls["rebuild"] += 1
+        return [dict(i) for i in rebuilt_list]
+
+    import raganything.backend_data_extract as bde
+
+    monkeypatch.setattr(bde, "rebuild_content_list", fake_rebuild)
+
+    fake_status_store.ensure_pending(PDF_ID)
+    outcome = await pipeline.run(PDF_ID)
+
+    assert outcome.ok and outcome.stage == "indexed"
+    assert calls["rebuild"] == 1
+    saved = fake_asset_store.load_content_list(PDF_ID)
+    assert [{k: v for k, v in i.items() if k != "asset_key"} for i in saved] == rebuilt_list
+    # asset chỉ upload cho ảnh (text/table MinerU đã bị thay)
+    assert fake_asset_store.calls.count(("upload_assets", PDF_ID)) == 1
+    assert saved[2]["asset_key"] == f"rag-assets/{PDF_ID}/img2.png"
+
+
+async def test_stage_parse_backend_data_failure_falls_back_to_mineru(
+    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store, fake_docs_repo, monkeypatch
+):
+    settings = Settings(
+        _env_file=None,
+        WORKSPACE="test",
+        EMBED_MODEL="Qwen/Qwen3-VL-Embedding-2B",
+        EMBED_DIM=8,
+        CHUNKER_VERSION="v1",
+        PARSER="mineru",
+        PARSE_TEXT_SOURCE="backend_data",
+    )
+    pipeline = VectorPipeline(
+        settings,
+        embedder=fake_embedder,
+        vector_store=fake_vector_store,
+        asset_store=fake_asset_store,
+        store=fake_status_store,
+        docs_repo=fake_docs_repo,
+        parser=FakeParser(),
+    )
+
+    async def boom(content_list, file_path, extractor):
+        raise BackendDataParseError("ocr down")
+
+    import raganything.backend_data_extract as bde
+
+    monkeypatch.setattr(bde, "rebuild_content_list", boom)
+
+    fake_status_store.ensure_pending(PDF_ID)
+    outcome = await pipeline.run(PDF_ID)
+
+    assert outcome.ok and outcome.stage == "indexed"
+    saved = fake_asset_store.load_content_list(PDF_ID)
+    # fallback: giữ nguyên MinerU content_list
+    assert any(i["type"] == "text" and i["text"] == "Giới thiệu" for i in saved)
+    assert any(i["type"] == "table" for i in saved)
 
 
 async def test_prepare_embed_items_attaches_image_b64(pipeline, fake_embedder):

@@ -60,6 +60,17 @@ class Settings(BaseSettings):
     PARSE_METHOD: str = "auto"
     PARSER_OUTPUT_DIR: str = "./output"
 
+    # Nguồn text/table cho PDF/DOCX khi parse: "backend_data" = pdfplumber/fitz +
+    # OCR endpoint (hierarchy-parse) + bảng Qwen endpoint (phong cách
+    # documents-management/backend_data), ảnh vẫn lấy từ MinerU; "mineru" =
+    # giữ nguyên text/table của MinerU (hành vi cũ).
+    PARSE_TEXT_SOURCE: str = "backend_data"
+    # External OCR service (text hierarchy-parse + table qwen)
+    OCR_SERVICE_URL: str = "http://171.226.10.153:12006"
+    OCR_SERVICE_TIMEOUT: int = 300
+    OCR_TABLE_ENDPOINT: str = "/api/v1/raw_miner_ocr/qwen"
+    OCR_TEXT_ENDPOINT: str = "/api/v1/hierarchy-parse"
+
     # MinerU (only used when PARSER=mineru). Measured on Colab T4, 10-page PDF: `pipeline` peaks at
     # ~1.8 GiB with auto VRAM (1.1 GiB at MINERU_VIRTUAL_VRAM_SIZE=4, 3.3 GiB at 16) in ~50 s;
     # `hybrid-engine` (MinerU 3.4.x default when -b is omitted) peaks at ~14.5 GiB in ~286 s,

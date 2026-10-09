@@ -250,6 +250,7 @@ class VectorPipeline(PipelineRunner):
         self.docs_repo = docs_repo
         self.parser = parser
         self.modal_processors = modal_processors or {}
+        self._bd_extractor = None
         self.collection = collection_name(
             settings.WORKSPACE, settings.EMBED_MODEL, settings.CHUNKER_VERSION
         )
@@ -308,6 +309,13 @@ class VectorPipeline(PipelineRunner):
                     tmp_dir,
                     **parser_kwargs(self.settings),
                 )
+                if (
+                    self.settings.PARSER == "mineru"
+                    and getattr(self.settings, "PARSE_TEXT_SOURCE", "mineru") == "backend_data"
+                ):
+                    content_list = await self._rebuild_backend_data(
+                        doc_id, content_list, local
+                    )
                 assets = await asyncio.to_thread(
                     self.asset_store.upload_content_list_assets, doc_id, content_list
                 )
@@ -336,6 +344,42 @@ class VectorPipeline(PipelineRunner):
             owner_id=doc.get("owner_id"),
         )
         return IntermediateDoc(doc_id=doc_id, content_list=content_list, file_path=file_path)
+
+    def _get_bd_extractor(self):
+        from raganything.backend_data_extract import create_extractor
+
+        if self._bd_extractor is None:
+            self._bd_extractor = create_extractor(self.settings)
+        return self._bd_extractor
+
+    async def _rebuild_backend_data(
+        self, doc_id: str, content_list: list[dict], local: Path
+    ) -> list[dict]:
+        """Thay text/table của MinerU bằng pdfplumber/fitz + OCR endpoint + bảng
+        Qwen endpoint (phong cách backend_data); ảnh MinerU giữ nguyên.
+        Thất bại -> fallback MinerU content_list."""
+        from raganything.backend_data_extract import rebuild_content_list
+
+        try:
+            rebuilt = await rebuild_content_list(
+                content_list, local, self._get_bd_extractor()
+            )
+        except Exception as exc:
+            logger.warning(
+                "backend_data text/table parse doc=%s lỗi, giữ MinerU content_list: %s",
+                doc_id,
+                exc,
+            )
+            return content_list
+        if rebuilt is None:
+            return content_list
+        logger.info(
+            "backend_data parse doc=%s: %d items (MinerU) -> %d items (text/table backend_data + ảnh MinerU)",
+            doc_id,
+            len(content_list),
+            len(rebuilt),
+        )
+        return rebuilt
 
     # ------------------------------------------------------------------
     # Stage: describe (LLM – duy nhất chỗ mô tả modal)

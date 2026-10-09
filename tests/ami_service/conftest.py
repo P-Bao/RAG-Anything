@@ -347,6 +347,7 @@ def fake_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_statu
         PARSER="mineru",
         PARSE_METHOD="auto",
         MINERU_BACKEND="pipeline",
+        PARSE_TEXT_SOURCE="mineru",
     )
     return VectorPipeline(
         settings,
