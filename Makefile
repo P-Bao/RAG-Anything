@@ -91,7 +91,7 @@ start_docker: network
 # Rebuild va khoi dong lai tu trang thai compose sach.
 restart: network
 	docker compose -f $(COMPOSE_FILE) down --remove-orphans
-	docker compose -f $(COMPOSE_FILE) up --build -d
+	docker compose -f $(COMPOSE_FILE) up -d
 
 # Dung container va xoa orphans.
 down:
