@@ -1,0 +1,6587 @@
+{
+ "S1": [
+  {
+   "key": "32|386|1",
+   "page": 32,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "HAI học phần",
+   "src": 0,
+   "sim": 0.4828,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "TCHọc kỳ",
+    ""
+   ],
+   "layer": "HAI học phần Số TCHọc",
+   "words": ""
+  },
+  {
+   "key": "103|891|3",
+   "page": 103,
+   "cell_index": 3,
+   "ocr": "Hc k",
+   "match": "Học kỳ",
+   "src": 0,
+   "sim": 0.8,
+   "category": "replaced",
+   "context": [
+    "Tên môn học/học phần",
+    "Số TC",
+    "1",
+    "Lịch sử Đảng cộng sản VN"
+   ],
+   "layer": "Học kỳ",
+   "words": ""
+  },
+  {
+   "key": "73|670|7",
+   "page": 73,
+   "cell_index": 7,
+   "ocr": "Thit k và hiu năngmng",
+   "match": "Thiết kế và hiệu năng mạng",
+   "src": 0,
+   "sim": 0.8936,
+   "category": "replaced",
+   "context": [
+    "3",
+    "3",
+    "3"
+   ],
+   "layer": "yg Thiết kế và hiệu năng mạng",
+   "words": ""
+  },
+  {
+   "key": "89|782|39",
+   "page": 89,
+   "cell_index": 39,
+   "ocr": "Lênin",
+   "match": "Mác\u0002Lênin",
+   "src": 0,
+   "sim": 0.7143,
+   "category": "replaced",
+   "context": [
+    "HK2",
+    "7",
+    "2",
+    "HK2"
+   ],
+   "layer": "Kinh tế chính trị Mác\u0002Lênin",
+   "words": ""
+  },
+  {
+   "key": "58|559|25",
+   "page": 58,
+   "cell_index": 25,
+   "ocr": "Các hc phn t chn Lch s Đng Cng sn Vit",
+   "match": "Các học phần tự chọn Lịh ử ĐảCộảVi",
+   "src": 0,
+   "sim": 0.7042,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "6",
+    "5",
+    "HK7"
+   ],
+   "layer": "Các học phần tự chọn Lịh ử ĐảCộảVi",
+   "words": ""
+  },
+  {
+   "key": "37|420|16",
+   "page": 37,
+   "cell_index": 16,
+   "ocr": "Nhp môn công ngh s và 2",
+   "match": "hệ số và 2",
+   "src": 0,
+   "sim": 0.4848,
+   "category": "replaced",
+   "context": [
+    "HK1",
+    "5 úng dng AI Giáo dc th cht 1 Giáo dc quc phòng",
+    "HK1"
+   ],
+   "layer": "hệ số và 2",
+   "words": ""
+  },
+  {
+   "key": "53|523|3",
+   "page": 53,
+   "cell_index": 3,
+   "ocr": "Hc kò",
+   "match": "Học kỳ",
+   "src": 0,
+   "sim": 0.7273,
+   "category": "replaced",
+   "context": [
+    "Tên môn học/học phần",
+    "Số TC",
+    "1",
+    "Thực tập và tốt nghiệp"
+   ],
+   "layer": "Học kỳ",
+   "words": ""
+  },
+  {
+   "key": "92|813|1",
+   "page": 92,
+   "cell_index": 1,
+   "ocr": "Qun tr d án",
+   "match": "Quản trị dự án",
+   "src": 0,
+   "sim": 0.88,
+   "category": "replaced",
+   "context": [
+    "1",
+    "3",
+    ""
+   ],
+   "layer": "Quản trị dự án",
+   "words": ""
+  },
+  {
+   "key": "34|412|3",
+   "page": 34,
+   "cell_index": 3,
+   "ocr": "Hc k",
+   "match": "Học kỳ",
+   "src": 0,
+   "sim": 0.8,
+   "category": "replaced",
+   "context": [
+    "Tên môn học/học phần",
+    "Số TC",
+    "8",
+    "Lịch sử Đảng cộng sản VN"
+   ],
+   "layer": "Học kỳ",
+   "words": ""
+  },
+  {
+   "key": "72|664|41",
+   "page": 72,
+   "cell_index": 41,
+   "ocr": "Co s d liu",
+   "match": "Cơ sở dữ liệu",
+   "src": 0,
+   "sim": 0.8696,
+   "category": "replaced",
+   "context": [
+    "HK8",
+    "5",
+    "3",
+    "HK7"
+   ],
+   "layer": "Cơ sở dữ liệu",
+   "words": ""
+  },
+  {
+   "key": "90|791|13",
+   "page": 90,
+   "cell_index": 13,
+   "ocr": "Thit k và qun tr co sd liu",
+   "match": "Thiết kế và quản trị cơ sở dữ liệu",
+   "src": 0,
+   "sim": 0.8667,
+   "category": "replaced",
+   "context": [
+    "",
+    "4",
+    "3",
+    ""
+   ],
+   "layer": "Thiết kế và quản trị cơ sở dữ liệu",
+   "words": ""
+  },
+  {
+   "key": "77|703|1",
+   "page": 77,
+   "cell_index": 1,
+   "ocr": "Thit k và qun tr cơ s dliu",
+   "match": "Thiết kế và quản trị cơ sở dữ",
+   "src": 0,
+   "sim": 0.8727,
+   "category": "replaced",
+   "context": [
+    "1",
+    "3",
+    "2"
+   ],
+   "layer": "Thiết kế và quản trị cơ sở dữ liệu",
+   "words": ""
+  },
+  {
+   "key": "68|623|61",
+   "page": 68,
+   "cell_index": 61,
+   "ocr": "Pháp lut đi cưong Mng truyn thông công",
+   "match": "ọ Pháp luật đại cương",
+   "src": 0,
+   "sim": 0.5763,
+   "category": "replaced",
+   "context": [
+    "HK6",
+    "14 15",
+    "2",
+    "HK6"
+   ],
+   "layer": "ọ Pháp luật đại cương",
+   "words": ""
+  },
+  {
+   "key": "20|209|2",
+   "page": 20,
+   "cell_index": 2,
+   "ocr": "CHC V",
+   "match": "CHỨC VỤ",
+   "src": 0,
+   "sim": 0.8333,
+   "category": "replaced",
+   "context": [
+    "ĐƠN VỊ",
+    "HỌ VÀ TÊN",
+    "ĐIỆN THOẠI",
+    "EMAIL"
+   ],
+   "layer": "CHỨC VỤ",
+   "words": ""
+  },
+  {
+   "key": "21|215|1",
+   "page": 21,
+   "cell_index": 1,
+   "ocr": "Ths Đồ Hi Yn",
+   "match": "Ths Đỗ Hải Yến",
+   "src": 0,
+   "sim": 0.9231,
+   "category": "replaced",
+   "context": [
+    "1",
+    "Trưởng phòng",
+    "094 868 8080"
+   ],
+   "layer": "pg Ths Đỗ Hải Yến",
+   "words": ""
+  },
+  {
+   "key": "90|793|13",
+   "page": 90,
+   "cell_index": 13,
+   "ocr": "Kinh t lưng",
+   "match": "Kinh tế lượng",
+   "src": 0,
+   "sim": 0.9167,
+   "category": "replaced",
+   "context": [
+    "HK5",
+    "3",
+    "3",
+    "HK5"
+   ],
+   "layer": "Kinh tế lượng",
+   "words": ""
+  },
+  {
+   "key": "56|543|29",
+   "page": 56,
+   "cell_index": 29,
+   "ocr": "H điu hành nhúng",
+   "match": "Hệ điều hành nhúng",
+   "src": 0,
+   "sim": 0.9412,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "10",
+    "3",
+    "HK8"
+   ],
+   "layer": "Hệ điều hành nhúng",
+   "words": ""
+  },
+  {
+   "key": "78|714|45",
+   "page": 78,
+   "cell_index": 45,
+   "ocr": "K thut phân tích d liu",
+   "match": "Kỹ thuật phân tích dữ liệu",
+   "src": 0,
+   "sim": 0.9167,
+   "category": "replaced",
+   "context": [
+    "HK6",
+    "10",
+    "3",
+    "HK6"
+   ],
+   "layer": "Kỹ thuật phân tích dữ liệu ậìh hớđối",
+   "words": ""
+  },
+  {
+   "key": "83|753|15",
+   "page": 83,
+   "cell_index": 15,
+   "ocr": "Qun lý d án",
+   "match": "Quản lý dự án",
+   "src": 0,
+   "sim": 0.9167,
+   "category": "replaced",
+   "context": [
+    "",
+    "4",
+    "2",
+    ""
+   ],
+   "layer": "Quản lý dự án",
+   "words": ""
+  },
+  {
+   "key": "75|690|4",
+   "page": 75,
+   "cell_index": 4,
+   "ocr": "Phân tích d liu chui thigian",
+   "match": "Phân tích dữ liệu chuỗi thời gian",
+   "src": 0,
+   "sim": 0.918,
+   "category": "replaced",
+   "context": [
+    "3",
+    "2",
+    "3",
+    "3"
+   ],
+   "layer": "Phân tích dữ liệu chuỗi thời gian",
+   "words": ""
+  },
+  {
+   "key": "94|825|25",
+   "page": 94,
+   "cell_index": 25,
+   "ocr": "Phân tích d liu chui thigian",
+   "match": "Phân tích dữ liệu chuỗi thời gian",
+   "src": 0,
+   "sim": 0.918,
+   "category": "replaced",
+   "context": [
+    "3",
+    "9",
+    "3",
+    "10"
+   ],
+   "layer": "g p Phân tích dữ liệu chuỗi thời gian",
+   "words": ""
+  },
+  {
+   "key": "67|614|3",
+   "page": 67,
+   "cell_index": 3,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "Tên môn học/học phần",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "NĂM HỌC THỨ HAI",
+    "TT",
+    "Số TC",
+    "Học ỳ"
+   ],
+   "layer": "Tên môn học/học phần",
+   "words": ""
+  },
+  {
+   "key": "80|730|46",
+   "page": 80,
+   "cell_index": 46,
+   "ocr": "Lch s ĐCS Vit Nam",
+   "match": "Lịch sử ĐCS Việt Nam",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "HK6",
+    "10",
+    "2",
+    "HK6"
+   ],
+   "layer": "Lịch sử ĐCS Việt Nam",
+   "words": ""
+  },
+  {
+   "key": "76|695|1",
+   "page": 76,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "Tên môn học/học phần",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Số TC",
+    "Học kỳ"
+   ],
+   "layer": "Ọ TT Tên môn học/học phần",
+   "words": ""
+  },
+  {
+   "key": "79|724|7",
+   "page": 79,
+   "cell_index": 7,
+   "ocr": "An toàn úng dng Web và cos d liu",
+   "match": "An toàn ứng dụng Web và cơ sở dữ liệu",
+   "src": 0,
+   "sim": 0.9275,
+   "category": "replaced",
+   "context": [
+    "3",
+    "10",
+    "3",
+    "11"
+   ],
+   "layer": "An toàn ứng dụng Web và cơ sở dữ liệu Hệ ở dữ liệđh",
+   "words": ""
+  },
+  {
+   "key": "23|284|1",
+   "page": 23,
+   "cell_index": 1,
+   "ocr": "ThS. Nguyn VǎnTin",
+   "match": "ThS. Nguyễn Văn Tiến",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "1",
+    "Bí thư",
+    "0984 686212"
+   ],
+   "layer": "p ThS. Nguyễn Văn Tiến",
+   "words": ""
+  },
+  {
+   "key": "102|883|4",
+   "page": 102,
+   "cell_index": 4,
+   "ocr": "Phân tích thit k h thôngthưong mi đin t",
+   "match": "Phân tích thiết kế hệ thống thương mại điện tử",
+   "src": 0,
+   "sim": 0.9176,
+   "category": "replaced",
+   "context": [
+    "2",
+    "2",
+    "2",
+    "3"
+   ],
+   "layer": "Phân tích thiết kế hệ thống thương mại điện tử",
+   "words": ""
+  },
+  {
+   "key": "113|927|33",
+   "page": 113,
+   "cell_index": 33,
+   "ocr": "Kinh t chính tr Mác - Lênin",
+   "match": "Kinh tế chính trị Mác - Lênin",
+   "src": 0,
+   "sim": 0.9643,
+   "category": "replaced",
+   "context": [
+    "",
+    "7",
+    "2",
+    "HK4"
+   ],
+   "layer": "Kinh tế chính trị Mác - Lênin",
+   "words": ""
+  },
+  {
+   "key": "80|731|9",
+   "page": 80,
+   "cell_index": 9,
+   "ocr": "Đ án: K hoch Internet Marketing",
+   "match": "Đề án: Kế hoạch Internet Marketing",
+   "src": 0,
+   "sim": 0.9538,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "2",
+    "2",
+    "KH7"
+   ],
+   "layer": "Đề án: Kế hoạch Internet Marketing ằ",
+   "words": ""
+  },
+  {
+   "key": "45|480|7",
+   "page": 45,
+   "cell_index": 7,
+   "ocr": "Distributed Databases(Co s d liu phân tán)",
+   "match": "Distributed Databases (Cơ sở dữ liệu phân tán)",
+   "src": 0,
+   "sim": 0.9545,
+   "category": "replaced",
+   "context": [
+    "3",
+    "3",
+    "3"
+   ],
+   "layer": ") Distributed Databases (Cơ sở dữ liệu phân tán)",
+   "words": ""
+  },
+  {
+   "key": "75|690|13",
+   "page": 75,
+   "cell_index": 13,
+   "ocr": "IoT và úng dng",
+   "match": "IoT và ứng dụng",
+   "src": 0,
+   "sim": 0.9655,
+   "category": "replaced",
+   "context": [
+    "3",
+    "5",
+    "3",
+    "6"
+   ],
+   "layer": "IoT và ứng dụng Tấhôi",
+   "words": ""
+  },
+  {
+   "key": "52|515|1",
+   "page": 52,
+   "cell_index": 1,
+   "ocr": "Lp trình mng vói C++",
+   "match": "Lập trình mạng với C++",
+   "src": 0,
+   "sim": 0.9524,
+   "category": "replaced",
+   "context": [
+    "1",
+    "3",
+    "2"
+   ],
+   "layer": "Lập trình mạng với C++",
+   "words": ""
+  },
+  {
+   "key": "68|625|9",
+   "page": 68,
+   "cell_index": 9,
+   "ocr": "Gii thut cho rô bt thông minh",
+   "match": "Giải thuật cho rô bốt thông minh",
+   "src": 0,
+   "sim": 0.9508,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "9",
+    "2",
+    "HK8"
+   ],
+   "layer": "Giải thuật cho rô bốt thông minh",
+   "words": ""
+  },
+  {
+   "key": "78|716|1",
+   "page": 78,
+   "cell_index": 1,
+   "ocr": "Phân tích d liu lón",
+   "match": "Phân tích dữ liệu lớn",
+   "src": 0,
+   "sim": 0.95,
+   "category": "replaced",
+   "context": [
+    "7",
+    "3",
+    "HK8"
+   ],
+   "layer": "Phân tích dữ liệu lớn",
+   "words": ""
+  },
+  {
+   "key": "178|2044|2",
+   "page": 178,
+   "cell_index": 2,
+   "ocr": "Giång   viên,nghiên    cúuviên co hu",
+   "match": "Giảng viên, nghiên cứu viên cơ hữu",
+   "src": 0,
+   "sim": 0.9538,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Đối tượng Học hàm, học vị",
+    "Giảng viên thỉnh giảng",
+    "Cán bộ quản lý, chuyên gia"
+   ],
+   "layer": "Giảng viên, nghiên cứu viên cơ hữu",
+   "words": ""
+  },
+  {
+   "key": "74|672|9",
+   "page": 74,
+   "cell_index": 9,
+   "ocr": "Gii tích 1",
+   "match": "Giải tích 1",
+   "src": 0,
+   "sim": 0.9524,
+   "category": "replaced",
+   "context": [
+    "HK1",
+    "2",
+    "3",
+    "HK1"
+   ],
+   "layer": "Giải tích 1",
+   "words": ""
+  },
+  {
+   "key": "59|568|5",
+   "page": 59,
+   "cell_index": 5,
+   "ocr": "Gii tích 1",
+   "match": "Giải tích 1",
+   "src": 0,
+   "sim": 0.9524,
+   "category": "replaced",
+   "context": [
+    "Học kỳ",
+    "1",
+    "3",
+    "HK1"
+   ],
+   "layer": "Giải tích 1 NhậôCôhệ ố à",
+   "words": ""
+  },
+  {
+   "key": "86|766|10",
+   "page": 86,
+   "cell_index": 10,
+   "ocr": "Marketing bng công c tìm kim(Search Engine Marketing)",
+   "match": "Marketing bằng công cụ tìm kiếm (Search Engine Marketing)",
+   "src": 0,
+   "sim": 0.9636,
+   "category": "replaced",
+   "context": [
+    "3",
+    "7",
+    "3"
+   ],
+   "layer": "Marketing bằng công cụ tìm kiếm (Search Engine Marketing)",
+   "words": ""
+  },
+  {
+   "key": "20|209|6",
+   "page": 20,
+   "cell_index": 6,
+   "ocr": "PGS. TS. Lê Nht",
+   "match": "PGS. TS. Lê Nhật",
+   "src": 0,
+   "sim": 0.9677,
+   "category": "replaced",
+   "context": [
+    "EMAIL",
+    "Lãnh đạo Viện",
+    "Viện trưởng",
+    "090 434"
+   ],
+   "layer": "PGS. TS. Lê Nhật",
+   "words": ""
+  },
+  {
+   "key": "115|934|6",
+   "page": 115,
+   "cell_index": 6,
+   "ocr": "Trit hc Mác - Lênin",
+   "match": "Triết học Mác - Lênin",
+   "src": 0,
+   "sim": 0.95,
+   "category": "replaced",
+   "context": [
+    "Học kỳ",
+    "1",
+    "3",
+    "HK1"
+   ],
+   "layer": "p Triết học Mác - Lênin",
+   "words": ""
+  }
+ ],
+ "S2": [
+  {
+   "key": "45|484|3",
+   "page": 45,
+   "cell_index": 3,
+   "ocr": "Hc k",
+   "match": "Học kỳ",
+   "src": 0,
+   "sim": 0.8,
+   "category": "replaced",
+   "context": [
+    "Tên môn học/học phần (Name courses)",
+    "Số TC Credit",
+    "Thesi",
+    "Internship and Graduation Thesis tập và tốt nghiệp)"
+   ],
+   "layer": "t Học kỳ /Sem",
+   "words": "Học kỳ /Sem"
+  },
+  {
+   "key": "59|570|3",
+   "page": 59,
+   "cell_index": 3,
+   "ocr": "Hc kò",
+   "match": "Học kỳ",
+   "src": 0,
+   "sim": 0.7273,
+   "category": "replaced",
+   "context": [
+    "Tên môn học/học phần",
+    "Số TC",
+    "1",
+    "Kiến trúc máy tính và Hệ thống trên chip"
+   ],
+   "layer": "Học kỳ",
+   "words": "Học kỳ"
+  },
+  {
+   "key": "20|209|2",
+   "page": 20,
+   "cell_index": 2,
+   "ocr": "CHC V",
+   "match": "CHỨC VỤ",
+   "src": 0,
+   "sim": 0.8333,
+   "category": "replaced",
+   "context": [
+    "ĐƠN VỊ",
+    "HỌ VÀ TÊN",
+    "ĐIỆN THOẠI",
+    "EMAIL"
+   ],
+   "layer": "CHỨC VỤ",
+   "words": "CHỨC VỤ"
+  },
+  {
+   "key": "63|597|1",
+   "page": 63,
+   "cell_index": 1,
+   "ocr": "K toán xut nhp khu",
+   "match": "Kế toán xuất nhập khẩu",
+   "src": 0,
+   "sim": 0.9,
+   "category": "replaced",
+   "context": [
+    "1",
+    "3",
+    "2"
+   ],
+   "layer": "Kế toán xuất nhập khẩu ế",
+   "words": "Kế toán xuất nhập khẩu"
+  },
+  {
+   "key": "19|191|2",
+   "page": 19,
+   "cell_index": 2,
+   "ocr": "CH V",
+   "match": "CHỨC VỤ",
+   "src": 0,
+   "sim": 0.7273,
+   "category": "replaced",
+   "context": [
+    "ĐƠN VỊ",
+    "HỌ VÀ TÊN",
+    "ĐIỆN THOẠI",
+    "EMAIL"
+   ],
+   "layer": "CHỨC VỤ",
+   "words": "CHỨC VỤ"
+  },
+  {
+   "key": "32|386|1",
+   "page": 32,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "HAI học phần",
+   "src": 1,
+   "sim": 0.4828,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "TCHọc kỳ",
+    ""
+   ],
+   "layer": "HAI học phần Số TCHọc",
+   "words": "Số TCHọc"
+  },
+  {
+   "key": "72|664|41",
+   "page": 72,
+   "cell_index": 41,
+   "ocr": "Co s d liu",
+   "match": "Cơ sở dữ liệu",
+   "src": 0,
+   "sim": 0.8696,
+   "category": "replaced",
+   "context": [
+    "HK8",
+    "5",
+    "3",
+    "HK7"
+   ],
+   "layer": "Cơ sở dữ liệu",
+   "words": "Cơ sở dữ liệu"
+  },
+  {
+   "key": "83|753|7",
+   "page": 83,
+   "cell_index": 7,
+   "ocr": "Thưong mi đin t",
+   "match": "Thương mại điện tử",
+   "src": 0,
+   "sim": 0.9091,
+   "category": "replaced",
+   "context": [
+    "",
+    "2",
+    "2",
+    ""
+   ],
+   "layer": "Thương mại điện tử",
+   "words": "Thương mại điện tử"
+  },
+  {
+   "key": "87|771|13",
+   "page": 87,
+   "cell_index": 13,
+   "ocr": "Marketing só Phưong tin truyn thông",
+   "match": "tích hợp Marketing số Phiệềhô",
+   "src": 1,
+   "sim": 0.5625,
+   "category": "replaced",
+   "context": [
+    "HK4",
+    "10",
+    "3",
+    "HK4"
+   ],
+   "layer": "tích hợp Marketing số Phiệềhô",
+   "words": "Marketing số"
+  },
+  {
+   "key": "100|867|1",
+   "page": 100,
+   "cell_index": 1,
+   "ocr": "Thit k sn phm truynthông",
+   "match": "Thiết kế sản phẩm truyền thông",
+   "src": 0,
+   "sim": 0.8889,
+   "category": "replaced",
+   "context": [
+    "1",
+    "2",
+    "2"
+   ],
+   "layer": "Thiết kế sản phẩm truyền thông ếế",
+   "words": "Thiết kế sản phẩm truyền thông"
+  },
+  {
+   "key": "70|635|56",
+   "page": 70,
+   "cell_index": 56,
+   "ocr": "Plus)",
+   "match": "Plu",
+   "src": 0,
+   "sim": 0.75,
+   "category": "replaced",
+   "context": [
+    "2",
+    "HK6",
+    "Tiếng Anh (Course 3",
+    "2"
+   ],
+   "layer": "Tiế Plu",
+   "words": ""
+  },
+  {
+   "key": "81|741|3",
+   "page": 81,
+   "cell_index": 3,
+   "ocr": "Hc kò",
+   "match": "Học kỳ",
+   "src": 0,
+   "sim": 0.7273,
+   "category": "replaced",
+   "context": [
+    "Tên môn học/học phần",
+    "Số TC",
+    "1",
+    "Tiếng Anh (Course 3 Plus)"
+   ],
+   "layer": "C Học kỳ",
+   "words": "Học kỳ"
+  },
+  {
+   "key": "185|2176|30",
+   "page": 185,
+   "cell_index": 30,
+   "ocr": "Cung cp thi khóa biu cho sinh viên dngtùrng tun",
+   "match": "Cung cấp thời khóa biểu cho sinh viên dạng từng",
+   "src": 0,
+   "sim": 0.8936,
+   "category": "replaced",
+   "context": [
+    "7",
+    "Xem thời khóa biểu tuần",
+    "",
+    "8"
+   ],
+   "layer": "g p g p Cung cấp thời khóa biểu cho sinh viên dạng từng tuần",
+   "words": "Cung cấp thời khóa biểu cho sinh viên dạng từng tuần"
+  },
+  {
+   "key": "65|607|1",
+   "page": 65,
+   "cell_index": 1,
+   "ocr": "T hp t chn 1",
+   "match": "Tổ hợp tự chọn 1",
+   "src": 0,
+   "sim": 0.8571,
+   "category": "replaced",
+   "context": [
+    "I",
+    "",
+    "1"
+   ],
+   "layer": "Tổ hợp tự chọn 1 ổ",
+   "words": "Tổ hợp tự chọn 1"
+  },
+  {
+   "key": "230|2799|12",
+   "page": 230,
+   "cell_index": 12,
+   "ocr": "Sinh viên Hc vin đt giiNht/huy chưong Vàng, Nhi/huychưong Bc, Ba/huy chưong Đồngcác cuc thi do Hc vin t chc;đưc nhn giy khen ca Hc vin",
+   "match": "Sinh viên Học viện đạt giải Nhất/huy chương Vàng, Nhì/huy chương Bạc, Ba/huy chương Đồng các cuộc thi do Học viện tổ chức; được nhận giấy khen của Học viện",
+   "src": 0,
+   "sim": 0.9273,
+   "category": "replaced",
+   "context": [
+    "",
+    "2",
+    "0,5; 0,38; 0,25",
+    "0,2; 0,15; 0,1"
+   ],
+   "layer": "Sinh viên Học viện đạt giải Nhất/huy chương Vàng, Nhì/huy chương Bạc, Ba/huy chương Đồng các cuộc thi do Học viện tổ chức; được nhận giấy khen của Học viện",
+   "words": "Sinh viên Học viện đạt giải Nhất/huy chương Vàng, Nhì/huy chương Bạc, Ba/huy chương Đồng các cuộc thi do Học viện tổ chức; được nhận giấy khen của Học viện"
+  },
+  {
+   "key": "34|408|7",
+   "page": 34,
+   "cell_index": 7,
+   "ocr": "Nhp môn điu tra s",
+   "match": "Nhập môn điều tra số",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "3",
+    "5",
+    "3"
+   ],
+   "layer": "Nhập môn điều tra số",
+   "words": "Nhập môn điều tra số"
+  },
+  {
+   "key": "99|862|1",
+   "page": 99,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "Tên môn học/học phần",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Số TC",
+    "Học kỳ"
+   ],
+   "layer": "T Tên môn học/học phần",
+   "words": "Tên môn học/học phần"
+  },
+  {
+   "key": "83|753|1",
+   "page": 83,
+   "cell_index": 1,
+   "ocr": "(*):Danh sách các hc phn t chon (thuckin thc cơ s)",
+   "match": "(*):Danh sách các học phần tự chọn (thuộc kiến thức cơ sở)",
+   "src": 1,
+   "sim": 0.9259,
+   "category": "replaced",
+   "context": [
+    "",
+    "1",
+    "Khởi sự doanh nghiệp truyền thông"
+   ],
+   "layer": "(*):Danh sách các học phần tự chọn (thuộc kiến thức cơ sở)",
+   "words": "( *):Danh sách các học phần tự chọn (thuộc kiến thức cơ sở)"
+  },
+  {
+   "key": "41|455|2",
+   "page": 41,
+   "cell_index": 2,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "Tên môn học/học phần",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "NĂM HỌC THỨ BA",
+    "TT",
+    "Số TC",
+    "Học kỳ"
+   ],
+   "layer": "Tên môn học/học phần",
+   "words": "Tên môn học/học phần"
+  },
+  {
+   "key": "57|552|1",
+   "page": 57,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "Tên môn học/học phần",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Số TC",
+    "Học kỳ"
+   ],
+   "layer": "Tên môn học/học phần",
+   "words": "Tên môn học/học phần"
+  },
+  {
+   "key": "104|894|1",
+   "page": 104,
+   "cell_index": 1,
+   "ocr": "Thit k úng dng game hóa",
+   "match": "Thiết kế ứng dụng game hóa",
+   "src": 0,
+   "sim": 0.9388,
+   "category": "replaced",
+   "context": [
+    "1",
+    "3",
+    "2"
+   ],
+   "layer": "Thiết kế ứng dụng game hóa 3",
+   "words": "Thiết kế ứng dụng game hóa 3"
+  },
+  {
+   "key": "74|674|2",
+   "page": 74,
+   "cell_index": 2,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "Tên môn học/học phần",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "NĂM HỌC THỨ BA",
+    "TT",
+    "Số TC",
+    "Học kỳ"
+   ],
+   "layer": "Tên môn học/học phần",
+   "words": "Tên môn học/học phần"
+  },
+  {
+   "key": "21|215|1",
+   "page": 21,
+   "cell_index": 1,
+   "ocr": "Ths Đồ Hi Yn",
+   "match": "Ths Đỗ Hải Yến",
+   "src": 0,
+   "sim": 0.9231,
+   "category": "replaced",
+   "context": [
+    "1",
+    "Trưởng phòng",
+    "094 868 8080"
+   ],
+   "layer": "pg Ths Đỗ Hải Yến",
+   "words": "phòng: Ths Đỗ Hải Yến"
+  },
+  {
+   "key": "59|568|1",
+   "page": 59,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "Tên môn học/học phần",
+   "src": 1,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Số TC",
+    "Học kỳ"
+   ],
+   "layer": "Tên môn học/học phần",
+   "words": "môn học/học phần"
+  },
+  {
+   "key": "100|867|7",
+   "page": 100,
+   "cell_index": 7,
+   "ocr": "Ngôn ng truyn thông",
+   "match": "Ngôn ngữ truyền thông",
+   "src": 0,
+   "sim": 0.95,
+   "category": "replaced",
+   "context": [
+    "2",
+    "3",
+    "2",
+    "4"
+   ],
+   "layer": "Ngôn ngữ truyền thông Qảlý dáề",
+   "words": "Ngôn ngữ truyền thông"
+  },
+  {
+   "key": "82|745|1",
+   "page": 82,
+   "cell_index": 1,
+   "ocr": "(*):Danh sách các hc phn t chon (thuckin thc co s)",
+   "match": "(*):Danh sách các học phần tự chọn (thuộc kiến thức cơ sở)",
+   "src": 1,
+   "sim": 0.9259,
+   "category": "replaced",
+   "context": [
+    "",
+    "1",
+    "Khởi sự doanh nghiệp truyền thông"
+   ],
+   "layer": "(*):Danh sách các học phần tự chọn (thuộc kiến thức cơ sở)",
+   "words": "( *):Danh sách các học phần tự chọn (thuộc kiến thức cơ sở)"
+  },
+  {
+   "key": "18|179|7",
+   "page": 18,
+   "cell_index": 7,
+   "ocr": "Trưng khoaPhó Trưngkhoa",
+   "match": "Trưởng khoa Phó Trưởng khoa",
+   "src": 0,
+   "sim": 0.92,
+   "category": "replaced",
+   "context": [
+    "Lãnh đạo Khoa",
+    "TS. Vũ Trọng Phong TS. Trần Thị Thập",
+    "0912 0998110912 212929",
+    "phongvt@ptit.edu.vn thaptt@ptit.edu.vn"
+   ],
+   "layer": "Trưởng khoa Phó Trưởng khoa",
+   "words": "Trưởng khoa Phó Trưởng khoa"
+  },
+  {
+   "key": "85|757|25",
+   "page": 85,
+   "cell_index": 25,
+   "ocr": "Hc phàn la chn 2 (*) (Elective Course 2 (*))",
+   "match": "Học phần lựa chọn 2 (* (Elective Course 2 (*))",
+   "src": 1,
+   "sim": 0.9556,
+   "category": "replaced",
+   "context": [
+    "HK5",
+    "6",
+    "2",
+    "HK5"
+   ],
+   "layer": "Học phần lựa chọn 2 (* (Elective Course 2 (*)) Học phần lựa chọn 3 (*",
+   "words": "Học phần lựa chọn 2 ( *) (Elective Course 2 ( *)) *)"
+  },
+  {
+   "key": "68|623|49",
+   "page": 68,
+   "cell_index": 49,
+   "ocr": "hành rô bt",
+   "match": "hành rô bốt",
+   "src": 0,
+   "sim": 0.9524,
+   "category": "replaced",
+   "context": [
+    "HK6",
+    "",
+    "3",
+    "HK6"
+   ],
+   "layer": "Cảm biến và cơ cấp chấp hành rô bốt",
+   "words": "Cảm biến và cơ cấp chấp hành rô bốt"
+  },
+  {
+   "key": "65|607|7",
+   "page": 65,
+   "cell_index": 7,
+   "ocr": "Thanh toán quc t(Intenational payment)",
+   "match": "Thanh toán quốc tế (Intenational payment)",
+   "src": 0,
+   "sim": 0.962,
+   "category": "replaced",
+   "context": [
+    "2",
+    "2",
+    "2",
+    "3"
+   ],
+   "layer": "Thanh toán quốc tế (Intenational payment) ầ",
+   "words": "Thanh toán quốc tế (Intenational payment)"
+  },
+  {
+   "key": "113|927|33",
+   "page": 113,
+   "cell_index": 33,
+   "ocr": "Kinh t chính tr Mác - Lênin",
+   "match": "Kinh tế chính trị Mác - Lênin",
+   "src": 0,
+   "sim": 0.9643,
+   "category": "replaced",
+   "context": [
+    "",
+    "7",
+    "2",
+    "HK4"
+   ],
+   "layer": "Kinh tế chính trị Mác - Lênin",
+   "words": "Kinh tế chính trị Mác - Lênin"
+  },
+  {
+   "key": "73|668|4",
+   "page": 73,
+   "cell_index": 4,
+   "ocr": "Đin toán đám mây",
+   "match": "Điện toán đám mây",
+   "src": 0,
+   "sim": 0.9697,
+   "category": "replaced",
+   "context": [
+    "3",
+    "2",
+    "3",
+    "3"
+   ],
+   "layer": "Điện toán đám mây",
+   "words": "Điện toán đám mây"
+  },
+  {
+   "key": "44|477|1",
+   "page": 44,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phn (Name courses)",
+   "match": "Tên môn học/học phần (Name courses)",
+   "src": 0,
+   "sim": 0.9552,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Số TC Credit k /",
+    "Học kỳ"
+   ],
+   "layer": "M THỨ NĂM Tên môn học/học phần (Name courses)",
+   "words": "THỨ NĂM Tên môn học/học phần (Name courses)"
+  },
+  {
+   "key": "18|185|15",
+   "page": 18,
+   "cell_index": 15,
+   "ocr": "BM K toán và Kim toán",
+   "match": "BM Kế toán và Kiểm toán",
+   "src": 0,
+   "sim": 0.9545,
+   "category": "replaced",
+   "context": [
+    "0916353 858",
+    "ketvq@ptit.edu.vn",
+    "TS. Nguyễn Thị Việt Lê",
+    "Trưởng bộ môn"
+   ],
+   "layer": "BM Kế toán và Kiểm toán",
+   "words": "BM Kế toán và Kiểm toán"
+  },
+  {
+   "key": "20|209|6",
+   "page": 20,
+   "cell_index": 6,
+   "ocr": "PGS. TS. Lê Nht",
+   "match": "PGS. TS. Lê Nhật",
+   "src": 0,
+   "sim": 0.9677,
+   "category": "replaced",
+   "context": [
+    "EMAIL",
+    "Lãnh đạo Viện",
+    "Viện trưởng",
+    "090 434"
+   ],
+   "layer": "PGS. TS. Lê Nhật",
+   "words": "PGS. TS. Lê Nhật"
+  },
+  {
+   "key": "75|690|13",
+   "page": 75,
+   "cell_index": 13,
+   "ocr": "IoT và úng dng",
+   "match": "IoT và ứng dụng",
+   "src": 0,
+   "sim": 0.9655,
+   "category": "replaced",
+   "context": [
+    "3",
+    "5",
+    "3",
+    "6"
+   ],
+   "layer": "IoT và ứng dụng Tấhôi",
+   "words": "IoT và ứng dụng"
+  },
+  {
+   "key": "82|748|1",
+   "page": 82,
+   "cell_index": 1,
+   "ocr": "(**): Danh sách các hc phàn t chon(thuc kin thc chuyên ngành):",
+   "match": "(**): Danh sách các học phần tự chọn (thuộc kiến thức chuyên ngành):",
+   "src": 1,
+   "sim": 0.9538,
+   "category": "replaced",
+   "context": [
+    "",
+    "1",
+    "Quản trị khủng hoảng truyền thông"
+   ],
+   "layer": "(**): Danh sách các học phần tự chọn (thuộc kiến thức chuyên ngành):",
+   "words": "( **): Danh sách các học phần tự chọn (thuộc kiến thức chuyên ngành):"
+  },
+  {
+   "key": "86|766|10",
+   "page": 86,
+   "cell_index": 10,
+   "ocr": "Marketing bng công c tìm kim(Search Engine Marketing)",
+   "match": "Marketing bằng công cụ tìm kiếm (Search Engine Marketing)",
+   "src": 0,
+   "sim": 0.9636,
+   "category": "replaced",
+   "context": [
+    "3",
+    "7",
+    "3"
+   ],
+   "layer": "Marketing bằng công cụ tìm kiếm (Search Engine Marketing)",
+   "words": "Marketing bằng công cụ tìm kiếm (Search Engine Marketing)"
+  },
+  {
+   "key": "178|2044|2",
+   "page": 178,
+   "cell_index": 2,
+   "ocr": "Giång   viên,nghiên    cúuviên co hu",
+   "match": "Giảng viên, nghiên cứu viên cơ hữu",
+   "src": 0,
+   "sim": 0.9538,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Đối tượng Học hàm, học vị",
+    "Giảng viên thỉnh giảng",
+    "Cán bộ quản lý, chuyên gia"
+   ],
+   "layer": "Giảng viên, nghiên cứu viên cơ hữu",
+   "words": "Giảng viên, nghiên cứu viên cơ hữu"
+  },
+  {
+   "key": "115|934|14",
+   "page": 115,
+   "cell_index": 14,
+   "ocr": "Gii tích 1",
+   "match": "Giải tích 1",
+   "src": 0,
+   "sim": 0.9524,
+   "category": "replaced",
+   "context": [
+    "HK1",
+    "3",
+    "3",
+    "HK1"
+   ],
+   "layer": "Đại số Giải tích 1 Nhậôôhệ ố à ứ",
+   "words": "Giải tích 1"
+  }
+ ],
+ "S3": [
+  {
+   "key": "41|456|3",
+   "page": 41,
+   "cell_index": 3,
+   "ocr": "Hoc k",
+   "match": "Học ỳ",
+   "src": 0,
+   "sim": 0.8,
+   "category": "replaced",
+   "context": [
+    "Tên môn hc/hc phn",
+    "Sô TC",
+    "1",
+    "Lịch sử Đảng CSVN"
+   ],
+   "layer": "Học ỳ",
+   "words": ""
+  },
+  {
+   "key": "29|380|5",
+   "page": 29,
+   "cell_index": 5,
+   "ocr": "ULO1.1: Xác đnh và phân tích các vn đ, áp dng các kin thúc và nguyên lý liên quan đ gii quyt vn đ trong līnh vc chuyên môn (Identify and analyze problems, and apply related knowledge and principles to solve problems in the specialized field) ULO1.2: To ra ý tưng, chp nhn ri ro, nhn bit co hi, phát trin các gii pháp khå thi trong bi cånh c th, xem xét các mc tiêu phát trin bn vng đ đưa ra quyt đnh trong quá trình gii quyt vân đ cũng như",
+   "match": "LO1.1: Xác định và phân tích các n đề, áp dụng các kiến thức và uyên lý liên quan để giải quyết vấn trong lĩnh vực chuyên môn entify and analyze problems, and ply related knowledge and nciples to solve problems in the ecialized field) LO1.2: Tạo ra ý tưởng, chấp nhận ro, nhận biết cơ hội, phát triển các i pháp khả thi trong bối cảnh cụ , xem xét các mục tiêu phát triển n vững để đưa ra quyết định trong á trình giải quyết vấn đề cũng như",
+   "src": 1,
+   "sim": 0.5233,
+   "category": "replaced",
+   "context": [
+    "Tri thức – Sáng tạo – Khởi nghiệp (Subject Expertise - Innovation – Entrepreneurship)",
+    "UOL1: Khả năng xác định, phân tích và giải quyết vấn đề trong lĩnh vực chuyên môn một cách hiệu quả trong các bối cảnh nhất định bằng cách áp dụng các kiến thức và nguyên tắc liên quan, hướng tiếp cận đổi mới sáng tạo và các công nghệ tiên tiến có thể có, đồng thời xem xét các mục tiêu"
+   ],
+   "layer": "LO1.1: Xác định và phân tích các n đề, áp dụng các kiến thức và uyên lý liên quan để giải quyết vấn trong lĩnh vực chuyên môn entify and analyze problems, and ply related knowledge and nciples to solve problems in the ecialized field) LO1.2: Tạo ra ý tưởng, chấp nhận ro, nhận biết cơ hội, phát triển các i pháp khả thi trong bối cảnh cụ , xem xét các mục tiêu phát triển n vững để đưa ra quyết định trong á trình giải quyết vấn đề cũng như",
+   "words": "Xác định và phân tích các đề, áp dụng các kiến thức và lý liên quan để giải quyết vấn trong lĩnh vực chuyên môn and analyze problems, and related knowledge and to solve problems in the specialized field) Tạo ra ý tưởng, chấp nhận nhận biết cơ hội, phát triển các pháp khả thi trong bối cảnh cụ xem xét các mục tiêu phát triển vững để đưa ra quyết định trong trình giải quyết vấn đề cũng như"
+  },
+  {
+   "key": "82|751|3",
+   "page": 82,
+   "cell_index": 3,
+   "ocr": "Hoc kò",
+   "match": "Học kỳ",
+   "src": 0,
+   "sim": 0.8333,
+   "category": "replaced",
+   "context": [
+    "ên môn học/học phần",
+    "Số TC",
+    "1",
+    "Trí tuệ marketing"
+   ],
+   "layer": "Học kỳ",
+   "words": "Học kỳ"
+  },
+  {
+   "key": "100|867|1",
+   "page": 100,
+   "cell_index": 1,
+   "ocr": "Thit k sn phm truynthông",
+   "match": "Thiết kế sản phẩm truyền thông",
+   "src": 0,
+   "sim": 0.8889,
+   "category": "replaced",
+   "context": [
+    "1",
+    "2",
+    "2"
+   ],
+   "layer": "Thiết kế sản phẩm truyền thông ếế",
+   "words": "Thiết kế sản phẩm truyền thông"
+  },
+  {
+   "key": "37|420|16",
+   "page": 37,
+   "cell_index": 16,
+   "ocr": "Nhp môn công ngh s và 2",
+   "match": "nghệ số và 2",
+   "src": 0,
+   "sim": 0.5714,
+   "category": "replaced",
+   "context": [
+    "HK1",
+    "5 úng dng AI Giáo dc th cht 1 Giáo dc quc phòng",
+    "HK1"
+   ],
+   "layer": "hệ số và 2",
+   "words": "nghệ số và 2"
+  },
+  {
+   "key": "81|741|3",
+   "page": 81,
+   "cell_index": 3,
+   "ocr": "Hc kò",
+   "match": "Học kỳ",
+   "src": 0,
+   "sim": 0.7273,
+   "category": "replaced",
+   "context": [
+    "Tên môn học/học phần",
+    "Số TC",
+    "1",
+    "Tiếng Anh (Course 3 Plus)"
+   ],
+   "layer": "C Học kỳ",
+   "words": "Học kỳ"
+  },
+  {
+   "key": "21|233|7",
+   "page": 21,
+   "cell_index": 7,
+   "ocr": "Phó Trưng Trungtâm",
+   "match": "Phó Trưởng Trung",
+   "src": 0,
+   "sim": 0.8824,
+   "category": "replaced",
+   "context": [
+    "2",
+    "ThS. Phạm Phú Tài",
+    "0913 053 114",
+    "taipt@ptit.edu.vn"
+   ],
+   "layer": "Phó Trưởng Trung tâm",
+   "words": "Phó Trưởng Trung tâm"
+  },
+  {
+   "key": "48|490|4",
+   "page": 48,
+   "cell_index": 4,
+   "ocr": "Kin trúc và thit k phn mm",
+   "match": "Kiến trúc và thiết kế phần mềm",
+   "src": 0,
+   "sim": 0.9091,
+   "category": "replaced",
+   "context": [
+    "3",
+    "2",
+    "3",
+    "3"
+   ],
+   "layer": "Kiến trúc và thiết kế phần mềm",
+   "words": "Kiến trúc và thiết kế phần mềm"
+  },
+  {
+   "key": "61|584|9",
+   "page": 61,
+   "cell_index": 9,
+   "ocr": "Đi mi sáng to và chuynđi s",
+   "match": "Đổi mới sáng tạo và chuyển đổi số",
+   "src": 0,
+   "sim": 0.8814,
+   "category": "replaced",
+   "context": [
+    "",
+    "8",
+    "2",
+    ""
+   ],
+   "layer": "Đổi mới sáng tạo và chuyển đổi số",
+   "words": "Đổi mới sáng tạo và chuyển đổi số"
+  },
+  {
+   "key": "88|778|22",
+   "page": 88,
+   "cell_index": 22,
+   "ocr": "Thit k đ ha cơ bn",
+   "match": "Thiết kế đồ họa cơ bản",
+   "src": 0,
+   "sim": 0.8718,
+   "category": "replaced",
+   "context": [
+    "3",
+    "8",
+    "3",
+    "9"
+   ],
+   "layer": "Thiết kế đồ họa cơ bản",
+   "words": "Thiết kế đồ họa cơ bản"
+  },
+  {
+   "key": "42|461|3",
+   "page": 42,
+   "cell_index": 3,
+   "ocr": "Hoc kò /Sem",
+   "match": "Học kỳ /Sem",
+   "src": 0,
+   "sim": 0.9091,
+   "category": "replaced",
+   "context": [
+    "Tên môn học/học phần (Name courses)",
+    "Số TC Credit",
+    "1",
+    "Discrete Mathematics 1 (Toán rời rạc 1)"
+   ],
+   "layer": "t Học kỳ /Sem HK3",
+   "words": "Học kỳ /Sem"
+  },
+  {
+   "key": "83|753|7",
+   "page": 83,
+   "cell_index": 7,
+   "ocr": "Thưong mi đin t",
+   "match": "Thương mại điện tử",
+   "src": 0,
+   "sim": 0.9091,
+   "category": "replaced",
+   "context": [
+    "",
+    "2",
+    "2",
+    ""
+   ],
+   "layer": "Thương mại điện tử",
+   "words": "Thương mại điện tử"
+  },
+  {
+   "key": "52|517|0",
+   "page": 52,
+   "cell_index": 0,
+   "ocr": "NAMHOC THU BA T Tên môn hc/hc phn",
+   "match": "NĂM HỌC THỨ BA",
+   "src": 0,
+   "sim": 0.5532,
+   "category": "replaced",
+   "context": [
+    "T 1",
+    "Thit k Web cơ bn"
+   ],
+   "layer": "NĂM HỌC THỨ BA",
+   "words": "NĂM HỌC THỨ BA"
+  },
+  {
+   "key": "40|450|3",
+   "page": 40,
+   "cell_index": 3,
+   "ocr": "Hoc kò",
+   "match": "Học kỳ",
+   "src": 0,
+   "sim": 0.8333,
+   "category": "replaced",
+   "context": [
+    "Tên môn học/học phần",
+    "Số TC",
+    "1",
+    "Lịch sử Đảng CSVN"
+   ],
+   "layer": "Học kỳ",
+   "words": "Học kỳ"
+  },
+  {
+   "key": "88|780|10",
+   "page": 88,
+   "cell_index": 10,
+   "ocr": "Din thuyt trưc côngchúng",
+   "match": "Diễn thuyết trước công chúng",
+   "src": 0,
+   "sim": 0.9231,
+   "category": "replaced",
+   "context": [
+    "2",
+    "4",
+    "2",
+    "5"
+   ],
+   "layer": "Diễn thuyết trước công chúng",
+   "words": "Diễn thuyết trước công chúng"
+  },
+  {
+   "key": "96|844|25",
+   "page": 96,
+   "cell_index": 25,
+   "ocr": "H tr giúp quyt đinh",
+   "match": "Hệ trợ giúp quyết định",
+   "src": 0,
+   "sim": 0.9268,
+   "category": "replaced",
+   "context": [
+    "3",
+    "9",
+    "3"
+   ],
+   "layer": "Hệ trợ giúp quyết định",
+   "words": "Hệ trợ giúp quyết định"
+  },
+  {
+   "key": "78|714|1",
+   "page": 78,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "Tên môn học/học phần",
+   "src": 1,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Số TC",
+    "Học kỳ"
+   ],
+   "layer": "Tên môn học/học phần ồ",
+   "words": "học/học phần"
+  },
+  {
+   "key": "19|191|7",
+   "page": 19,
+   "cell_index": 7,
+   "ocr": "Vin trưng Phó Vin trưng",
+   "match": "Viện trưởng Phó Viện trưởng",
+   "src": 0,
+   "sim": 0.92,
+   "category": "replaced",
+   "context": [
+    "Lãnh đạo Viện",
+    "TS. Trần Đình Nam PGS.TS. Nguyễn Thị Hoàng Yến",
+    "0904 964 368 0912 483 379",
+    "namtd@ptit.edu.vn yenhth@ptit.edu.vn"
+   ],
+   "layer": "Viện trưởng Phó Viện trưởng",
+   "words": "Viện trưởng Phó Viện trưởng"
+  },
+  {
+   "key": "37|421|25",
+   "page": 37,
+   "cell_index": 25,
+   "ocr": "Toán ri rc 1 Giáo dc th cht 2",
+   "match": "Toán rời rạc 1 Giáo dục thể chất 2",
+   "src": 0,
+   "sim": 0.9206,
+   "category": "replaced",
+   "context": [
+    "HK2",
+    "11",
+    "3",
+    "HK2"
+   ],
+   "layer": "Toán rời rạc 1 Giádhể hấ2",
+   "words": "Toán rời rạc 1 Giáo dục thể chất 2"
+  },
+  {
+   "key": "23|284|1",
+   "page": 23,
+   "cell_index": 1,
+   "ocr": "ThS. Nguyn VǎnTin",
+   "match": "ThS. Nguyễn Văn Tiến",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "1",
+    "Bí thư",
+    "0984 686212"
+   ],
+   "layer": "p ThS. Nguyễn Văn Tiến",
+   "words": "chấp ThS. Nguyễn Văn Tiến"
+  },
+  {
+   "key": "39|445|7",
+   "page": 39,
+   "cell_index": 7,
+   "ocr": "H thông d liu lón",
+   "match": "Hệ thống dữ liệu lớn",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "3",
+    "8",
+    "3",
+    "9"
+   ],
+   "layer": "Hệ thống dữ liệu lớn",
+   "words": "Hệ thống dữ liệu lớn"
+  },
+  {
+   "key": "87|773|1",
+   "page": 87,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "Tên môn học/học phần",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Số TC",
+    "Học kỳ"
+   ],
+   "layer": "Tên môn học/học phần",
+   "words": "Tên môn học/học phần"
+  },
+  {
+   "key": "50|503|10",
+   "page": 50,
+   "cell_index": 10,
+   "ocr": "Tô chc sn xut sånphm đa phưong tin",
+   "match": "Tổ chức sản xuất sản phẩm đa phương tiện",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "2",
+    "4",
+    "2",
+    "5"
+   ],
+   "layer": "Tổ chức sản xuất sản phẩm đa phương tiện",
+   "words": "Tổ chức sản xuất sản phẩm đa phương tiện"
+  },
+  {
+   "key": "75|690|22",
+   "page": 75,
+   "cell_index": 22,
+   "ocr": "H khuyn nghi",
+   "match": "Hệ khuyến nghị",
+   "src": 0,
+   "sim": 0.9231,
+   "category": "replaced",
+   "context": [
+    "3",
+    "8",
+    "3",
+    "9"
+   ],
+   "layer": "Hệ khuyến nghị ố",
+   "words": "Hệ khuyến nghị"
+  },
+  {
+   "key": "62|591|1",
+   "page": 62,
+   "cell_index": 1,
+   "ocr": "Hc phàn",
+   "match": "Học phần",
+   "src": 0,
+   "sim": 0.9333,
+   "category": "replaced",
+   "context": [
+    "TT 1",
+    "Tín chỉ",
+    "Học kỳ"
+   ],
+   "layer": "Ọ Học phần",
+   "words": "HỌC Học phần"
+  },
+  {
+   "key": "74|674|2",
+   "page": 74,
+   "cell_index": 2,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "Tên môn học/học phần",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "NĂM HỌC THỨ BA",
+    "TT",
+    "Số TC",
+    "Học kỳ"
+   ],
+   "layer": "Tên môn học/học phần ịh i",
+   "words": "Tên môn học/học phần"
+  },
+  {
+   "key": "56|543|1",
+   "page": 56,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "Tên môn học/học phần",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Số TC",
+    "Học kỳ"
+   ],
+   "layer": "Tên môn học/học phầ",
+   "words": "Tên môn học/học phần"
+  },
+  {
+   "key": "82|748|1",
+   "page": 82,
+   "cell_index": 1,
+   "ocr": "(**): Danh sách các hc phàn t chon(thuc kin thc chuyên ngành):",
+   "match": "(**): Danh sách các học phần tự chọn (thuộc kiến thức chuyên ngành):",
+   "src": 1,
+   "sim": 0.9538,
+   "category": "replaced",
+   "context": [
+    "",
+    "1",
+    "Quản trị khủng hoảng truyền thông"
+   ],
+   "layer": "(**): Danh sách các học phần tự chọn (thuộc kiến thức chuyên ngành):",
+   "words": "( **): Danh sách các học phần tự chọn (thuộc kiến thức chuyên ngành):"
+  },
+  {
+   "key": "43|467|21",
+   "page": 43,
+   "cell_index": 21,
+   "ocr": "Software Quality Assurance (Đm bo cht lưng phn mêm)",
+   "match": "Software Quality Assurance (Đảm bảo chất lượng phần mềm)",
+   "src": 0,
+   "sim": 0.9533,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "8",
+    "3",
+    "HK8"
+   ],
+   "layer": "Software Quality Assuran (Đảm bảo chất lượng phần mềm)",
+   "words": "Software Quality Assurance (Đảm bảo chất lượng phần mềm)"
+  },
+  {
+   "key": "230|2799|22",
+   "page": 230,
+   "cell_index": 22,
+   "ocr": "Sinh viên có nhiu đóng góp chophong trào HSSV, thành tích đcbit khác",
+   "match": "Sinh viên có nhiều đóng góp cho phong trào HSSV, thành tích đặc biệt khác",
+   "src": 0,
+   "sim": 0.9645,
+   "category": "replaced",
+   "context": [
+    "Khen thưởng tối đa 25% số thành viên trong các đội, các câu lạc bộ...",
+    "4",
+    "0,25",
+    "0,1"
+   ],
+   "layer": "Sinh viên có nhiều đóng góp cho phong trào HSSV, thành tích đặc biệt khác",
+   "words": "Sinh viên có nhiều đóng góp cho phong trào HSSV, thành tích đặc biệt khác"
+  },
+  {
+   "key": "80|731|9",
+   "page": 80,
+   "cell_index": 9,
+   "ocr": "Đ án: K hoch Internet Marketing",
+   "match": "Đề án: Kế hoạch Internet Marketing",
+   "src": 1,
+   "sim": 0.9538,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "2",
+    "2",
+    "KH7"
+   ],
+   "layer": "Đề án: Kế hoạch Internet Marketing ằ",
+   "words": "hoạch Marketing"
+  },
+  {
+   "key": "93|819|6",
+   "page": 93,
+   "cell_index": 6,
+   "ocr": "Gii tích 1",
+   "match": "Giải tích 1",
+   "src": 0,
+   "sim": 0.9524,
+   "category": "replaced",
+   "context": [
+    "Học",
+    "1",
+    "3",
+    "HK1"
+   ],
+   "layer": "Giải tích 1",
+   "words": "Giải tích 1"
+  },
+  {
+   "key": "39|443|17",
+   "page": 39,
+   "cell_index": 17,
+   "ocr": "Hc phàn t chon 3 (*)",
+   "match": "Học phần tự chọn 3 (*)",
+   "src": 1,
+   "sim": 0.9524,
+   "category": "replaced",
+   "context": [
+    "HK8",
+    "10",
+    "3",
+    "HK8"
+   ],
+   "layer": "0 Học phần tự chọn 3 (*) ố",
+   "words": "Học phần tự chọn 3 ( *)"
+  },
+  {
+   "key": "65|607|7",
+   "page": 65,
+   "cell_index": 7,
+   "ocr": "Thanh toán quc t(Intenational payment)",
+   "match": "Thanh toán quốc tế (Intenational payment)",
+   "src": 0,
+   "sim": 0.962,
+   "category": "replaced",
+   "context": [
+    "2",
+    "2",
+    "2",
+    "3"
+   ],
+   "layer": "Thanh toán quốc tế (Intenational payment) ầ",
+   "words": "Thanh toán quốc tế (Intenational payment)"
+  },
+  {
+   "key": "15|142|5",
+   "page": 15,
+   "cell_index": 5,
+   "ocr": "Lãnh đo Khoa",
+   "match": "Lãnh đạo Khoa",
+   "src": 0,
+   "sim": 0.96,
+   "category": "replaced",
+   "context": [
+    "ĐIỆN THOẠI",
+    "EMAIL",
+    "TS. Nguyễn Duy Phương PGS.TS. Nguyễn Mạnh Hùng",
+    "Trưởng khoa Phó Trưởng khoa"
+   ],
+   "layer": "Lãnh đạo Khoa",
+   "words": "Lãnh đạo Khoa"
+  },
+  {
+   "key": "38|431|7",
+   "page": 38,
+   "cell_index": 7,
+   "ocr": "H tro giúp quyt đinh",
+   "match": "Hệ trợ giúp quyết định",
+   "src": 0,
+   "sim": 0.9524,
+   "category": "replaced",
+   "context": [
+    "3",
+    "3",
+    "3",
+    "4"
+   ],
+   "layer": "Hệ trợ giúp quyết định",
+   "words": "Hệ trợ giúp quyết định"
+  },
+  {
+   "key": "67|614|19",
+   "page": 67,
+   "cell_index": 19,
+   "ocr": "Gii tích 1",
+   "match": "Giải tích 1",
+   "src": 0,
+   "sim": 0.9524,
+   "category": "replaced",
+   "context": [
+    "HK3",
+    "2",
+    "3",
+    "HK1"
+   ],
+   "layer": "Giải tích 1",
+   "words": "Giải tích 1"
+  },
+  {
+   "key": "46|486|13",
+   "page": 46,
+   "cell_index": 13,
+   "ocr": "Text Mining and Analytics(Phân tích và khai phá d liuvăn bn)",
+   "match": "Text Mining and Analytics (Phân tích và khai phá dữ liệu văn bản)",
+   "src": 0,
+   "sim": 0.96,
+   "category": "replaced",
+   "context": [
+    "3",
+    "5",
+    "3",
+    "6"
+   ],
+   "layer": "Text Mining and Analytics (Phân tích và khai phá dữ liệu văn bản) HCtItti",
+   "words": "Text Mining and Analytics (Phân tích và khai phá dữ liệu văn bản)"
+  },
+  {
+   "key": "44|477|1",
+   "page": 44,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phn (Name courses)",
+   "match": "Tên môn học/học phần (Name courses)",
+   "src": 0,
+   "sim": 0.9552,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Số TC Credit H",
+    "Học kỳ"
+   ],
+   "layer": "Tên môn học/học phần (Name courses)",
+   "words": "Tên môn học/học phần (Name courses)"
+  },
+  {
+   "key": "87|768|13",
+   "page": 87,
+   "cell_index": 13,
+   "ocr": "Co s văn hóa Vit Nam",
+   "match": "Cơ sở văn hóa Việt Nam",
+   "src": 0,
+   "sim": 0.9524,
+   "category": "replaced",
+   "context": [
+    "HK1",
+    "3",
+    "2",
+    "HK1"
+   ],
+   "layer": "Cơ sở văn hóa Việt Nam",
+   "words": "Cơ sở văn hóa Việt Nam"
+  }
+ ],
+ "S5": [
+  {
+   "key": "57|551|0",
+   "page": 57,
+   "cell_index": 0,
+   "ocr": "TT Tên môn hc/hc phn",
+   "match": "TT Tên",
+   "src": 0,
+   "sim": 0.4615,
+   "category": "replaced",
+   "context": [
+    "",
+    "Số TC"
+   ],
+   "layer": "TT Tên m",
+   "words": "TT Tên"
+  },
+  {
+   "key": "185|2176|30",
+   "page": 185,
+   "cell_index": 30,
+   "ocr": "Cung cp thi khóa biu cho sinh viên dngtùrng tun",
+   "match": "Cung cấp thời khóa biểu cho sinh viên dạng từng",
+   "src": 0,
+   "sim": 0.8936,
+   "category": "replaced",
+   "context": [
+    "7",
+    "Xem thời khóa biểu tuần",
+    "",
+    "8"
+   ],
+   "layer": "g p g p Cung cấp thời khóa biểu cho sinh viên dạng từng tuần",
+   "words": "Cung cấp thời khóa biểu cho sinh viên dạng từng tuần"
+  },
+  {
+   "key": "38|438|1",
+   "page": 38,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "môn học/học phần",
+   "src": 0,
+   "sim": 0.7879,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Số TC",
+    "Học kỳ"
+   ],
+   "layer": "Tên môn học/học phần",
+   "words": "môn học/học phần"
+  },
+  {
+   "key": "58|559|25",
+   "page": 58,
+   "cell_index": 25,
+   "ocr": "Các hc phn t chn Lch s Đng Cng sn Vit",
+   "match": "Các học phần tự chọn",
+   "src": 0,
+   "sim": 0.5614,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "6",
+    "5",
+    "HK7"
+   ],
+   "layer": "g Các học phần tự chọn Lịh ử ĐảCộảVi",
+   "words": "Các học phần tự chọn"
+  },
+  {
+   "key": "34|411|5",
+   "page": 34,
+   "cell_index": 5,
+   "ocr": "Tư tưng Hồ Chí Minh Qun lý và đánh giá an toàn",
+   "match": "Tư tưởng Hồ Chí Minh",
+   "src": 0,
+   "sim": 0.5758,
+   "category": "replaced",
+   "context": [
+    "Hoc kò",
+    "1",
+    "2",
+    "HK7"
+   ],
+   "layer": "Tư tưởng Hồ Chí Minh Qảlý à đáh iá tà",
+   "words": "Tư tưởng Hồ Chí Minh"
+  },
+  {
+   "key": "79|721|13",
+   "page": 79,
+   "cell_index": 13,
+   "ocr": "Thit k h cơ s d liu",
+   "match": "Thiết kế hệ cơ sở dữ liệu",
+   "src": 0,
+   "sim": 0.8636,
+   "category": "replaced",
+   "context": [
+    "3",
+    "5",
+    "3",
+    "6"
+   ],
+   "layer": "Thiết kế hệ cơ sở dữ liệu",
+   "words": "Thiết kế hệ cơ sở dữ liệu"
+  },
+  {
+   "key": "23|274|1",
+   "page": 23,
+   "cell_index": 1,
+   "ocr": "TS. Đ Trung Anh",
+   "match": "TS. Đỗ",
+   "src": 0,
+   "sim": 0.4762,
+   "category": "replaced",
+   "context": [
+    "",
+    "Giám đốc",
+    "0913 869 328"
+   ],
+   "layer": "TS. Đ",
+   "words": "TS. Đỗ"
+  },
+  {
+   "key": "230|2799|2",
+   "page": 230,
+   "cell_index": 2,
+   "ocr": "Mc đim thưng",
+   "match": "Mức điểm",
+   "src": 0,
+   "sim": 0.6,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Nội dung",
+    "Ghi chú",
+    "Hệ niên chế"
+   ],
+   "layer": "Mức điểm thưởng",
+   "words": "Mức điểm"
+  },
+  {
+   "key": "20|209|7",
+   "page": 20,
+   "cell_index": 7,
+   "ocr": "Vin trưng",
+   "match": "Viện trưởng",
+   "src": 0,
+   "sim": 0.9,
+   "category": "replaced",
+   "context": [
+    "Lãnh đạo Viện",
+    "PGS. TS. Lê Nhật",
+    "090 434",
+    "thangln@ptit.edu.vn"
+   ],
+   "layer": "Viện trưởng",
+   "words": "Viện trưởng"
+  },
+  {
+   "key": "56|543|41",
+   "page": 56,
+   "cell_index": 41,
+   "ocr": "Đ án Thit k h thng s",
+   "match": "Đồ án Thiết kế hệ thống",
+   "src": 0,
+   "sim": 0.8372,
+   "category": "replaced",
+   "context": [
+    "HK8",
+    "5",
+    "62",
+    "HK7"
+   ],
+   "layer": "Đồ án Thiết kế hệ thống",
+   "words": "Đồ án Thiết kế hệ thống"
+  },
+  {
+   "key": "41|456|25",
+   "page": 41,
+   "cell_index": 25,
+   "ocr": "Hc phàn t chn",
+   "match": "Học phần tự chọn",
+   "src": 0,
+   "sim": 0.8966,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "6",
+    "3 17",
+    "HK7"
+   ],
+   "layer": "Học phần tự chọn",
+   "words": "Học phần tự chọn"
+  },
+  {
+   "key": "91|804|1",
+   "page": 91,
+   "cell_index": 1,
+   "ocr": "TT Tên môn hc/hc phn",
+   "match": "TT Tên môn",
+   "src": 0,
+   "sim": 0.6667,
+   "category": "replaced",
+   "context": [
+    "NĂM HỌC THỨ BA",
+    "",
+    "Số TC"
+   ],
+   "layer": "TT Tên môn học/họ",
+   "words": "TT Tên môn"
+  },
+  {
+   "key": "40|450|25",
+   "page": 40,
+   "cell_index": 25,
+   "ocr": "Hc phn t chn",
+   "match": "Học phần tự chọn",
+   "src": 0,
+   "sim": 0.8571,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "6",
+    "3",
+    "HK7"
+   ],
+   "layer": "Học phần tự chọn",
+   "words": "Học phần tự chọn"
+  },
+  {
+   "key": "45|484|2",
+   "page": 45,
+   "cell_index": 2,
+   "ocr": "Só TC Credit /Sem",
+   "match": "Số TC Credit",
+   "src": 0,
+   "sim": 0.8276,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Tên môn học/học phần (Name courses)",
+    "Hc k",
+    "Thesis"
+   ],
+   "layer": "Số TC Credit",
+   "words": "Số TC Credit"
+  },
+  {
+   "key": "18|179|7",
+   "page": 18,
+   "cell_index": 7,
+   "ocr": "Trưng khoaPhó Trưngkhoa",
+   "match": "Trưởng khoa Phó Trưởng khoa",
+   "src": 0,
+   "sim": 0.92,
+   "category": "replaced",
+   "context": [
+    "Lãnh đạo Khoa",
+    "TS. Vũ Trọng Phong TS. Trần Thị Thập",
+    "0912 0998110912 212929",
+    "phongvt@ptit.edu.vn thaptt@ptit.edu.vn"
+   ],
+   "layer": "Trưởng khoa Phó Trưởng khoa",
+   "words": "Trưởng khoa Phó Trưởng khoa"
+  },
+  {
+   "key": "85|757|25",
+   "page": 85,
+   "cell_index": 25,
+   "ocr": "Hc phàn la chn 2 (*) (Elective Course 2 (*))",
+   "match": "Học phần lựa chọn 2 ( *) (Elective Course 2 (",
+   "src": 0,
+   "sim": 0.9213,
+   "category": "replaced",
+   "context": [
+    "HK5",
+    "6",
+    "2",
+    "HK5"
+   ],
+   "layer": "Học phần lựa chọn 2 (* (Elective Course 2 (*)) Học phần lựa chọn 3 (*",
+   "words": "Học phần lựa chọn 2 ( *) (Elective Course 2 ( *)) *)"
+  },
+  {
+   "key": "178|2044|3",
+   "page": 178,
+   "cell_index": 3,
+   "ocr": "Ging  viênthinh ging",
+   "match": "Giảng viên thỉnh giảng",
+   "src": 0,
+   "sim": 0.9268,
+   "category": "replaced",
+   "context": [
+    "Đối tượng Học hàm, học vị",
+    "Giảng viên, nghiên cứu viên cơ hữu",
+    "Cán bộ quản lý, chuyên gia",
+    "1"
+   ],
+   "layer": "Giảng viên thỉnh giảng",
+   "words": "Giảng viên thỉnh giảng"
+  },
+  {
+   "key": "69|630|4",
+   "page": 69,
+   "cell_index": 4,
+   "ocr": "Thit k kiu dáng côngnghiêp",
+   "match": "Thiết kế kiểu dáng công nghiệp",
+   "src": 0,
+   "sim": 0.9286,
+   "category": "replaced",
+   "context": [
+    "2",
+    "2",
+    "2",
+    "3"
+   ],
+   "layer": "Thiết kế kiểu dáng công nghiệp",
+   "words": "Thiết kế kiểu dáng công nghiệp"
+  },
+  {
+   "key": "20|209|11",
+   "page": 20,
+   "cell_index": 11,
+   "ocr": "Phó Vin",
+   "match": "Phó Viện",
+   "src": 0,
+   "sim": 0.9333,
+   "category": "replaced",
+   "context": [
+    "thangln@ptit.edu.vn",
+    "Thăng",
+    "2557 093 619",
+    ""
+   ],
+   "layer": "Viện trưởng Phó Viện",
+   "words": "Phó Viện"
+  },
+  {
+   "key": "113|930|38",
+   "page": 113,
+   "cell_index": 38,
+   "ocr": "Pháp lut và s hu trí tu",
+   "match": "Pháp luật và sở hữu trí tuệ",
+   "src": 0,
+   "sim": 0.92,
+   "category": "replaced",
+   "context": [
+    "",
+    "9",
+    "2 2",
+    "HK6 HK6"
+   ],
+   "layer": "g Pháp luật và sở hữu trí tuệ ốề",
+   "words": "Pháp luật và sở hữu trí tuệ"
+  },
+  {
+   "key": "48|491|7",
+   "page": 48,
+   "cell_index": 7,
+   "ocr": "Khai phá d liu",
+   "match": "Khai phá dữ liệu",
+   "src": 0,
+   "sim": 0.9333,
+   "category": "replaced",
+   "context": [
+    "3",
+    "9",
+    "3",
+    "10"
+   ],
+   "layer": "Khai phá dữ liệu",
+   "words": "Khai phá dữ liệu"
+  },
+  {
+   "key": "88|780|10",
+   "page": 88,
+   "cell_index": 10,
+   "ocr": "Din thuyt trưc côngchúng",
+   "match": "Diễn thuyết trước công chúng",
+   "src": 0,
+   "sim": 0.9231,
+   "category": "replaced",
+   "context": [
+    "2",
+    "4",
+    "2",
+    "5"
+   ],
+   "layer": "Diễn thuyết trước công chúng",
+   "words": "Diễn thuyết trước công chúng"
+  },
+  {
+   "key": "101|870|1",
+   "page": 101,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "Tên môn học/học phần",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Số TC",
+    "Hc kò"
+   ],
+   "layer": "Tên môn học/học phần",
+   "words": "Tên môn học/học phần"
+  },
+  {
+   "key": "73|669|7",
+   "page": 73,
+   "cell_index": 7,
+   "ocr": "Mng cm bin không dây",
+   "match": "Mạng cảm biến không dây",
+   "src": 0,
+   "sim": 0.9302,
+   "category": "replaced",
+   "context": [
+    "3",
+    "3",
+    "3",
+    "4"
+   ],
+   "layer": "Mạng cảm biến không dây ềh",
+   "words": "Mạng cảm biến không dây"
+  },
+  {
+   "key": "53|523|1",
+   "page": 53,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "Tên môn học/học phần",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "T T",
+    "Số TC",
+    "Hc kò"
+   ],
+   "layer": "Ọ Tên môn học/học phần ố",
+   "words": "HỌC Tên môn học/học phần"
+  },
+  {
+   "key": "29|380|0",
+   "page": 29,
+   "cell_index": 0,
+   "ocr": "Phm cht ngưi tt nghip (Graduate Attributes)",
+   "match": "Phẩm chất người tốt nghiệp (Graduate Attributes)",
+   "src": 0,
+   "sim": 0.9451,
+   "category": "replaced",
+   "context": [
+    "Chuẩn đầu ra CSGD (University Learning Outcomes)",
+    "GA1"
+   ],
+   "layer": "Phẩm chất người tốt nghiệp (Graduate Attributes)",
+   "words": "Phẩm chất người tốt nghiệp (Graduate Attributes)"
+  },
+  {
+   "key": "23|284|1",
+   "page": 23,
+   "cell_index": 1,
+   "ocr": "ThS. Nguyn VǎnTin",
+   "match": "ThS. Nguyễn Văn Tiến",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "1",
+    "Bí thư",
+    "0984 686212"
+   ],
+   "layer": "p ThS. Nguyễn Văn Tiến",
+   "words": "chấp ThS. Nguyễn Văn Tiến"
+  },
+  {
+   "key": "98|858|1",
+   "page": 98,
+   "cell_index": 1,
+   "ocr": "Báo chí điu tra",
+   "match": "Báo chí điều tra",
+   "src": 0,
+   "sim": 0.9677,
+   "category": "replaced",
+   "context": [
+    "1",
+    "2",
+    "2"
+   ],
+   "layer": "Báo chí điều tra",
+   "words": "Báo chí điều tra"
+  },
+  {
+   "key": "73|668|4",
+   "page": 73,
+   "cell_index": 4,
+   "ocr": "Đin toán đám mây",
+   "match": "Điện toán đám mây",
+   "src": 0,
+   "sim": 0.9697,
+   "category": "replaced",
+   "context": [
+    "3",
+    "2",
+    "3",
+    "3"
+   ],
+   "layer": "Điện toán đám mây d",
+   "words": "Điện toán đám mây"
+  },
+  {
+   "key": "40|449|25",
+   "page": 40,
+   "cell_index": 25,
+   "ocr": "Nhp môn tích hp h thng (System Integration)",
+   "match": "Nhập môn tích hợp hệ thống (System Integration)",
+   "src": 0,
+   "sim": 0.9556,
+   "category": "replaced",
+   "context": [
+    "HK5",
+    "6",
+    "2",
+    "HK5"
+   ],
+   "layer": "(g) Nhập môn tích hợp hệ thống (System Integration)",
+   "words": "Nhập môn tích hợp hệ thống (System Integration)"
+  },
+  {
+   "key": "99|862|5",
+   "page": 99,
+   "cell_index": 5,
+   "ocr": "English Course 1_CLC",
+   "match": "English Course 1 _ CLC",
+   "src": 0,
+   "sim": 0.9524,
+   "category": "replaced",
+   "context": [
+    "Hoc kò",
+    "1",
+    "8",
+    "HK1"
+   ],
+   "layer": "English Course 1_CLC",
+   "words": "English Course 1 _ CLC"
+  },
+  {
+   "key": "105|898|1",
+   "page": 105,
+   "cell_index": 1,
+   "ocr": "TT Tên môn hc/hc phàn",
+   "match": "TT Tên môn học/học phần",
+   "src": 0,
+   "sim": 0.9545,
+   "category": "replaced",
+   "context": [
+    "NĂM HỌC THỨ BA",
+    "Số TC",
+    "Học kỳ"
+   ],
+   "layer": "TT Tên môn học/học phần",
+   "words": "TT Tên môn học/học phần"
+  },
+  {
+   "key": "22|244|2",
+   "page": 22,
+   "cell_index": 2,
+   "ocr": "Trưng phòng",
+   "match": "Trưởng phòng",
+   "src": 0,
+   "sim": 0.9565,
+   "category": "replaced",
+   "context": [
+    "1",
+    "TS. Ngô Đức Thiện",
+    "0912 928928",
+    "thiennd@ptit.edu.vn"
+   ],
+   "layer": "Trưởng phòng",
+   "words": "Trưởng phòng"
+  },
+  {
+   "key": "75|690|13",
+   "page": 75,
+   "cell_index": 13,
+   "ocr": "IoT và úng dng",
+   "match": "IoT và ứng dụng",
+   "src": 0,
+   "sim": 0.9655,
+   "category": "replaced",
+   "context": [
+    "3",
+    "5",
+    "3",
+    "6"
+   ],
+   "layer": "IoT và ứng dụng ấhi",
+   "words": "IoT và ứng dụng"
+  },
+  {
+   "key": "76|695|49",
+   "page": 76,
+   "cell_index": 49,
+   "ocr": "Chuyên đ 1",
+   "match": "Chuyên đề 1",
+   "src": 0,
+   "sim": 0.9524,
+   "category": "replaced",
+   "context": [
+    "HK4",
+    "11",
+    "2",
+    "HK4"
+   ],
+   "layer": "Chuyên đề 1 Lịh ử Đảộả",
+   "words": "Chuyên đề 1"
+  },
+  {
+   "key": "17|160|4",
+   "page": 17,
+   "cell_index": 4,
+   "ocr": "Lãnh đo Khoa",
+   "match": "Lãnh đạo Khoa",
+   "src": 0,
+   "sim": 0.96,
+   "category": "replaced",
+   "context": [
+    "ĐIỆN THOẠI",
+    "EMAIL",
+    "PGS.TS. Hoàng Xuân Du 1 Trưng khoa",
+    "0904 534 390"
+   ],
+   "layer": "Lãnh đạo Khoa",
+   "words": "Lãnh đạo Khoa"
+  },
+  {
+   "key": "18|185|15",
+   "page": 18,
+   "cell_index": 15,
+   "ocr": "BM K toán và Kim toán",
+   "match": "BM Kế toán và Kiểm toán",
+   "src": 0,
+   "sim": 0.9545,
+   "category": "replaced",
+   "context": [
+    "0916353 858",
+    "ketvq@ptit.edu.vn",
+    "TS. Nguyễn Thị Việt Lê",
+    "Trưởng bộ môn"
+   ],
+   "layer": "BM Kế toán và Kiểm toán",
+   "words": "BM Kế toán và Kiểm toán"
+  },
+  {
+   "key": "67|614|19",
+   "page": 67,
+   "cell_index": 19,
+   "ocr": "Gii tích 1",
+   "match": "Giải tích 1",
+   "src": 0,
+   "sim": 0.9524,
+   "category": "replaced",
+   "context": [
+    "HK3",
+    "2",
+    "3",
+    "HK1"
+   ],
+   "layer": "Giải tích 1",
+   "words": "Giải tích 1"
+  },
+  {
+   "key": "94|825|10",
+   "page": 94,
+   "cell_index": 10,
+   "ocr": "Mô hình hc máy đò th vàúng dung",
+   "match": "Mô hình học máy đồ thị và ứng dụng",
+   "src": 0,
+   "sim": 0.9538,
+   "category": "replaced",
+   "context": [
+    "3",
+    "4",
+    "3",
+    "5"
+   ],
+   "layer": "Mô hình học máy đồ thị và ứng dụng",
+   "words": "Mô hình học máy đồ thị và ứng dụng"
+  },
+  {
+   "key": "56|543|33",
+   "page": 56,
+   "cell_index": 33,
+   "ocr": "H thông nhúng",
+   "match": "Hệ thống nhúng",
+   "src": 0,
+   "sim": 0.963,
+   "category": "replaced",
+   "context": [
+    "HK8",
+    "4",
+    "3",
+    "HK7"
+   ],
+   "layer": "Hệ thống nhúng",
+   "words": "Hệ thống nhúng"
+  }
+ ],
+ "S7": [
+  {
+   "key": "56|543|21",
+   "page": 56,
+   "cell_index": 21,
+   "ocr": "Mng cm bin",
+   "match": "Mạng cảm biến",
+   "src": 0,
+   "sim": 0.8696,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "9",
+    "3",
+    "HK8"
+   ],
+   "layer": "Mạng cảm biến",
+   "words": "Mạng cảm biến"
+  },
+  {
+   "key": "74|674|4",
+   "page": 74,
+   "cell_index": 4,
+   "ocr": "Hoc k",
+   "match": "Học kỳ",
+   "src": 0,
+   "sim": 0.9091,
+   "category": "replaced",
+   "context": [
+    "Tên môn học/học phần",
+    "Số TC",
+    "1",
+    "Lịch sử Đảng cộng sản Việt Nam"
+   ],
+   "layer": "Học kỳ",
+   "words": "Học kỳ"
+  },
+  {
+   "key": "37|423|8",
+   "page": 37,
+   "cell_index": 8,
+   "ocr": "Lch s Đng cng sn Vit Nam",
+   "match": "Lịch sử Đảng cộng sản Việt Nam",
+   "src": 0,
+   "sim": 0.8889,
+   "category": "replaced",
+   "context": [
+    "",
+    "1",
+    "2",
+    "HK5"
+   ],
+   "layer": "Lịch sử Đảng cộng sản V Nam",
+   "words": "Lịch sử Đảng cộng sản Việt Nam"
+  },
+  {
+   "key": "60|573|2",
+   "page": 60,
+   "cell_index": 2,
+   "ocr": "S TC",
+   "match": "Số TC",
+   "src": 0,
+   "sim": 0.8889,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Tên môn học/học phần",
+    "Hc k",
+    "1"
+   ],
+   "layer": "Số TC",
+   "words": "Số TC"
+  },
+  {
+   "key": "230|2799|4",
+   "page": 230,
+   "cell_index": 4,
+   "ocr": "H niên ch",
+   "match": "Hệ niên chế",
+   "src": 0,
+   "sim": 0.9,
+   "category": "replaced",
+   "context": [
+    "Mc đim thưng",
+    "Ghi chú",
+    "Hệ tín chỉ",
+    "1"
+   ],
+   "layer": "Mức điểm Hệ niên chế",
+   "words": "Hệ niên chế"
+  },
+  {
+   "key": "89|782|2",
+   "page": 89,
+   "cell_index": 2,
+   "ocr": "S TC",
+   "match": "Số TC",
+   "src": 0,
+   "sim": 0.8889,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Tên môn học/học phần",
+    "Hc k",
+    "1"
+   ],
+   "layer": "Số TC",
+   "words": "Số TC"
+  },
+  {
+   "key": "80|730|26",
+   "page": 80,
+   "cell_index": 26,
+   "ocr": "Hc phn la chn 2 (*)",
+   "match": "Học phần lựa chọn 2 ( *)",
+   "src": 0,
+   "sim": 0.8837,
+   "category": "replaced",
+   "context": [
+    "HK5",
+    "6",
+    "2",
+    "HK5"
+   ],
+   "layer": "Học phần lựa chọn 2 (*) ầ",
+   "words": "Học phần lựa chọn 2 ( *)"
+  },
+  {
+   "key": "69|630|10",
+   "page": 69,
+   "cell_index": 10,
+   "ocr": "Điu khin hin đai",
+   "match": "Điều khiển hiện đại",
+   "src": 0,
+   "sim": 0.9143,
+   "category": "replaced",
+   "context": [
+    "2",
+    "4",
+    "2"
+   ],
+   "layer": "Điều khiển hiện đại",
+   "words": "Điều khiển hiện đại"
+  },
+  {
+   "key": "32|386|12",
+   "page": 32,
+   "cell_index": 12,
+   "ocr": "4 Co s d liu",
+   "match": "4 Cơ sở dữ liệu",
+   "src": 0,
+   "sim": 0.8889,
+   "category": "replaced",
+   "context": [
+    "Cu trúc d liu và gii thut",
+    "3 HK3",
+    "",
+    "3 HK3"
+   ],
+   "layer": "g 4 Cơ sở dữ liệu",
+   "words": "4 Cơ sở dữ liệu"
+  },
+  {
+   "key": "101|873|9",
+   "page": 101,
+   "cell_index": 9,
+   "ocr": "Chính ph đin t",
+   "match": "Chính phủ điện tử",
+   "src": 0,
+   "sim": 0.9032,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "2",
+    "2",
+    "HK7"
+   ],
+   "layer": ") Chính phủ điện tử Bálẻ ế",
+   "words": "Chính phủ điện tử"
+  },
+  {
+   "key": "115|937|11",
+   "page": 115,
+   "cell_index": 11,
+   "ocr": "Co s d liu",
+   "match": "Cơ sở dữ liệu",
+   "src": 0,
+   "sim": 0.8696,
+   "category": "replaced",
+   "context": [
+    "k HK7",
+    "2",
+    "3",
+    "KH7"
+   ],
+   "layer": "Cơ sở dữ liệu",
+   "words": "Cơ sở dữ liệu"
+  },
+  {
+   "key": "41|457|7",
+   "page": 41,
+   "cell_index": 7,
+   "ocr": "Phát trin phn mm hưóngdch v",
+   "match": "Phát triển phần mềm hướng dịch vụ",
+   "src": 0,
+   "sim": 0.9,
+   "category": "replaced",
+   "context": [
+    "3",
+    "3",
+    "3"
+   ],
+   "layer": "Phát triển phần mềm hướng dịch vụ",
+   "words": "Phát triển phần mềm hướng dịch vụ"
+  },
+  {
+   "key": "68|624|5",
+   "page": 68,
+   "cell_index": 5,
+   "ocr": "Tư tưng Hò Chí Minh",
+   "match": "tưởng Hồ Chí Minh",
+   "src": 0,
+   "sim": 0.8889,
+   "category": "replaced",
+   "context": [
+    "Học kỳ",
+    "1",
+    "2",
+    "HK7"
+   ],
+   "layer": "Tư tưởng Hồ Chí Minh Phương pháp luận nghiên cứu",
+   "words": "tưởng Hồ Chí Minh cứu"
+  },
+  {
+   "key": "103|891|2",
+   "page": 103,
+   "cell_index": 2,
+   "ocr": "S TC",
+   "match": "Số TC",
+   "src": 0,
+   "sim": 0.8889,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Tên môn học/học phần",
+    "Hc k",
+    "1"
+   ],
+   "layer": "Số TC",
+   "words": "Số TC"
+  },
+  {
+   "key": "71|649|3",
+   "page": 71,
+   "cell_index": 3,
+   "ocr": "Hoc k",
+   "match": "Học kỳ",
+   "src": 0,
+   "sim": 0.9091,
+   "category": "replaced",
+   "context": [
+    "Tên môn học/học phần",
+    "Số TC",
+    "T T",
+    "Tên môn học/học phần"
+   ],
+   "layer": "Học kỳ",
+   "words": "Học kỳ"
+  },
+  {
+   "key": "138|1337|2",
+   "page": 138,
+   "cell_index": 2,
+   "ocr": "Đim ch",
+   "match": "Điểm chữ",
+   "src": 0,
+   "sim": 0.8571,
+   "category": "replaced",
+   "context": [
+    "Điểm chữ",
+    "Thang điểm 4",
+    "Thang điểm 4",
+    "A+"
+   ],
+   "layer": "Điểm chữ",
+   "words": "Điểm chữ"
+  },
+  {
+   "key": "59|568|24",
+   "page": 59,
+   "cell_index": 24,
+   "ocr": "Giáo dc th cht 1",
+   "match": "Giáo dục thể chất 1",
+   "src": 0,
+   "sim": 0.9143,
+   "category": "replaced",
+   "context": [
+    "4",
+    "HK1",
+    "",
+    "HK1 HK1"
+   ],
+   "layer": "Giáo dục thể chất 1 Giádốhò",
+   "words": "Giáo dục thể chất 1"
+  },
+  {
+   "key": "16|148|12",
+   "page": 16,
+   "cell_index": 12,
+   "ocr": "Trung b môn",
+   "match": "Trưởng bộ môn",
+   "src": 0,
+   "sim": 0.9167,
+   "category": "replaced",
+   "context": [
+    "BM Mạng viễn thông",
+    "PGS.TS. Hoàng Trọng Minh",
+    "0913 259 259",
+    "hoangtrongminh@ptit.edu.vn"
+   ],
+   "layer": "Trưởng bộ môn",
+   "words": "Trưởng bộ môn"
+  },
+  {
+   "key": "99|862|41",
+   "page": 99,
+   "cell_index": 41,
+   "ocr": "K thut nhip nh",
+   "match": "Kỹ thuật nhiếp ảnh",
+   "src": 0,
+   "sim": 0.875,
+   "category": "replaced",
+   "context": [
+    "HK2",
+    "10",
+    "3",
+    "HK2"
+   ],
+   "layer": "Kỹ thuật nhiếp ảnh",
+   "words": "Kỹ thuật nhiếp ảnh"
+  },
+  {
+   "key": "81|741|2",
+   "page": 81,
+   "cell_index": 2,
+   "ocr": "S TC",
+   "match": "Số TC",
+   "src": 0,
+   "sim": 0.8889,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Tên môn học/học phần",
+    "Hc kò",
+    "1"
+   ],
+   "layer": "Số TC H k",
+   "words": "Số TC"
+  },
+  {
+   "key": "19|191|5",
+   "page": 19,
+   "cell_index": 5,
+   "ocr": "Lãnh đo Vin",
+   "match": "Lãnh đạo Viện",
+   "src": 0,
+   "sim": 0.9167,
+   "category": "replaced",
+   "context": [
+    "ĐIỆN THOẠI",
+    "EMAIL",
+    "TS. Trần Đình Nam PGS.TS. Nguyễn Thị Hoàng Yến",
+    "Viện trưởng Phó Viện trưởng"
+   ],
+   "layer": "Lãnh đạo Viện",
+   "words": "Lãnh đạo Viện"
+  },
+  {
+   "key": "34|411|29",
+   "page": 34,
+   "cell_index": 29,
+   "ocr": "Hc phàn t chon 2.1 (**)",
+   "match": "phần tự chọn 2.1 ( **)",
+   "src": 0,
+   "sim": 0.8889,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "7",
+    "2",
+    "HK7"
+   ],
+   "layer": "Học phần tự chọn 2.1 (**)",
+   "words": "phần tự chọn 2.1 ( **)"
+  },
+  {
+   "key": "92|813|21",
+   "page": 92,
+   "cell_index": 21,
+   "ocr": "Qun tr công ngh và đimói sáng to",
+   "match": "Quản trị công nghệ và đổi mới sáng tạo",
+   "src": 0,
+   "sim": 0.9143,
+   "category": "replaced",
+   "context": [
+    "",
+    "6",
+    "3",
+    ""
+   ],
+   "layer": "Quản trị công nghệ và đổi mới sáng tạo",
+   "words": "Quản trị công nghệ và đổi mới sáng tạo"
+  },
+  {
+   "key": "38|431|19",
+   "page": 38,
+   "cell_index": 19,
+   "ocr": "Qun lí d án phn mm",
+   "match": "Quản lí dự án phần mềm",
+   "src": 0,
+   "sim": 0.9,
+   "category": "replaced",
+   "context": [
+    "3",
+    "7",
+    "3",
+    "8"
+   ],
+   "layer": "Quản lí dự án phần mềm",
+   "words": "Quản lí dự án phần mềm"
+  },
+  {
+   "key": "52|517|34",
+   "page": 52,
+   "cell_index": 34,
+   "ocr": "01 hc phn t chn (*)",
+   "match": "01 học phần tự chọn ( *)",
+   "src": 0,
+   "sim": 0.8837,
+   "category": "replaced",
+   "context": [
+    "5 HK",
+    "8",
+    "3",
+    "5"
+   ],
+   "layer": "01 học phần tự chọn (*)",
+   "words": "01 học phần tự chọn ( *)"
+  },
+  {
+   "key": "72|664|37",
+   "page": 72,
+   "cell_index": 37,
+   "ocr": "T chn 2",
+   "match": "Tự chọn 2",
+   "src": 0,
+   "sim": 0.875,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "",
+    "3",
+    "HK8"
+   ],
+   "layer": "Tự chọn 2",
+   "words": "Tự chọn 2"
+  },
+  {
+   "key": "76|695|53",
+   "page": 76,
+   "cell_index": 53,
+   "ocr": "Lch s Đng cng sån Vit Nam",
+   "match": "Lịch sử Đảng cộng sản Việt Nam",
+   "src": 0,
+   "sim": 0.9091,
+   "category": "replaced",
+   "context": [
+    "HK4",
+    "12",
+    "2",
+    "HK4"
+   ],
+   "layer": "Lịch sử Đảng cộng sản Việt Nam",
+   "words": "Lịch sử Đảng cộng sản Việt Nam"
+  },
+  {
+   "key": "82|748|11",
+   "page": 82,
+   "cell_index": 11,
+   "ocr": "T chúc s kin",
+   "match": "Tổ chức sự kiện",
+   "src": 0,
+   "sim": 0.8889,
+   "category": "replaced",
+   "context": [
+    "",
+    "3",
+    "3",
+    ""
+   ],
+   "layer": "Tổ chức sự kiện",
+   "words": "Tổ chức sự kiện"
+  },
+  {
+   "key": "33|402|21",
+   "page": 33,
+   "cell_index": 21,
+   "ocr": "Hc phn t chn 1.2 (*)",
+   "match": "Học phần tự chọn 1.2 ( *)",
+   "src": 0,
+   "sim": 0.8889,
+   "category": "replaced",
+   "context": [
+    "HK8",
+    "12",
+    "3",
+    "HK8"
+   ],
+   "layer": "Học phần tự chọn 1.2 (*) ầ",
+   "words": "Học phần tự chọn 1.2 ( *)"
+  },
+  {
+   "key": "53|523|5",
+   "page": 53,
+   "cell_index": 5,
+   "ocr": "Thc tp và tt nghip",
+   "match": "Thực tập và tốt nghiệp",
+   "src": 0,
+   "sim": 0.9,
+   "category": "replaced",
+   "context": [
+    "Hc kò",
+    "1",
+    "12",
+    "HK 9"
+   ],
+   "layer": "Thực tập và tốt nghiệp",
+   "words": "Thực tập và tốt nghiệp"
+  },
+  {
+   "key": "58|557|4",
+   "page": 58,
+   "cell_index": 4,
+   "ocr": "Co s d liu",
+   "match": "Cơ sở dữ liệu",
+   "src": 0,
+   "sim": 0.8696,
+   "category": "replaced",
+   "context": [
+    "2",
+    "11",
+    "3",
+    "12"
+   ],
+   "layer": "Cơ sở dữ liệu",
+   "words": "Cơ sở dữ liệu"
+  },
+  {
+   "key": "90|797|5",
+   "page": 90,
+   "cell_index": 5,
+   "ocr": "Qun tr chin lưc",
+   "match": "Quản trị chiến lược",
+   "src": 0,
+   "sim": 0.8824,
+   "category": "replaced",
+   "context": [
+    "",
+    "8",
+    "3",
+    "HK6"
+   ],
+   "layer": "Quản trị chiến lược Quản trị tài chính doanh",
+   "words": "Quản trị chiến lược"
+  },
+  {
+   "key": "88|778|4",
+   "page": 88,
+   "cell_index": 4,
+   "ocr": "Truyn thông ni b trong t chc",
+   "match": "Truyền thông nội bộ trong tổ chức",
+   "src": 0,
+   "sim": 0.918,
+   "category": "replaced",
+   "context": [
+    "3",
+    "2",
+    "3",
+    "3"
+   ],
+   "layer": "Truyền thông nội bộ trong tổ chức",
+   "words": "Truyền thông nội bộ trong tổ chức"
+  },
+  {
+   "key": "57|548|7",
+   "page": 57,
+   "cell_index": 7,
+   "ocr": "Thit k vi mch s",
+   "match": "Thiết kế vi mạch số",
+   "src": 0,
+   "sim": 0.8824,
+   "category": "replaced",
+   "context": [
+    "2",
+    "3",
+    "3",
+    "4"
+   ],
+   "layer": "Thiết kế vi mạch số",
+   "words": "Thiết kế vi mạch số"
+  },
+  {
+   "key": "117|944|2",
+   "page": 117,
+   "cell_index": 2,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "Tên môn học/học phần",
+   "src": 0,
+   "sim": 0.9189,
+   "category": "replaced",
+   "context": [
+    "NĂM HỌC THỨ BA",
+    "TT",
+    "Số TC",
+    "Học kỳ"
+   ],
+   "layer": "Tên môn học/học phần",
+   "words": "Tên môn học/học phần"
+  },
+  {
+   "key": "40|449|17",
+   "page": 40,
+   "cell_index": 17,
+   "ocr": "Cu trúc d liu và gii thut",
+   "match": "Cấu trúc dữ liệu và giải thuật",
+   "src": 0,
+   "sim": 0.9091,
+   "category": "replaced",
+   "context": [
+    "HK5",
+    "4",
+    "3",
+    "HK5"
+   ],
+   "layer": "Cấu trúc dữ liệu và giải thuật ề",
+   "words": "Cấu trúc dữ liệu và giải thuật"
+  },
+  {
+   "key": "104|894|4",
+   "page": 104,
+   "cell_index": 4,
+   "ocr": "Phát trin game thc t o",
+   "match": "Phát triển game thực tế ảo",
+   "src": 0,
+   "sim": 0.9167,
+   "category": "replaced",
+   "context": [
+    "3",
+    "2",
+    "3",
+    "3"
+   ],
+   "layer": "Phát triển game thực tế ảo",
+   "words": "Phát triển game thực tế ảo"
+  },
+  {
+   "key": "62|591|33",
+   "page": 62,
+   "cell_index": 33,
+   "ocr": "Thc tp và tt nghip",
+   "match": "Thực tập và tốt nghiệp",
+   "src": 0,
+   "sim": 0.9,
+   "category": "replaced",
+   "context": [
+    "",
+    "1",
+    "10",
+    "HK8"
+   ],
+   "layer": "Thực tập và tốt nghiệp",
+   "words": "Thực tập và tốt nghiệp"
+  },
+  {
+   "key": "85|757|3",
+   "page": 85,
+   "cell_index": 3,
+   "ocr": "kò /Sem",
+   "match": "kỳ /Sem",
+   "src": 0,
+   "sim": 0.8571,
+   "category": "replaced",
+   "context": [
+    "(Name courses)",
+    "TC Credit",
+    "1",
+    "Chủ nghĩa xã hội khoa học (Scientific Socialism)"
+   ],
+   "layer": "kỳ /Sem",
+   "words": "kỳ /Sem"
+  },
+  {
+   "key": "20|209|5",
+   "page": 20,
+   "cell_index": 5,
+   "ocr": "Lãnh đo Vin",
+   "match": "Lãnh đạo Viện",
+   "src": 0,
+   "sim": 0.9167,
+   "category": "replaced",
+   "context": [
+    "ĐIỆN THOẠI",
+    "EMAIL",
+    "PGS. TS. Lê Nhật",
+    "Viện trưởng"
+   ],
+   "layer": "Lãnh đạo Viện",
+   "words": "Lãnh đạo Viện"
+  },
+  {
+   "key": "15|142|2",
+   "page": 15,
+   "cell_index": 2,
+   "ocr": "CHÚC V",
+   "match": "CHỨC VỤ",
+   "src": 0,
+   "sim": 0.9231,
+   "category": "replaced",
+   "context": [
+    "ĐƠN VỊ",
+    "HỌ VÀ TÊN",
+    "ĐIỆN THOẠI",
+    "EMAIL"
+   ],
+   "layer": "CHỨC VỤ",
+   "words": "CHỨC VỤ"
+  },
+  {
+   "key": "67|614|115",
+   "page": 67,
+   "cell_index": 115,
+   "ocr": "Mch đin",
+   "match": "Mạch điện",
+   "src": 0,
+   "sim": 0.875,
+   "category": "replaced",
+   "context": [
+    "HK4",
+    "11",
+    "3",
+    "HK2"
+   ],
+   "layer": "Mạch điện",
+   "words": "Mạch điện"
+  },
+  {
+   "key": "70|635|9",
+   "page": 70,
+   "cell_index": 9,
+   "ocr": "Lch s đng cng sn Vit Nam",
+   "match": "Lịch sử đảng cộng sản Việt Nam",
+   "src": 0,
+   "sim": 0.8889,
+   "category": "replaced",
+   "context": [
+    "Học kỳ",
+    "1",
+    "2",
+    "HK5"
+   ],
+   "layer": "Lịch sử đảng cộng sản Việt N",
+   "words": "Lịch sử đảng cộng sản Việt Nam"
+  },
+  {
+   "key": "113|930|46",
+   "page": 113,
+   "cell_index": 46,
+   "ocr": "khin mt đt",
+   "match": "khiển mặt đất",
+   "src": 0,
+   "sim": 0.8696,
+   "category": "replaced",
+   "context": [
+    "",
+    "10 11",
+    "3",
+    "HK6"
+   ],
+   "layer": "khiển mặt đất Tự chọn 1",
+   "words": "khiển mặt đất Tự chọn 1"
+  },
+  {
+   "key": "79|724|10",
+   "page": 79,
+   "cell_index": 10,
+   "ocr": "H cơ s d liu đa phưongtiên",
+   "match": "Hệ cơ sở dữ liệu đa phương tiện",
+   "src": 0,
+   "sim": 0.9123,
+   "category": "replaced",
+   "context": [
+    "3",
+    "11",
+    "3",
+    "12"
+   ],
+   "layer": "Hệ cơ sở dữ liệu đa phương tiện",
+   "words": "Hệ cơ sở dữ liệu đa phương tiện"
+  },
+  {
+   "key": "18|179|12",
+   "page": 18,
+   "cell_index": 12,
+   "ocr": "Trưng b môn",
+   "match": "Trưởng bộ môn",
+   "src": 0,
+   "sim": 0.9167,
+   "category": "replaced",
+   "context": [
+    "BM Kinh tế",
+    "TS. Trần Thị Hòa",
+    "0914 281999",
+    "hoatt@ptit.edu.vn"
+   ],
+   "layer": "Trưởng bộ môn",
+   "words": "Trưởng bộ môn"
+  },
+  {
+   "key": "39|443|5",
+   "page": 39,
+   "cell_index": 5,
+   "ocr": "Lp trình mng",
+   "match": "Lập trình mạng",
+   "src": 0,
+   "sim": 0.9231,
+   "category": "replaced",
+   "context": [
+    "",
+    "7",
+    "3",
+    "HK8"
+   ],
+   "layer": "Lập trình mạng",
+   "words": "Lập trình mạng"
+  },
+  {
+   "key": "87|770|25",
+   "page": 87,
+   "cell_index": 25,
+   "ocr": "Hc phn k năng mm 1 (***)",
+   "match": "Học phần kỹ năng mềm 1 ( ***)",
+   "src": 0,
+   "sim": 0.9057,
+   "category": "replaced",
+   "context": [
+    "HK2",
+    "12",
+    "",
+    "HK2"
+   ],
+   "layer": "Học phần kỹ năng mềm 1 (***)",
+   "words": "Học phần kỹ năng mềm 1 ( ***)"
+  },
+  {
+   "key": "78|715|17",
+   "page": 78,
+   "cell_index": 17,
+   "ocr": "Dā liu lón",
+   "match": "Dữ liệu lớn",
+   "src": 0,
+   "sim": 0.8571,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "4",
+    "3",
+    "HK7"
+   ],
+   "layer": "Dữ liệu lớn",
+   "words": "Dữ liệu lớn"
+  },
+  {
+   "key": "91|804|3",
+   "page": 91,
+   "cell_index": 3,
+   "ocr": "S TC",
+   "match": "Số TC",
+   "src": 0,
+   "sim": 0.8889,
+   "category": "replaced",
+   "context": [
+    "TT Tên môn hc/hc phn",
+    "",
+    "Học kỳ",
+    "1"
+   ],
+   "layer": "Số TC H k",
+   "words": "Số TC"
+  },
+  {
+   "key": "92|817|21",
+   "page": 92,
+   "cell_index": 21,
+   "ocr": "Vn ti đa phưong thc",
+   "match": "Vận tải đa phương thức",
+   "src": 0,
+   "sim": 0.9268,
+   "category": "replaced",
+   "context": [
+    "",
+    "6",
+    "2",
+    ""
+   ],
+   "layer": "Vận tải đa phương thức",
+   "words": "Vận tải đa phương thức"
+  },
+  {
+   "key": "40|450|9",
+   "page": 40,
+   "cell_index": 9,
+   "ocr": "Kho d liu và khai phá d liu",
+   "match": "Kho dữ liệu và khai phá dữ liệu",
+   "src": 0,
+   "sim": 0.931,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "2",
+    "3",
+    "HK7"
+   ],
+   "layer": "Kho dữ liệu và khai phá dữ liệu",
+   "words": "Kho dữ liệu và khai phá dữ liệu"
+  },
+  {
+   "key": "103|891|21",
+   "page": 103,
+   "cell_index": 21,
+   "ocr": "Thit k giao din ngưi choi game",
+   "match": "Thiết kế giao diện người chơi game",
+   "src": 0,
+   "sim": 0.9375,
+   "category": "replaced",
+   "context": [
+    "HK5",
+    "5",
+    "3",
+    "HK5"
+   ],
+   "layer": "Thiết kế giao diện người chơi game",
+   "words": "Thiết kế giao diện người chơi game"
+  },
+  {
+   "key": "74|672|54",
+   "page": 74,
+   "cell_index": 54,
+   "ocr": "Xác sut thông kê Giáo dc th cht 2",
+   "match": "Xác suất thống kê Giáo dục thể chất 2",
+   "src": 0,
+   "sim": 0.9429,
+   "category": "replaced",
+   "context": [
+    "HK2",
+    "11",
+    "2",
+    "HK2"
+   ],
+   "layer": "Xác suất thống kê Giádhể hấ2",
+   "words": "Xác suất thống kê Giáo dục thể chất 2"
+  },
+  {
+   "key": "77|703|10",
+   "page": 77,
+   "cell_index": 10,
+   "ocr": "Trí tu nhân to",
+   "match": "Trí tuệ nhân tạo",
+   "src": 0,
+   "sim": 0.9333,
+   "category": "replaced",
+   "context": [
+    "3",
+    "4",
+    "3",
+    "5"
+   ],
+   "layer": "Trí tuệ nhân tạo",
+   "words": "Trí tuệ nhân tạo"
+  },
+  {
+   "key": "93|819|0",
+   "page": 93,
+   "cell_index": 0,
+   "ocr": "NĂM HQC THÚ NHÁT",
+   "match": "NĂM HỌC THỨ NHẤT",
+   "src": 0,
+   "sim": 0.9375,
+   "category": "replaced",
+   "context": [
+    "",
+    "TT Tên môn hc/hc phàn"
+   ],
+   "layer": "NĂM HỌC THỨ NHẤT",
+   "words": "NĂM HỌC THỨ NHẤT"
+  },
+  {
+   "key": "89|783|49",
+   "page": 89,
+   "cell_index": 49,
+   "ocr": "Thương mi đin t căn bån",
+   "match": "Thương mại điện tử căn bản",
+   "src": 0,
+   "sim": 0.9388,
+   "category": "replaced",
+   "context": [
+    "HK4",
+    "11",
+    "3",
+    "HK4"
+   ],
+   "layer": "Thương mại điện tử căn bản hốhilý",
+   "words": "Thương mại điện tử căn bản"
+  },
+  {
+   "key": "115|934|51",
+   "page": 115,
+   "cell_index": 51,
+   "ocr": "Xác xut thng kê",
+   "match": "Xác xuất thống kê",
+   "src": 0,
+   "sim": 0.9375,
+   "category": "replaced",
+   "context": [
+    "HK2",
+    "10",
+    "2",
+    "HK2"
+   ],
+   "layer": "Xác xuất thống kê",
+   "words": "Xác xuất thống kê"
+  },
+  {
+   "key": "21|227|2",
+   "page": 21,
+   "cell_index": 2,
+   "ocr": "Phó Trungphòng, Ph tráchphòng",
+   "match": "Phó Trưởng phòng, Phụ trách phòng",
+   "src": 0,
+   "sim": 0.9355,
+   "category": "replaced",
+   "context": [
+    "1",
+    "ThS. Đặng Văn Tùng",
+    "0912 337 788",
+    "tungdv@ptit.edu.vn"
+   ],
+   "layer": "Phó Trưởng phòng, Phụ trách phòng Phó Tở",
+   "words": "Phó Trưởng phòng, Phụ trách phòng"
+  },
+  {
+   "key": "67|616|6",
+   "page": 67,
+   "cell_index": 6,
+   "ocr": "Ch nghĩa xã hi khoa hc",
+   "match": "Chủ nghĩa xã hội khoa học",
+   "src": 0,
+   "sim": 0.9362,
+   "category": "replaced",
+   "context": [
+    "Hc k",
+    "1",
+    "2",
+    "HK5"
+   ],
+   "layer": "Chủ nghĩa xã hội khoa học",
+   "words": "Chủ nghĩa xã hội khoa học"
+  },
+  {
+   "key": "72|664|21",
+   "page": 72,
+   "cell_index": 21,
+   "ocr": "K thut thu phát vô tuyn",
+   "match": "Kỹ thuật thu phát vô tuyến",
+   "src": 0,
+   "sim": 0.9388,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "２３4567",
+    "3",
+    "HK8"
+   ],
+   "layer": "Kỹ thuật thu phát vô tuyến",
+   "words": "Kỹ thuật thu phát vô tuyến"
+  },
+  {
+   "key": "117|944|0",
+   "page": 117,
+   "cell_index": 0,
+   "ocr": "NĂM HQC THÚ BA",
+   "match": "NĂM HỌC THỨ BA",
+   "src": 0,
+   "sim": 0.9286,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Tên môn học/học phần"
+   ],
+   "layer": "NĂM HỌC THỨ BA ố",
+   "words": "NĂM HỌC THỨ BA"
+  },
+  {
+   "key": "17|160|9",
+   "page": 17,
+   "cell_index": 9,
+   "ocr": "TS. Nguyn Ngoc Đip Trưng b môn",
+   "match": "TS. Nguyễn Ngọc Điệp Trưởng bộ môn",
+   "src": 0,
+   "sim": 0.9375,
+   "category": "replaced",
+   "context": [
+    "dauhx@ptit.edu.vn",
+    "BM An toàn mạng",
+    "0898 980 205",
+    "diepnguyenngoc @ptit.edu.vn"
+   ],
+   "layer": "TS. Nguyễn Ngọc Điệp Trưởng bộ m",
+   "words": "TS. Nguyễn Ngọc Điệp Trưởng bộ môn"
+  },
+  {
+   "key": "73|669|10",
+   "page": 73,
+   "cell_index": 10,
+   "ocr": "Mng truyn thông vôtuyên",
+   "match": "Mạng truyền thông vô tuyến",
+   "src": 0,
+   "sim": 0.9388,
+   "category": "replaced",
+   "context": [
+    "3",
+    "4",
+    "3",
+    "5"
+   ],
+   "layer": "Mạng truyền thông vô tuyến",
+   "words": "Mạng truyền thông vô tuyến"
+  },
+  {
+   "key": "58|565|19",
+   "page": 58,
+   "cell_index": 19,
+   "ocr": "Thit k vi mąch tín hiu trn",
+   "match": "Thiết kế vi mạch tín hiệu trộn",
+   "src": 0,
+   "sim": 0.9286,
+   "category": "replaced",
+   "context": [
+    "3",
+    "7",
+    "2"
+   ],
+   "layer": "Thiết kế vi mạch tín hiệu trộn",
+   "words": "Thiết kế vi mạch tín hiệu trộn"
+  },
+  {
+   "key": "185|2176|45",
+   "page": 185,
+   "cell_index": 45,
+   "ocr": "Gi ý kin ban qun lý",
+   "match": "Gởi ý kiến ban quản lý",
+   "src": 0,
+   "sim": 0.9268,
+   "category": "replaced",
+   "context": [
+    "",
+    "11",
+    "Đóng góp ý kiến với bộ phận quản lý",
+    ""
+   ],
+   "layer": "Gởi ý kiến ban quản lý",
+   "words": "Gởi ý kiến ban quản lý"
+  },
+  {
+   "key": "41|455|10",
+   "page": 41,
+   "cell_index": 10,
+   "ocr": "Phát trin úng dng cho các thit b di đng",
+   "match": "Phát triển ứng dụng cho các thiết bị di động",
+   "src": 0,
+   "sim": 0.9398,
+   "category": "replaced",
+   "context": [
+    "HK5",
+    "2",
+    "3",
+    "HK5"
+   ],
+   "layer": "Phát triển ứng dụng cho các thiết bị di động",
+   "words": "Phát triển ứng dụng cho các thiết bị di động"
+  },
+  {
+   "key": "62|591|5",
+   "page": 62,
+   "cell_index": 5,
+   "ocr": "K toán hành chính s nghip",
+   "match": "Kế toán hành chính sự nghiệp",
+   "src": 0,
+   "sim": 0.9434,
+   "category": "replaced",
+   "context": [
+    "Hoc kò",
+    "1",
+    "3",
+    "KH7"
+   ],
+   "layer": "Kế toán hành chính sự nghiệp",
+   "words": "Kế toán hành chính sự nghiệp"
+  },
+  {
+   "key": "33|399|1",
+   "page": 33,
+   "cell_index": 1,
+   "ocr": "Mt mã hc nâng cao",
+   "match": "Mật mã học nâng cao",
+   "src": 0,
+   "sim": 0.9444,
+   "category": "replaced",
+   "context": [
+    "1",
+    "2",
+    "2"
+   ],
+   "layer": "Mật mã học nâng cao",
+   "words": "Mật mã học nâng cao"
+  },
+  {
+   "key": "71|647|1",
+   "page": 71,
+   "cell_index": 1,
+   "ocr": "Mng truyn thông vôtuyên",
+   "match": "Mạng truyền thông vô tuyến",
+   "src": 0,
+   "sim": 0.9388,
+   "category": "replaced",
+   "context": [
+    "1",
+    "3",
+    "2"
+   ],
+   "layer": "Mạng truyền thông vô tuyến",
+   "words": "Mạng truyền thông vô tuyến"
+  },
+  {
+   "key": "22|238|12",
+   "page": 22,
+   "cell_index": 12,
+   "ocr": "Phó Trungphòng",
+   "match": "Phó Trưởng phòng",
+   "src": 0,
+   "sim": 0.9333,
+   "category": "replaced",
+   "context": [
+    "3",
+    "CN. Nguyễn Minh Chi",
+    "0912 466 080",
+    "chinm@ptit.edu.vn"
+   ],
+   "layer": "Phó Trưởng phòng",
+   "words": "Phó Trưởng phòng"
+  },
+  {
+   "key": "88|780|19",
+   "page": 88,
+   "cell_index": 19,
+   "ocr": "Truyn thông và dư lun xãhi",
+   "match": "Truyền thông và dư luận xã hội",
+   "src": 0,
+   "sim": 0.9286,
+   "category": "replaced",
+   "context": [
+    "2",
+    "7",
+    "2",
+    "8"
+   ],
+   "layer": "Truyền thông và dư luận xã hội",
+   "words": "Truyền thông và dư luận xã hội"
+  },
+  {
+   "key": "102|883|13",
+   "page": 102,
+   "cell_index": 13,
+   "ocr": "Qun tri quan h đi tác",
+   "match": "Quản trị quan hệ đối tác",
+   "src": 0,
+   "sim": 0.9333,
+   "category": "replaced",
+   "context": [
+    "2",
+    "5",
+    "2"
+   ],
+   "layer": "Quản trị quan hệ đối tác",
+   "words": "Quản trị quan hệ đối tác"
+  },
+  {
+   "key": "78|714|57",
+   "page": 78,
+   "cell_index": 57,
+   "ocr": "Khai phá d liu",
+   "match": "Khai phá dữ liệu",
+   "src": 0,
+   "sim": 0.9333,
+   "category": "replaced",
+   "context": [
+    "HK6",
+    "13",
+    "3",
+    "HK6"
+   ],
+   "layer": "Khai phá dữ liệu",
+   "words": "Khai phá dữ liệu"
+  },
+  {
+   "key": "59|568|13",
+   "page": 59,
+   "cell_index": 13,
+   "ocr": "Nhp môn đin t và vi mch bán dn",
+   "match": "Nhập môn điện tử và vi mạch bán dẫn",
+   "src": 0,
+   "sim": 0.9231,
+   "category": "replaced",
+   "context": [
+    "HK1",
+    "3",
+    "2",
+    "HK1"
+   ],
+   "layer": "Nhập môn điện tử và vi mạch bán dẫn",
+   "words": "Nhập môn điện tử và vi mạch bán dẫn"
+  },
+  {
+   "key": "39|440|16",
+   "page": 39,
+   "cell_index": 16,
+   "ocr": "Phát trin phn mm hưóngdich vu",
+   "match": "Phát triển phần mềm hướng dịch vụ",
+   "src": 0,
+   "sim": 0.9355,
+   "category": "replaced",
+   "context": [
+    "3",
+    "6",
+    "3",
+    "7"
+   ],
+   "layer": "Phát triển phần mềm hướng dịch vụ",
+   "words": "Phát triển phần mềm hướng dịch vụ"
+  },
+  {
+   "key": "37|420|12",
+   "page": 37,
+   "cell_index": 12,
+   "ocr": "4 Đi só",
+   "match": "4 Đại số",
+   "src": 0,
+   "sim": 0.9333,
+   "category": "replaced",
+   "context": [
+    "",
+    "HK1",
+    "3",
+    "HK1"
+   ],
+   "layer": "4 Đại số Nhậô",
+   "words": "4 Đại số môn"
+  },
+  {
+   "key": "38|433|19",
+   "page": 38,
+   "cell_index": 19,
+   "ocr": "Công ngh và ha tng s",
+   "match": "Công nghệ và hạ tầng số",
+   "src": 0,
+   "sim": 0.9302,
+   "category": "replaced",
+   "context": [
+    "3",
+    "15",
+    "3",
+    ""
+   ],
+   "layer": "Công nghệ và hạ tầng số",
+   "words": "Công nghệ và hạ tầng số"
+  },
+  {
+   "key": "230|2799|5",
+   "page": 230,
+   "cell_index": 5,
+   "ocr": "H tín chi",
+   "match": "Hệ tín chỉ",
+   "src": 0,
+   "sim": 0.9474,
+   "category": "replaced",
+   "context": [
+    "Ghi chú",
+    "Hệ niên chế",
+    "1",
+    "Sinh viên Học viện cử tham dự và đạt giải Nhất/huy chương Vàng, Nhì/huy chương Bạc, Ba/huy chương Đồng các cuộc thi; được nhận bằng khen của các Cơ quan, tổ chức Trung ương"
+   ],
+   "layer": "m thưởng Hệ tín chỉ",
+   "words": "thưởng Hệ tín chỉ"
+  },
+  {
+   "key": "43|467|1",
+   "page": 43,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phn (Name courses)",
+   "match": "Tên môn học/học phần (Name courses)",
+   "src": 0,
+   "sim": 0.9552,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Số TC Credit",
+    "Hoc kò /Sem"
+   ],
+   "layer": "ĂM HỌC THỨ TƯ T Tên môn học/học phầ (Name courses)",
+   "words": "NĂM HỌC THỨ TƯ Tên môn học/học phần (Name courses)"
+  },
+  {
+   "key": "87|768|9",
+   "page": 87,
+   "cell_index": 9,
+   "ocr": "Nhp môn Công ngh s và Úng dng AI",
+   "match": "Nhập môn Công nghệ và Ứng dụng AI",
+   "src": 0,
+   "sim": 0.9231,
+   "category": "replaced",
+   "context": [
+    "HK1",
+    "2",
+    "2",
+    "HK1"
+   ],
+   "layer": "Nhập môn Công nghệ số và Ứng dụng AI",
+   "words": "Nhập môn Công nghệ và Ứng dụng AI"
+  },
+  {
+   "key": "70|635|53",
+   "page": 70,
+   "cell_index": 53,
+   "ocr": "Công ngh phàn mm",
+   "match": "Công nghệ phần mềm",
+   "src": 0,
+   "sim": 0.9412,
+   "category": "replaced",
+   "context": [
+    "HK5",
+    "6",
+    "2",
+    "HK6"
+   ],
+   "layer": "Công nghệ phần mềm ố",
+   "words": "Công nghệ phần mềm"
+  },
+  {
+   "key": "178|2044|1",
+   "page": 178,
+   "cell_index": 1,
+   "ocr": "Đôi tuongHc hàm, hc vi",
+   "match": "Đối tượng Học hàm, học vị",
+   "src": 0,
+   "sim": 0.9362,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Giảng viên, nghiên cứu viên cơ hữu",
+    "Giảng viên thỉnh giảng"
+   ],
+   "layer": "Đối tượng Học hàm, học vị",
+   "words": "Đối tượng Học hàm, học vị"
+  },
+  {
+   "key": "52|518|17",
+   "page": 52,
+   "cell_index": 17,
+   "ocr": "Thit k hinh đng 3D",
+   "match": "Thiết kế hình động 3D",
+   "src": 0,
+   "sim": 0.9231,
+   "category": "replaced",
+   "context": [
+    "HK 7",
+    "4",
+    "3",
+    "HK 7"
+   ],
+   "layer": "Thiết kế hình động 3D",
+   "words": "Thiết kế hình động 3D"
+  },
+  {
+   "key": "19|191|11",
+   "page": 19,
+   "cell_index": 11,
+   "ocr": "PGS.TS. Nguyn Th Hoàng Yn",
+   "match": "PGS.TS. Nguyễn Thị Hoàng Yến",
+   "src": 0,
+   "sim": 0.9434,
+   "category": "replaced",
+   "context": [
+    "namtd@ptit.edu.vn yenhth@ptit.edu.vn",
+    "BM Marketing",
+    "Trưởng Bộ môn",
+    "0912 483 379"
+   ],
+   "layer": "PGS.TS. Nguyễn Thị Hoàng Yến",
+   "words": "PGS.TS. Nguyễn Thị Hoàng Yến"
+  },
+  {
+   "key": "94|825|13",
+   "page": 94,
+   "cell_index": 13,
+   "ocr": "H khuyn nghi",
+   "match": "Hệ khuyến nghị",
+   "src": 0,
+   "sim": 0.9231,
+   "category": "replaced",
+   "context": [
+    "3",
+    "5",
+    "3",
+    "6"
+   ],
+   "layer": "Hệ khuyến nghị",
+   "words": "Hệ khuyến nghị"
+  },
+  {
+   "key": "76|695|13",
+   "page": 76,
+   "cell_index": 13,
+   "ocr": "Toán kinh t",
+   "match": "Toán kinh tế",
+   "src": 0,
+   "sim": 0.9565,
+   "category": "replaced",
+   "context": [
+    "HK3",
+    "3",
+    "3",
+    "HK3"
+   ],
+   "layer": "Toán kinh tế",
+   "words": "Toán kinh tế"
+  },
+  {
+   "key": "91|802|25",
+   "page": 91,
+   "cell_index": 25,
+   "ocr": "Hành vi t chc",
+   "match": "Hành vi tổ chức",
+   "src": 0,
+   "sim": 0.9286,
+   "category": "replaced",
+   "context": [
+    "",
+    "7",
+    "3",
+    ""
+   ],
+   "layer": "Hành vi tổ chức Kế táảtị",
+   "words": "Hành vi tổ chức"
+  },
+  {
+   "key": "68|623|57",
+   "page": 68,
+   "cell_index": 57,
+   "ocr": "Hc sâu",
+   "match": "Học sâu",
+   "src": 0,
+   "sim": 0.9231,
+   "category": "replaced",
+   "context": [
+    "HK6",
+    "13",
+    "2",
+    "HK6"
+   ],
+   "layer": "Học sâu",
+   "words": "Học sâu"
+  },
+  {
+   "key": "90|795|25",
+   "page": 90,
+   "cell_index": 25,
+   "ocr": "Chính phú đin t",
+   "match": "Chính phủ điện tử",
+   "src": 0,
+   "sim": 0.9375,
+   "category": "replaced",
+   "context": [
+    "",
+    "7",
+    "2",
+    ""
+   ],
+   "layer": "Chính phủ điện tử",
+   "words": "Chính phủ điện tử"
+  },
+  {
+   "key": "56|543|37",
+   "page": 56,
+   "cell_index": 37,
+   "ocr": "Thc tp chuyên sâu",
+   "match": "Thực tập chuyên sâu",
+   "src": 0,
+   "sim": 0.9444,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "11",
+    "3",
+    "HK8"
+   ],
+   "layer": "Thực tập chuyên sâu",
+   "words": "Thực tập chuyên sâu"
+  },
+  {
+   "key": "69|629|10",
+   "page": 69,
+   "cell_index": 10,
+   "ocr": "Internet vn vt",
+   "match": "Internet vạn vật",
+   "src": 0,
+   "sim": 0.9333,
+   "category": "replaced",
+   "context": [
+    "2",
+    "4",
+    "2"
+   ],
+   "layer": "Internet vạn vật",
+   "words": "Internet vạn vật"
+  },
+  {
+   "key": "81|736|9",
+   "page": 81,
+   "cell_index": 9,
+   "ocr": "Qun tr bán hàng",
+   "match": "Quản trị bán hàng",
+   "src": 0,
+   "sim": 0.9375,
+   "category": "replaced",
+   "context": [
+    "",
+    "3",
+    "2",
+    ""
+   ],
+   "layer": "Quản trị bán hàng",
+   "words": "Quản trị bán hàng"
+  },
+  {
+   "key": "57|549|4",
+   "page": 57,
+   "cell_index": 4,
+   "ocr": "Chuyên đ Công ngh bán dn",
+   "match": "Chuyên đề Công nghệ bán dẫn",
+   "src": 0,
+   "sim": 0.9412,
+   "category": "replaced",
+   "context": [
+    "3",
+    "9",
+    "2",
+    "10"
+   ],
+   "layer": "Chuyên đề Công nghệ bán dẫn",
+   "words": "Chuyên đề Công nghệ bán dẫn"
+  },
+  {
+   "key": "42|460|12",
+   "page": 42,
+   "cell_index": 12,
+   "ocr": "1 Kinh t chính tr Mác",
+   "match": "1 Kinh tế chính trị Mác",
+   "src": 0,
+   "sim": 0.9545,
+   "category": "replaced",
+   "context": [
+    "Credit",
+    "/Sem",
+    "2",
+    "HK5"
+   ],
+   "layer": "1 Kinh tế chính trị Mác",
+   "words": "1 Kinh tế chính trị Mác"
+  },
+  {
+   "key": "60|575|4",
+   "page": 60,
+   "cell_index": 4,
+   "ocr": "Vt liu đóng gói bán dn",
+   "match": "Vật liệu đóng gói bán dẫn",
+   "src": 0,
+   "sim": 0.9362,
+   "category": "replaced",
+   "context": [
+    "3",
+    "2",
+    "3",
+    "3"
+   ],
+   "layer": "Vật liệu đóng gói bán dẫn ề",
+   "words": "Vật liệu đóng gói bán dẫn"
+  },
+  {
+   "key": "99|863|37",
+   "page": 99,
+   "cell_index": 37,
+   "ocr": "Nhp môn truyn thông Pháp lut và Đo đc ngh",
+   "match": "Nhập môn truyền thông Pháp luật và Đạo đức nghề",
+   "src": 0,
+   "sim": 0.9318,
+   "category": "replaced",
+   "context": [
+    "HK4",
+    "8",
+    "2",
+    "HK4"
+   ],
+   "layer": "Nhập môn truyền thông Pháp luật và Đạo đức nghề",
+   "words": "Nhập môn truyền thông Pháp luật và Đạo đức nghề"
+  },
+  {
+   "key": "113|930|6",
+   "page": 113,
+   "cell_index": 6,
+   "ocr": "Ch nghĩa xã hi khoa hc",
+   "match": "Chủ nghĩa xã hội khoa học",
+   "src": 0,
+   "sim": 0.9362,
+   "category": "replaced",
+   "context": [
+    "Học kỳ",
+    "1",
+    "2",
+    "HK5"
+   ],
+   "layer": "Chủ nghĩa xã hội khoa học",
+   "words": "Chủ nghĩa xã hội khoa học"
+  },
+  {
+   "key": "101|873|33",
+   "page": 101,
+   "cell_index": 33,
+   "ocr": "02 hc phàn t chn (b)",
+   "match": "02 học phần tự chọn (b)",
+   "src": 0,
+   "sim": 0.9302,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "8",
+    "4",
+    "HK7"
+   ],
+   "layer": "02 học phần tự chọn (b)",
+   "words": "02 học phần tự chọn (b)"
+  },
+  {
+   "key": "55|535|10",
+   "page": 55,
+   "cell_index": 10,
+   "ocr": "Nhp môn khoa hoc d liu",
+   "match": "Nhập môn khoa học dữ liệu",
+   "src": 0,
+   "sim": 0.9362,
+   "category": "replaced",
+   "context": [
+    "3",
+    "4",
+    "3",
+    "5"
+   ],
+   "layer": "Nhập môn khoa học dữ liệu",
+   "words": "Nhập môn khoa học dữ liệu"
+  },
+  {
+   "key": "22|244|12",
+   "page": 22,
+   "cell_index": 12,
+   "ocr": "Phó Trưng phòng",
+   "match": "Phó Trưởng phòng",
+   "src": 0,
+   "sim": 0.9677,
+   "category": "replaced",
+   "context": [
+    "3",
+    "TS. Nguyễn Việt Hưng",
+    "0969 545289",
+    "nvhung_ vt1@ptit.edu.vn"
+   ],
+   "layer": "Phó Trưởng phòng",
+   "words": "Phó Trưởng phòng"
+  },
+  {
+   "key": "40|452|13",
+   "page": 40,
+   "cell_index": 13,
+   "ocr": "Nhp môn DevOps",
+   "match": "Nhập môn DevOps",
+   "src": 0,
+   "sim": 0.9655,
+   "category": "replaced",
+   "context": [
+    "HK6",
+    "10",
+    "3",
+    "HK6"
+   ],
+   "layer": "Nhập môn DevOps",
+   "words": "Nhập môn DevOps"
+  },
+  {
+   "key": "115|937|7",
+   "page": 115,
+   "cell_index": 7,
+   "ocr": "Thông tin di đng",
+   "match": "Thông tin di động",
+   "src": 0,
+   "sim": 0.9697,
+   "category": "replaced",
+   "context": [
+    "Học",
+    "TT 1",
+    "TC 3",
+    "k HK7"
+   ],
+   "layer": "Thông tin di động",
+   "words": "Thông tin di động"
+  },
+  {
+   "key": "57|548|4",
+   "page": 57,
+   "cell_index": 4,
+   "ocr": "K thut logic khå trình PLC",
+   "match": "Kỹ thuật logic khả trình PLC",
+   "src": 0,
+   "sim": 0.963,
+   "category": "replaced",
+   "context": [
+    "2",
+    "2",
+    "2",
+    "3"
+   ],
+   "layer": "Kỹ thuật logic khả trình PLC",
+   "words": "Kỹ thuật logic khả trình PLC"
+  },
+  {
+   "key": "85|757|9",
+   "page": 85,
+   "cell_index": 9,
+   "ocr": "Qun tr bán hàng (Sales Management)",
+   "match": "Quản trị bán hàng (Sales Management)",
+   "src": 0,
+   "sim": 0.9714,
+   "category": "replaced",
+   "context": [
+    "5",
+    "2",
+    "2",
+    "5"
+   ],
+   "layer": "Quản trị bán hàng (Sales Management)",
+   "words": "Quản trị bán hàng (Sales Management)"
+  },
+  {
+   "key": "15|142|7",
+   "page": 15,
+   "cell_index": 7,
+   "ocr": "Truóng khoa Phó Trưng khoa",
+   "match": "Trưởng khoa Phó Trưởng khoa",
+   "src": 0,
+   "sim": 0.9811,
+   "category": "replaced",
+   "context": [
+    "Lãnh đạo Khoa",
+    "TS. Nguyễn Duy Phương PGS.TS. Nguyễn Mạnh",
+    "",
+    "0913 575 442 phuongnd@ptit.edu.vn"
+   ],
+   "layer": "Ụ Trưởng khoa Phó Trưởng khoa",
+   "words": "Trưởng khoa Phó Trưởng khoa"
+  },
+  {
+   "key": "33|402|9",
+   "page": 33,
+   "cell_index": 9,
+   "ocr": "Båo mt Blockchain",
+   "match": "Bảo mật Blockchain",
+   "src": 0,
+   "sim": 0.9714,
+   "category": "replaced",
+   "context": [
+    "HK8",
+    "9",
+    "3",
+    "HK8"
+   ],
+   "layer": "Bảo mật Blockchain",
+   "words": "Bảo mật Blockchain"
+  },
+  {
+   "key": "86|766|1",
+   "page": 86,
+   "cell_index": 1,
+   "ocr": "Trí tu kinh doanh và marketing(Marketing and BusinessIntelligence)",
+   "match": "Trí tuệ kinh doanh và marketing (Marketing and Business Intelligence)",
+   "src": 0,
+   "sim": 0.9778,
+   "category": "replaced",
+   "context": [
+    "4",
+    "3",
+    "5"
+   ],
+   "layer": "Trí tuệ kinh doanh và marketing (Marketing and Business Intelligence)",
+   "words": "Trí tuệ kinh doanh và marketing (Marketing and Business Intelligence)"
+  },
+  {
+   "key": "80|730|0",
+   "page": 80,
+   "cell_index": 0,
+   "ocr": "NĂM HC THÚ BA",
+   "match": "NĂM HỌC THỨ BA",
+   "src": 0,
+   "sim": 0.963,
+   "category": "replaced",
+   "context": [
+    "TT",
+    "Tên môn hc/hc phn"
+   ],
+   "layer": "NĂM HỌC THỨ BA h/hhầố",
+   "words": "NĂM HỌC THỨ BA"
+  },
+  {
+   "key": "44|471|4",
+   "page": 44,
+   "cell_index": 4,
+   "ocr": "Distributed Systems(Các h thông phân tán)",
+   "match": "Distributed Systems (Các hệ thống phân tán)",
+   "src": 0,
+   "sim": 0.9762,
+   "category": "replaced",
+   "context": [
+    "3",
+    "2",
+    "3",
+    "3"
+   ],
+   "layer": "g ) Distributed Systems (Các hệ thống phân tán)",
+   "words": "Distributed Systems (Các hệ thống phân tán)"
+  },
+  {
+   "key": "55|538|4",
+   "page": 55,
+   "cell_index": 4,
+   "ocr": "Úng dng ERP, CRM trongtài chính",
+   "match": "Ứng dụng ERP, CRM trong tài chính",
+   "src": 0,
+   "sim": 0.9688,
+   "category": "replaced",
+   "context": [
+    "3",
+    "2",
+    "3",
+    "3"
+   ],
+   "layer": "Ứng dụng ERP, CRM trong tài chính",
+   "words": "Ứng dụng ERP, CRM trong tài chính"
+  },
+  {
+   "key": "89|782|55",
+   "page": 89,
+   "cell_index": 55,
+   "ocr": "Tâm lý qun lý",
+   "match": "Tâm lý quản lý",
+   "src": 0,
+   "sim": 0.963,
+   "category": "replaced",
+   "context": [
+    "HK2",
+    "11",
+    "2",
+    ""
+   ],
+   "layer": "Tâm lý quản lý Giádthể hất 2",
+   "words": "Tâm lý quản lý"
+  },
+  {
+   "key": "99|865|22",
+   "page": 99,
+   "cell_index": 22,
+   "ocr": "truyn thông",
+   "match": "truyền thông",
+   "src": 0,
+   "sim": 0.9565,
+   "category": "replaced",
+   "context": [
+    "HK5",
+    "5",
+    "3",
+    "HK5"
+   ],
+   "layer": "Công chúng và thị trường truyền thông",
+   "words": "Công chúng và thị trường truyền thông"
+  },
+  {
+   "key": "74|674|18",
+   "page": 74,
+   "cell_index": 18,
+   "ocr": "Mng máy tính",
+   "match": "Mạng máy tính",
+   "src": 0,
+   "sim": 0.96,
+   "category": "replaced",
+   "context": [
+    "HK5",
+    "4",
+    "3",
+    "HK5"
+   ],
+   "layer": "Mạng máy tính Lập trình hướng đối tượng",
+   "words": "Mạng máy tính"
+  },
+  {
+   "key": "78|714|17",
+   "page": 78,
+   "cell_index": 17,
+   "ocr": "Đin toán đám mây",
+   "match": "Điện toán đám mây",
+   "src": 0,
+   "sim": 0.9697,
+   "category": "replaced",
+   "context": [
+    "HK5",
+    "4",
+    "2",
+    "HK5"
+   ],
+   "layer": "Điện toán đám mây Hệ ảị ở dữ liệ",
+   "words": "Điện toán đám mây"
+  },
+  {
+   "key": "77|707|16",
+   "page": 77,
+   "cell_index": 16,
+   "ocr": "Kinh doanh dich vlogistics",
+   "match": "Kinh doanh dịch vụ logistics",
+   "src": 0,
+   "sim": 0.963,
+   "category": "replaced",
+   "context": [
+    "2",
+    "6",
+    "2",
+    "7"
+   ],
+   "layer": "Kinh doanh dịch vụ logistics",
+   "words": "Kinh doanh dịch vụ logistics"
+  },
+  {
+   "key": "52|515|4",
+   "page": 52,
+   "cell_index": 4,
+   "ocr": "Lâp trinh úng dng đaphưong tiên",
+   "match": "Lập trình ứng dụng đa phương tiện",
+   "src": 0,
+   "sim": 0.9688,
+   "category": "replaced",
+   "context": [
+    "3",
+    "2",
+    "3",
+    "3"
+   ],
+   "layer": "Lập trình ứng dụng đa phương tiện",
+   "words": "Lập trình ứng dụng đa phương tiện"
+  },
+  {
+   "key": "71|649|17",
+   "page": 71,
+   "cell_index": 17,
+   "ocr": "Thông tin di đng",
+   "match": "Thông tin di động",
+   "src": 0,
+   "sim": 0.9697,
+   "category": "replaced",
+   "context": [
+    "HK8",
+    "2",
+    "3",
+    "HK7"
+   ],
+   "layer": "Thông tin di động",
+   "words": "Thông tin di động"
+  },
+  {
+   "key": "34|411|17",
+   "page": 34,
+   "cell_index": 17,
+   "ocr": "Điu tra s trên máy tính",
+   "match": "Điều tra số trên máy tính",
+   "src": 0,
+   "sim": 0.9583,
+   "category": "replaced",
+   "context": [
+    "HK7",
+    "4",
+    "3",
+    "HK7"
+   ],
+   "layer": "Điều tra số trên máy tính",
+   "words": "Điều tra số trên máy tính"
+  },
+  {
+   "key": "43|468|1",
+   "page": 43,
+   "cell_index": 1,
+   "ocr": "TT Tên môn hc/hc phn (Name courses)",
+   "match": "TT Tên môn học/học phần (Name courses)",
+   "src": 0,
+   "sim": 0.9589,
+   "category": "replaced",
+   "context": [
+    "NĂM THỨ NĂM",
+    "Số TC Credit",
+    "Hoc kò /Sem"
+   ],
+   "layer": "NĂM THỨ NĂM TT Tên môn học/học phần (Name courses)",
+   "words": "TT Tên môn học/học phần (Name courses)"
+  },
+  {
+   "key": "93|819|54",
+   "page": 93,
+   "cell_index": 54,
+   "ocr": "Xác sut thông kê",
+   "match": "Xác suất thống kê",
+   "src": 0,
+   "sim": 0.9697,
+   "category": "replaced",
+   "context": [
+    "HK2",
+    "9",
+    "3",
+    "HK2"
+   ],
+   "layer": "bản Xác suất thống kê",
+   "words": "bản Xác suất thống kê"
+  },
+  {
+   "key": "39|440|19",
+   "page": 39,
+   "cell_index": 19,
+   "ocr": "IOT và úng dng",
+   "match": "IOT và ứng dụng",
+   "src": 0,
+   "sim": 0.9655,
+   "category": "replaced",
+   "context": [
+    "3",
+    "7",
+    "3",
+    "8"
+   ],
+   "layer": "IOT và ứng dụng",
+   "words": "IOT và ứng dụng"
+  },
+  {
+   "key": "81|736|17",
+   "page": 81,
+   "cell_index": 17,
+   "ocr": "Lut kinh doanh",
+   "match": "Luật kinh doanh",
+   "src": 0,
+   "sim": 0.9655,
+   "category": "replaced",
+   "context": [
+    "",
+    "5",
+    "2",
+    ""
+   ],
+   "layer": "Luật kinh doanh",
+   "words": "Luật kinh doanh"
+  },
+  {
+   "key": "105|898|7",
+   "page": 105,
+   "cell_index": 7,
+   "ocr": "2 Ting Anh (Course 3 Plus)",
+   "match": "2 Tiếng Anh (Course 3 Plus)",
+   "src": 0,
+   "sim": 0.9811,
+   "category": "replaced",
+   "context": [
+    "2",
+    "HK5",
+    "2",
+    "HK5"
+   ],
+   "layer": "2 Tiếng Anh (Course 3 Plus)",
+   "words": "2 Tiếng Anh (Course 3 Plus)"
+  },
+  {
+   "key": "76|695|5",
+   "page": 76,
+   "cell_index": 5,
+   "ocr": "Ch nghĩa xã hi khoa hoc",
+   "match": "Chủ nghĩa xã hội khoa học",
+   "src": 0,
+   "sim": 0.9583,
+   "category": "replaced",
+   "context": [
+    "Hoc kò",
+    "1",
+    "2",
+    "HK3"
+   ],
+   "layer": "Chủ nghĩa xã hội khoa học",
+   "words": "Chủ nghĩa xã hội khoa học"
+  },
+  {
+   "key": "17|166|7",
+   "page": 17,
+   "cell_index": 7,
+   "ocr": "Trung khoa Phó trưng khoa",
+   "match": "Trưởng khoa Phó trưởng khoa",
+   "src": 0,
+   "sim": 0.9615,
+   "category": "replaced",
+   "context": [
+    "Lãnh đạo Khoa",
+    "PGS.TS. Phạm Văn Cường TS. Trần Tiến Công",
+    "0944643166 0986531614",
+    "cuongpv@ptit.edu.vn congtt@@ptit.edu.vn"
+   ],
+   "layer": "Trưởng khoa Phó trưởng khoa",
+   "words": "Trưởng khoa Phó trưởng khoa"
+  },
+  {
+   "key": "18|179|9",
+   "page": 18,
+   "cell_index": 9,
+   "ocr": "phongvt@ptit.edu.vnthaptt@ptit.edu.vn",
+   "match": "phongvt@ptit.edu.vn thaptt@ptit.edu.vn",
+   "src": 0,
+   "sim": 0.9867,
+   "category": "replaced",
+   "context": [
+    "Trưởng khoa Phó Trưởng khoa",
+    "0912 0998110912 212929",
+    "BM Kinh tế",
+    "TS. Trần Thị Hòa"
+   ],
+   "layer": "phongvt@ptit.edu.vn thaptt@ptit.edu.vn",
+   "words": "phongvt@ptit.edu.vn thaptt@ptit.edu.vn"
+  },
+  {
+   "key": "88|778|16",
+   "page": 88,
+   "cell_index": 16,
+   "ocr": "Marketing xã hi",
+   "match": "Marketing xã hội",
+   "src": 0,
+   "sim": 0.9677,
+   "category": "replaced",
+   "context": [
+    "3",
+    "6",
+    "3",
+    "7"
+   ],
+   "layer": "Marketing xã hội",
+   "words": "Marketing xã hội"
+  },
+  {
+   "key": "42|461|9",
+   "page": 42,
+   "cell_index": 9,
+   "ocr": "Data Structutes and Algorithms (Cu trúc d liu và gii",
+   "match": "Data Structutes and Algorithms (Cấu trúc dữ liệu và giải",
+   "src": 0,
+   "sim": 0.963,
+   "category": "replaced",
+   "context": [
+    "HK3",
+    "2",
+    "3",
+    "HK3"
+   ],
+   "layer": "Data Structutes and Algorithms (Cấu trúc dữ liệu và giải thuật)",
+   "words": "Data Structutes and Algorithms (Cấu trúc dữ liệu và giải"
+  },
+  {
+   "key": "67|614|71",
+   "page": 67,
+   "cell_index": 71,
+   "ocr": "Kinh t chính tr Mác - Lênin",
+   "match": "Kinh tế chính trị Mác - Lênin",
+   "src": 0,
+   "sim": 0.9643,
+   "category": "replaced",
+   "context": [
+    "HK2",
+    "7",
+    "2",
+    "HK4"
+   ],
+   "layer": "Kinh tế chính trị Mác - Lênin",
+   "words": "Kinh tế chính trị Mác - Lênin"
+  },
+  {
+   "key": "48|490|13",
+   "page": 48,
+   "cell_index": 13,
+   "ocr": "Các h thông phân tán",
+   "match": "Các hệ thống phân tán",
+   "src": 0,
+   "sim": 0.9756,
+   "category": "replaced",
+   "context": [
+    "3",
+    "5",
+    "3",
+    "6"
+   ],
+   "layer": "Các hệ thống phân tán",
+   "words": "Các hệ thống phân tán"
+  },
+  {
+   "key": "91|802|5",
+   "page": 91,
+   "cell_index": 5,
+   "ocr": "Giao tip và đàm phántrong kinh doanh",
+   "match": "Giao tiếp và đàm phán trong kinh doanh",
+   "src": 0,
+   "sim": 0.973,
+   "category": "replaced",
+   "context": [
+    "",
+    "2",
+    "3",
+    ""
+   ],
+   "layer": "Giao tiếp và đàm phán trong kinh doanh",
+   "words": "Giao tiếp và đàm phán trong kinh doanh"
+  },
+  {
+   "key": "70|635|61",
+   "page": 70,
+   "cell_index": 61,
+   "ocr": "Mô phong h thông truyn thông",
+   "match": "Mô phỏng hệ thống truyền thông",
+   "src": 0,
+   "sim": 0.9655,
+   "category": "replaced",
+   "context": [
+    "HK5",
+    "7",
+    "2",
+    "HK6"
+   ],
+   "layer": "Mô phỏng hệ thống truyền thông",
+   "words": "Mô phỏng hệ thống truyền thông"
+  },
+  {
+   "key": "117|944|18",
+   "page": 117,
+   "cell_index": 18,
+   "ocr": "Trí tu nhân to trong tài chính",
+   "match": "Trí tuệ nhân tạo trong tài chính",
+   "src": 0,
+   "sim": 0.9677,
+   "category": "replaced",
+   "context": [
+    "HK5",
+    "4",
+    "3",
+    "HK5"
+   ],
+   "layer": "Trí tuệ nhân tạo trong tài chính",
+   "words": "Trí tuệ nhân tạo trong tài chính"
+  },
+  {
+   "key": "98|858|16",
+   "page": 98,
+   "cell_index": 16,
+   "ocr": "Kinh t truyèn thông",
+   "match": "Kinh tế truyền thông",
+   "src": 0,
+   "sim": 0.9744,
+   "category": "replaced",
+   "context": [
+    "2",
+    "6",
+    "2",
+    "7"
+   ],
+   "layer": "Kinh tế truyền thông",
+   "words": "Kinh tế truyền thông"
+  },
+  {
+   "key": "62|590|33",
+   "page": 62,
+   "cell_index": 33,
+   "ocr": "Tài chính k toán",
+   "match": "Tài chính kế toán",
+   "src": 0,
+   "sim": 0.9697,
+   "category": "replaced",
+   "context": [
+    "",
+    "6",
+    "3",
+    "HK6"
+   ],
+   "layer": "Đổi mới sáng tạo trong Tài chính kế toán Kiểm toán tài chính",
+   "words": "Tài chính kế toán"
+  },
+  {
+   "key": "68|625|5",
+   "page": 68,
+   "cell_index": 5,
+   "ocr": "Th giác máy tính",
+   "match": "Thị giác máy tính",
+   "src": 0,
+   "sim": 0.9697,
+   "category": "replaced",
+   "context": [
+    "",
+    "8",
+    "2",
+    "HK7"
+   ],
+   "layer": "Thị giác máy tính Giải hậhô bốhô",
+   "words": "Thị giác máy tính"
+  },
+  {
+   "key": "90|791|29",
+   "page": 90,
+   "cell_index": 29,
+   "ocr": "K toán quån tri",
+   "match": "Kế toán quản trị",
+   "src": 0,
+   "sim": 0.9677,
+   "category": "replaced",
+   "context": [
+    "",
+    "8",
+    "3",
+    ""
+   ],
+   "layer": "Kế toán quản trị",
+   "words": "Kế toán quản trị"
+  },
+  {
+   "key": "32|386|33",
+   "page": 32,
+   "cell_index": 33,
+   "ocr": "10 Lp trình Web",
+   "match": "10 Lập trình Web",
+   "src": 0,
+   "sim": 0.9677,
+   "category": "replaced",
+   "context": [
+    "Lp trình hưóng đi tưng 3",
+    "HK4",
+    "3",
+    "HK4"
+   ],
+   "layer": "10 Lập trình Web",
+   "words": "10 Lập trình Web"
+  },
+  {
+   "key": "60|576|21",
+   "page": 60,
+   "cell_index": 21,
+   "ocr": "Quån lý d án",
+   "match": "Quản lý dự án",
+   "src": 0,
+   "sim": 0.96,
+   "category": "replaced",
+   "context": [
+    "",
+    "6",
+    "2",
+    ""
+   ],
+   "layer": "Quản lý dự án",
+   "words": "Quản lý dự án"
+  },
+  {
+   "key": "101|870|21",
+   "page": 101,
+   "cell_index": 21,
+   "ocr": "Kinh t vǐ mô 1",
+   "match": "Kinh tế vĩ mô 1",
+   "src": 0,
+   "sim": 0.9655,
+   "category": "replaced",
+   "context": [
+    "HK3",
+    "5",
+    "3",
+    "HK3"
+   ],
+   "layer": "Kinh tế vĩ mô 1",
+   "words": "Kinh tế vĩ mô 1"
+  },
+  {
+   "key": "38|431|22",
+   "page": 38,
+   "cell_index": 22,
+   "ocr": "Đin toán đám mây",
+   "match": "Điện toán đám mây",
+   "src": 0,
+   "sim": 0.9697,
+   "category": "replaced",
+   "context": [
+    "3",
+    "8",
+    "3"
+   ],
+   "layer": "Điện toán đám mây",
+   "words": "Điện toán đám mây"
+  },
+  {
+   "key": "94|825|7",
+   "page": 94,
+   "cell_index": 7,
+   "ocr": "Mô hình to sinh",
+   "match": "Mô hình tạo sinh",
+   "src": 0,
+   "sim": 0.9677,
+   "category": "replaced",
+   "context": [
+    "3",
+    "3",
+    "3",
+    "4"
+   ],
+   "layer": "ập g g Mô hình tạo sinh",
+   "words": "Mô hình tạo sinh"
+  },
+  {
+   "key": "64|601|1",
+   "page": 64,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phàn (Name courses)",
+   "match": "Tên môn học/học phần (Name courses)",
+   "src": 0,
+   "sim": 0.9706,
+   "category": "replaced",
+   "context": [
+    "T T",
+    "Số TC Credit",
+    "Học kỳ /Sem"
+   ],
+   "layer": "Tên môn học/học phần (Name courses)",
+   "words": "Tên môn học/học phần (Name courses)"
+  },
+  {
+   "key": "50|496|7",
+   "page": 50,
+   "cell_index": 7,
+   "ocr": "Thông kê xã hi hoc",
+   "match": "Thống kê xã hội học",
+   "src": 0,
+   "sim": 0.973,
+   "category": "replaced",
+   "context": [
+    "2",
+    "3",
+    "2",
+    "4"
+   ],
+   "layer": "Á Thống kê xã hội học Tềhôà há",
+   "words": "Thống kê xã hội học"
+  },
+  {
+   "key": "46|486|7",
+   "page": 46,
+   "cell_index": 7,
+   "ocr": "Information Retrieval(Truy xut thông tin)",
+   "match": "Information Retrieval (Truy xuất thông tin)",
+   "src": 0,
+   "sim": 0.9762,
+   "category": "replaced",
+   "context": [
+    "3",
+    "3",
+    "3",
+    "4"
+   ],
+   "layer": "(ý gg) Information Retrieval (Truy xuất thông tin)",
+   "words": "Information Retrieval (Truy xuất thông tin)"
+  },
+  {
+   "key": "87|773|9",
+   "page": 87,
+   "cell_index": 9,
+   "ocr": "Phưong pháp nghiên cu marketing",
+   "match": "Phương pháp nghiên cứu marketing",
+   "src": 0,
+   "sim": 0.9841,
+   "category": "replaced",
+   "context": [
+    "HK5",
+    "2",
+    "3",
+    "HK5"
+   ],
+   "layer": "Phương pháp nghiên cứu marketing",
+   "words": "Phương pháp nghiên cứu marketing"
+  },
+  {
+   "key": "19|197|5",
+   "page": 19,
+   "cell_index": 5,
+   "ocr": "Lãnh đao Vin",
+   "match": "Lãnh đạo Viện",
+   "src": 0,
+   "sim": 0.96,
+   "category": "replaced",
+   "context": [
+    "ĐIỆN THOẠI",
+    "EMAIL",
+    "PGS.TS. Ngô Quốc Dũng TS. Trần Thiện Chính",
+    "Viện trưởng Phó Viện trưởng"
+   ],
+   "layer": "Lãnh đạo Viện",
+   "words": "Lãnh đạo Viện"
+  },
+  {
+   "key": "58|566|4",
+   "page": 58,
+   "cell_index": 4,
+   "ocr": "Kinh t vi mô",
+   "match": "Kinh tế vi mô",
+   "src": 0,
+   "sim": 0.96,
+   "category": "replaced",
+   "context": [
+    "2",
+    "9",
+    "3",
+    "10"
+   ],
+   "layer": "Kinh tế vi mô",
+   "words": "Kinh tế vi mô"
+  },
+  {
+   "key": "16|148|5",
+   "page": 16,
+   "cell_index": 5,
+   "ocr": "Lãnh đo Khoa",
+   "match": "Lãnh đạo Khoa",
+   "src": 0,
+   "sim": 0.96,
+   "category": "replaced",
+   "context": [
+    "ĐIỆN THOẠI",
+    "EMAIL",
+    "PGS.TS. Đặng Thế Ngọc PGS.TS. Nguyễn Chiến Trinh",
+    "Phụ trách khoa Phó Trưởng khoa"
+   ],
+   "layer": "Lãnh đạo Khoa",
+   "words": "Lãnh đạo Khoa"
+  },
+  {
+   "key": "37|421|1",
+   "page": 37,
+   "cell_index": 1,
+   "ocr": "",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_ocr_empty",
+   "context": [
+    "",
+    "14",
+    ""
+   ],
+   "layer": "14",
+   "words": ""
+  },
+  {
+   "key": "42|460|9",
+   "page": 42,
+   "cell_index": 9,
+   "ocr": "",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_ocr_empty",
+   "context": [
+    "TC",
+    "kỳ",
+    "Credit",
+    "/Sem"
+   ],
+   "layer": "(Nae couses) ế",
+   "words": ""
+  },
+  {
+   "key": "56|543|14",
+   "page": 56,
+   "cell_index": 14,
+   "ocr": "",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_ocr_empty",
+   "context": [
+    "8",
+    "Đồ án Thit k h thng nhúng 2",
+    "HK8",
+    "2"
+   ],
+   "layer": "2",
+   "words": "2"
+  },
+  {
+   "key": "34|411|32",
+   "page": 34,
+   "cell_index": 32,
+   "ocr": "",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_ocr_empty",
+   "context": [
+    "2",
+    "HK7",
+    "",
+    "18"
+   ],
+   "layer": "ọp",
+   "words": ""
+  },
+  {
+   "key": "59|568|62",
+   "page": 59,
+   "cell_index": 62,
+   "ocr": "",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_ocr_empty",
+   "context": [
+    "HK2",
+    "",
+    "",
+    "HK2"
+   ],
+   "layer": "Giáo dục thể chất 2",
+   "words": "Giáo dục 2"
+  },
+  {
+   "key": "80|730|37",
+   "page": 80,
+   "cell_index": 37,
+   "ocr": "",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_ocr_empty",
+   "context": [
+    "3",
+    "HK5",
+    "",
+    "19"
+   ],
+   "layer": "ợp 9 Phâí",
+   "words": ""
+  },
+  {
+   "key": "78|715|0",
+   "page": 78,
+   "cell_index": 0,
+   "ocr": "",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_ocr_empty",
+   "context": [
+    "Tên môn hc/hc phn",
+    "Số TC"
+   ],
+   "layer": "TT Tên m",
+   "words": "TT Tên"
+  },
+  {
+   "key": "62|591|29",
+   "page": 62,
+   "cell_index": 29,
+   "ocr": "",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_ocr_empty",
+   "context": [
+    "KH7",
+    "",
+    "19",
+    ""
+   ],
+   "layer": "g ọp)",
+   "words": ""
+  },
+  {
+   "key": "115|934|33",
+   "page": 115,
+   "cell_index": 33,
+   "ocr": "",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_ocr_empty",
+   "context": [
+    "",
+    "13",
+    "6",
+    "Kinh tế chính trị Mác - Lênin"
+   ],
+   "layer": "HK2",
+   "words": ""
+  },
+  {
+   "key": "93|819|1",
+   "page": 93,
+   "cell_index": 1,
+   "ocr": "",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_ocr_empty",
+   "context": [
+    "NĂM HỌC THỨ NHẤT",
+    "TT Tên môn hc/hc phàn",
+    "S TC k"
+   ],
+   "layer": "TT Tên",
+   "words": "TT Tên"
+  },
+  {
+   "key": "89|782|20",
+   "page": 89,
+   "cell_index": 20,
+   "ocr": "",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_ocr_empty",
+   "context": [
+    "2",
+    "HK1",
+    "Giáo dục thể chất 1",
+    ""
+   ],
+   "layer": "4",
+   "words": ""
+  },
+  {
+   "key": "85|757|0",
+   "page": 85,
+   "cell_index": 0,
+   "ocr": "",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_ocr_empty",
+   "context": [
+    "(Name courses)",
+    "TC Credit"
+   ],
+   "layer": "(Name c",
+   "words": "(Name"
+  },
+  {
+   "key": "93|819|71",
+   "page": 93,
+   "cell_index": 71,
+   "ocr": "Tên môn hc/hc phàn",
+   "match": "Ọ ầ",
+   "src": 0,
+   "sim": 0.1905,
+   "category": "kept_low_sim",
+   "context": [
+    "",
+    "TT",
+    "S TC",
+    "Hoc k"
+   ],
+   "layer": "Ọ ầ",
+   "words": ""
+  },
+  {
+   "key": "39|443|2",
+   "page": 39,
+   "cell_index": 2,
+   "ocr": "Hoc k",
+   "match": "Số TC",
+   "src": 0,
+   "sim": 0.4,
+   "category": "kept_low_sim",
+   "context": [
+    "TT Tên môn hc/hc phn",
+    "Sô TC",
+    "",
+    "7"
+   ],
+   "layer": "Số TC H kỳ",
+   "words": "Số TC"
+  },
+  {
+   "key": "68|623|74",
+   "page": 68,
+   "cell_index": 74,
+   "ocr": "TT Tên môn hc/hc phn",
+   "match": "ĂM HỌC THỨ NĂM",
+   "src": 0,
+   "sim": 0.2353,
+   "category": "kept_low_sim",
+   "context": [
+    "",
+    "",
+    "Sô",
+    "Hoc"
+   ],
+   "layer": "ĂM HỌC THỨ NĂM",
+   "words": ""
+  },
+  {
+   "key": "89|782|27",
+   "page": 89,
+   "cell_index": 27,
+   "ocr": "Lý thuyt xác sut và",
+   "match": "ý hếáấà",
+   "src": 0,
+   "sim": 0.3846,
+   "category": "kept_low_sim",
+   "context": [
+    "",
+    "HK1",
+    "11",
+    ""
+   ],
+   "layer": "ý hếáấà",
+   "words": ""
+  },
+  {
+   "key": "101|873|1",
+   "page": 101,
+   "cell_index": 1,
+   "ocr": "Tên môn hc/hc phn",
+   "match": "học/học phần",
+   "src": 0,
+   "sim": 0.6207,
+   "category": "kept_low_sim",
+   "context": [
+    "TT",
+    "Số TC",
+    "Hc kò"
+   ],
+   "layer": "ên môn học/học phần S T",
+   "words": "học/học phần"
+  },
+  {
+   "key": "32|386|6",
+   "page": 32,
+   "cell_index": 6,
+   "ocr": "23",
+   "match": "2",
+   "src": 0,
+   "sim": 0.6667,
+   "category": "kept_low_sim",
+   "context": [
+    "Ting Anh (Course 2)",
+    "4 HK3",
+    "Xác sut thông kê",
+    "3 HK3"
+   ],
+   "layer": "1 Tiếng Anh (Course 2) 2 Xác suất thống kê",
+   "words": "2 Xác suất thống kê"
+  },
+  {
+   "key": "115|937|29",
+   "page": 115,
+   "cell_index": 29,
+   "ocr": "HK7 HK7",
+   "match": "HK7",
+   "src": 0,
+   "sim": 0.6,
+   "category": "kept_low_sim",
+   "context": [
+    "Phưong pháp lun NCKH K thut thu phát vô tuyn",
+    "2 3",
+    "7",
+    "Thực tập cơ sở"
+   ],
+   "layer": "HK7",
+   "words": "HK7"
+  },
+  {
+   "key": "16|154|12",
+   "page": 16,
+   "cell_index": 12,
+   "ocr": "BM Đin t TS. Lê Minh Tun máy tính",
+   "match": "BM Điện tử máy tính TS. Lê",
+   "src": 0,
+   "sim": 0.6102,
+   "category": "kept_low_sim",
+   "context": [
+    "0845 016 465",
+    "linhtt@ptit.edu.vn",
+    "Phụ trách bộ môn",
+    "0911 528 866"
+   ],
+   "layer": "BM Điện tử máy tính TS. Lê M ề",
+   "words": "BM Điện tử máy tính TS. Lê"
+  },
+  {
+   "key": "32|390|1",
+   "page": 32,
+   "cell_index": 1,
+   "ocr": "TT Tên môn hc/hc phàn",
+   "match": "môn học/học phần",
+   "src": 0,
+   "sim": 0.7568,
+   "category": "kept_low_sim",
+   "context": [
+    "",
+    "S TC Hc k",
+    ""
+   ],
+   "layer": "Tên môn học/học phần Số",
+   "words": "môn học/học phần"
+  },
+  {
+   "key": "80|730|4",
+   "page": 80,
+   "cell_index": 4,
+   "ocr": "Hoc kò",
+   "match": "Học kỳ",
+   "src": 0,
+   "sim": 0.8333,
+   "category": "kept_low_sim",
+   "context": [
+    "Tên môn hc/hc phn",
+    "Số TC",
+    "1",
+    "Tiếng Anh (Course 3 Plus)"
+   ],
+   "layer": "Học kỳ",
+   "words": "Học kỳ"
+  },
+  {
+   "key": "99|865|38",
+   "page": 99,
+   "cell_index": 38,
+   "ocr": "Truyn thông chính sách T chc sn xut podcast",
+   "match": "Truyền thông chính sách Tổ xuất",
+   "src": 0,
+   "sim": 0.7568,
+   "category": "kept_low_sim",
+   "context": [
+    "",
+    "8 9",
+    "2 3",
+    "HK6 HK6"
+   ],
+   "layer": "Truyền thông chính sách Tổ chức sản xuất podcast",
+   "words": "Truyền thông chính sách Tổ xuất"
+  },
+  {
+   "key": "113|927|3",
+   "page": 113,
+   "cell_index": 3,
+   "ocr": "Hoc k",
+   "match": "Học",
+   "src": 0,
+   "sim": 0.75,
+   "category": "kept_low_sim",
+   "context": [
+    "Tên môn học/học phần",
+    "Sô TC",
+    "1",
+    "Triết học Mác Lênin"
+   ],
+   "layer": "Học kỳ",
+   "words": "Học"
+  },
+  {
+   "key": "56|543|24",
+   "page": 56,
+   "cell_index": 24,
+   "ocr": "3",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_no_text",
+   "context": [
+    "3",
+    "HK8",
+    "CAD/CAM",
+    "3"
+   ],
+   "layer": "",
+   "words": ""
+  },
+  {
+   "key": "43|467|28",
+   "page": 43,
+   "cell_index": 28,
+   "ocr": "9",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_no_text",
+   "context": [
+    "",
+    "HK7",
+    "Advanced Topics in Software Engineering (Chuyên đề công nghệ phần mềm)",
+    ""
+   ],
+   "layer": "",
+   "words": ""
+  },
+  {
+   "key": "43|467|32",
+   "page": 43,
+   "cell_index": 32,
+   "ocr": "4",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_no_text",
+   "context": [
+    "",
+    "HK8",
+    "Software Project Management (Quản lý dự án phần",
+    "3"
+   ],
+   "layer": "",
+   "words": ""
+  },
+  {
+   "key": "43|467|34",
+   "page": 43,
+   "cell_index": 34,
+   "ocr": "3",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_no_text",
+   "context": [
+    "4",
+    "Software Project Management (Quản lý dự án phần",
+    "HK7",
+    "10"
+   ],
+   "layer": "",
+   "words": ""
+  },
+  {
+   "key": "56|543|36",
+   "page": 56,
+   "cell_index": 36,
+   "ocr": "11",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_no_text",
+   "context": [
+    "3",
+    "HK7",
+    "Thực tập chuyên sâu",
+    "3"
+   ],
+   "layer": "",
+   "words": ""
+  },
+  {
+   "key": "68|623|42",
+   "page": 68,
+   "cell_index": 42,
+   "ocr": "3",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_no_text",
+   "context": [
+    "9",
+    "Cơ học ứng dụng",
+    "HK6",
+    "10 11"
+   ],
+   "layer": "",
+   "words": ""
+  },
+  {
+   "key": "71|649|16",
+   "page": 71,
+   "cell_index": 16,
+   "ocr": "2",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_no_text",
+   "context": [
+    "3",
+    "HK8",
+    "Thông tin di động",
+    "3"
+   ],
+   "layer": "",
+   "words": ""
+  },
+  {
+   "key": "56|543|40",
+   "page": 56,
+   "cell_index": 40,
+   "ocr": "5",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_no_text",
+   "context": [
+    "3",
+    "HK8",
+    "Đ án Thit k h thng s",
+    "62"
+   ],
+   "layer": "",
+   "words": ""
+  },
+  {
+   "key": "93|819|70",
+   "page": 93,
+   "cell_index": 70,
+   "ocr": "TT",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_no_text",
+   "context": [
+    "",
+    "",
+    "Tên môn hc/hc phàn",
+    "S TC"
+   ],
+   "layer": "",
+   "words": ""
+  },
+  {
+   "key": "113|930|64",
+   "page": 113,
+   "cell_index": 64,
+   "ocr": "HK6",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_no_text",
+   "context": [
+    "T chn 4",
+    "3"
+   ],
+   "layer": "",
+   "words": ""
+  },
+  {
+   "key": "93|819|72",
+   "page": 93,
+   "cell_index": 72,
+   "ocr": "S TC",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_no_text",
+   "context": [
+    "TT",
+    "Tên môn hc/hc phàn",
+    "Hoc k",
+    "1"
+   ],
+   "layer": "",
+   "words": ""
+  },
+  {
+   "key": "93|819|101",
+   "page": 93,
+   "cell_index": 101,
+   "ocr": "HK5",
+   "match": "",
+   "src": 0,
+   "sim": null,
+   "category": "kept_no_text",
+   "context": [
+    "Xử lý ngôn ngữ tự nhiên",
+    "3",
+    "7",
+    "Tiếng Anh (Course 3 Plus)"
+   ],
+   "layer": "",
+   "words": ""
+  },
+  {
+   "key": "93|819|77",
+   "page": 93,
+   "cell_index": 77,
+   "ocr": "HK5",
+   "match": "kỳ",
+   "src": 0,
+   "sim": 0.4,
+   "category": "kept_digits_mismatch",
+   "context": [
+    "Kinh t chính tr Mác Lênin",
+    "2",
+    "2",
+    "X lý nh"
+   ],
+   "layer": "ọ kỳ",
+   "words": "kỳ"
+  },
+  {
+   "key": "115|937|63",
+   "page": 115,
+   "cell_index": 63,
+   "ocr": "T chn 5",
+   "match": "ự ọ",
+   "src": 0,
+   "sim": 0.2,
+   "category": "kept_digits_mismatch",
+   "context": [
+    "",
+    "14",
+    "3",
+    "HK8"
+   ],
+   "layer": "ự ọ",
+   "words": ""
+  },
+  {
+   "key": "32|386|7",
+   "page": 32,
+   "cell_index": 7,
+   "ocr": "Xác sut thông kê",
+   "match": "3",
+   "src": 0,
+   "sim": 0.0,
+   "category": "kept_digits_mismatch",
+   "context": [
+    "4 HK3",
+    "23",
+    "3 HK3",
+    ""
+   ],
+   "layer": "4 3",
+   "words": "3"
+  },
+  {
+   "key": "32|386|10",
+   "page": 32,
+   "cell_index": 10,
+   "ocr": "Cu trúc d liu và gii thut",
+   "match": "3",
+   "src": 0,
+   "sim": 0.0,
+   "category": "kept_digits_mismatch",
+   "context": [
+    "3 HK3",
+    "",
+    "3 HK3",
+    "4 Cơ sở dữ liệu"
+   ],
+   "layer": "3 H 3 H",
+   "words": "3"
+  },
+  {
+   "key": "81|742|3",
+   "page": 81,
+   "cell_index": 3,
+   "ocr": "Hc kò",
+   "match": "ọc K7",
+   "src": 0,
+   "sim": 0.6,
+   "category": "kept_digits_mismatch",
+   "context": [
+    "Tên môn hc/hc phn",
+    "S TC",
+    "1",
+    "Marketing trực tiếp"
+   ],
+   "layer": "ọc K7",
+   "words": ""
+  },
+  {
+   "key": "56|543|9",
+   "page": 56,
+   "cell_index": 9,
+   "ocr": "Các môn K năng mm 2,3",
+   "match": "Các môn Kỹ năng mềm",
+   "src": 0,
+   "sim": 0.85,
+   "category": "kept_digits_mismatch",
+   "context": [
+    "Học kỳ",
+    "1",
+    "",
+    "HK7"
+   ],
+   "layer": "Các môn Kỹ năng mềm",
+   "words": "Các môn Kỹ năng mềm"
+  },
+  {
+   "key": "37|420|9",
+   "page": 37,
+   "cell_index": 9,
+   "ocr": "3 Nhp môn tin hc và lp trình 3",
+   "match": "3 Nhập môn tin học",
+   "src": 0,
+   "sim": 0.6667,
+   "category": "kept_digits_mismatch",
+   "context": [
+    "3",
+    "HK1",
+    "",
+    "HK1"
+   ],
+   "layer": "3 Nhập môn tin h",
+   "words": "3 Nhập môn tin học"
+  },
+  {
+   "key": "32|389|25",
+   "page": 32,
+   "cell_index": 25,
+   "ocr": "Thc tp co s K năng mm 2",
+   "match": "Thực tập cơ sở",
+   "src": 0,
+   "sim": 0.5946,
+   "category": "kept_digits_mismatch",
+   "context": [
+    "HK5",
+    "6",
+    "4",
+    "HK5"
+   ],
+   "layer": "ợp gịgợ Thực tập cơ sở ề",
+   "words": "Thực tập cơ sở"
+  },
+  {
+   "key": "80|731|21",
+   "page": 80,
+   "cell_index": 21,
+   "ocr": "Hc phàn la chn 2 (**) 3",
+   "match": "Học phần lựa chọn 2 ( **)",
+   "src": 0,
+   "sim": 0.875,
+   "category": "kept_digits_mismatch",
+   "context": [
+    "HK7",
+    "5",
+    "",
+    "HK7"
+   ],
+   "layer": "ọpựọ() Học phần lựa chọn 2 (**) ầ",
+   "words": "Học phần lựa chọn 2 ( **)"
+  },
+  {
+   "key": "46|486|1",
+   "page": 46,
+   "cell_index": 1,
+   "ocr": "Intelligent SystemDevelopment(Phát trin h thông thôngminh)",
+   "match": "Intelligent System Development (Phát triển hệ thống thông minh) 3",
+   "src": 0,
+   "sim": 0.9431,
+   "category": "kept_digits_mismatch",
+   "context": [
+    "1",
+    "3",
+    "2"
+   ],
+   "layer": "Intelligent System Development (Phát triển hệ thống thông minh) 3",
+   "words": "Intelligent System Development (Phát triển hệ thống thông minh) 3"
+  },
+  {
+   "key": "43|467|49",
+   "page": 43,
+   "cell_index": 49,
+   "ocr": "T chn 2 (Elective 2)",
+   "match": "Tự chọn 2 (Elective",
+   "src": 0,
+   "sim": 0.8718,
+   "category": "kept_digits_mismatch",
+   "context": [
+    "HK8",
+    "6",
+    "3",
+    "HK7"
+   ],
+   "layer": "Tự chọn 2 (Elective",
+   "words": "Tự chọn 2 (Elective"
+  },
+  {
+   "key": "81|742|17",
+   "page": 81,
+   "cell_index": 17,
+   "ocr": "Hc phàn la chn 1 (**) 3",
+   "match": "Học phần lựa chọn 1 ( **)",
+   "src": 0,
+   "sim": 0.875,
+   "category": "kept_digits_mismatch",
+   "context": [
+    "HK7",
+    "4",
+    "",
+    "HK7"
+   ],
+   "layer": "Học phần lựa chọn 1 (**)",
+   "words": "Học phần lựa chọn 1 ( **)"
+  },
+  {
+   "key": "52|517|25",
+   "page": 52,
+   "cell_index": 25,
+   "ocr": "7",
+   "match": "6",
+   "src": 0,
+   "sim": 0.0,
+   "category": "kept_numeric",
+   "context": [
+    "3",
+    "5 HK",
+    "đa phương tiện",
+    "2"
+   ],
+   "layer": "6",
+   "words": "6"
+  },
+  {
+   "key": "93|819|76",
+   "page": 93,
+   "cell_index": 76,
+   "ocr": "2",
+   "match": "Số",
+   "src": 0,
+   "sim": 0.0,
+   "category": "kept_numeric",
+   "context": [
+    "1",
+    "Kinh t chính tr Mác Lênin",
+    "HK5",
+    "2"
+   ],
+   "layer": "Số",
+   "words": "Số"
+  },
+  {
+   "key": "93|819|78",
+   "page": 93,
+   "cell_index": 78,
+   "ocr": "2",
+   "match": "1",
+   "src": 0,
+   "sim": 0.0,
+   "category": "kept_numeric",
+   "context": [
+    "2",
+    "HK5",
+    "X lý nh",
+    "3"
+   ],
+   "layer": "1",
+   "words": "1"
+  },
+  {
+   "key": "93|819|80",
+   "page": 93,
+   "cell_index": 80,
+   "ocr": "3",
+   "match": "2",
+   "src": 0,
+   "sim": 0.0,
+   "category": "kept_numeric",
+   "context": [
+    "2",
+    "X lý nh",
+    "HK5",
+    "3"
+   ],
+   "layer": "2",
+   "words": "2"
+  },
+  {
+   "key": "74|674|49",
+   "page": 74,
+   "cell_index": 49,
+   "ocr": "11",
+   "match": "12",
+   "src": 0,
+   "sim": 0.5,
+   "category": "kept_numeric",
+   "context": [
+    "3",
+    "HK6",
+    "Nhp môn trí tu nhân to",
+    "3"
+   ],
+   "layer": "12",
+   "words": "12"
+  },
+  {
+   "key": "93|819|90",
+   "page": 93,
+   "cell_index": 90,
+   "ocr": "5",
+   "match": "4",
+   "src": 0,
+   "sim": 0.0,
+   "category": "kept_numeric",
+   "context": [
+    "3",
+    "HK5",
+    "Nhp môn Hc máy",
+    "3"
+   ],
+   "layer": "4",
+   "words": "4"
+  },
+  {
+   "key": "113|930|59",
+   "page": 113,
+   "cell_index": 59,
+   "ocr": "2",
+   "match": "3",
+   "src": 0,
+   "sim": 0.0,
+   "category": "kept_numeric",
+   "context": [
+    "13",
+    "T chn 3",
+    "HK6",
+    "14"
+   ],
+   "layer": "3",
+   "words": "3"
+  },
+  {
+   "key": "93|819|108",
+   "page": 93,
+   "cell_index": 108,
+   "ocr": "2",
+   "match": "19",
+   "src": 0,
+   "sim": 0.0,
+   "category": "kept_numeric",
+   "context": [
+    "8",
+    "Chů nghĩa xã hi khoa hoc",
+    "HK6",
+    ""
+   ],
+   "layer": "19",
+   "words": "19"
+  },
+  {
+   "key": "23|279|3",
+   "page": 23,
+   "cell_index": 3,
+   "ocr": "0912 727788",
+   "match": "0912 727 788",
+   "src": 0,
+   "sim": 0.9565,
+   "category": "kept_numeric",
+   "context": [
+    "ThS. Nguyễn Thị Nhiễu",
+    "Chánh văn phòng",
+    "nhieunt@ptit.edu.vn"
+   ],
+   "layer": "0912 727 788",
+   "words": "0912 727 788"
+  },
+  {
+   "key": "22|244|13",
+   "page": 22,
+   "cell_index": 13,
+   "ocr": "0969 545289",
+   "match": "0969 545 289",
+   "src": 0,
+   "sim": 0.9565,
+   "category": "kept_numeric",
+   "context": [
+    "TS. Nguyễn Việt Hưng",
+    "Phó Trưởng phòng",
+    "nvhung_ vt1@ptit.edu.vn"
+   ],
+   "layer": "0969 545 289",
+   "words": "0969 545 289"
+  },
+  {
+   "key": "18|179|13",
+   "page": 18,
+   "cell_index": 13,
+   "ocr": "0914 281999",
+   "match": "0914 281 999",
+   "src": 0,
+   "sim": 0.9565,
+   "category": "kept_numeric",
+   "context": [
+    "TS. Trần Thị Hòa",
+    "Trưởng bộ môn",
+    "hoatt@ptit.edu.vn",
+    "BM Quản trị"
+   ],
+   "layer": "0914 281 999",
+   "words": "0914 281 999"
+  },
+  {
+   "key": "23|284|3",
+   "page": 23,
+   "cell_index": 3,
+   "ocr": "0984 686212",
+   "match": "0984 686 212",
+   "src": 0,
+   "sim": 0.9565,
+   "category": "kept_numeric",
+   "context": [
+    "ThS. Nguyễn Văn Tiến",
+    "Bí thư",
+    "tiennv@ptit.edu.vn",
+    "2"
+   ],
+   "layer": "0984 686 212",
+   "words": "0984 686 212"
+  }
+ ]
+}
