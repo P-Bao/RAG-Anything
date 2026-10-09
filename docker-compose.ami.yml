@@ -16,6 +16,8 @@ services:
       OTEL_SERVICE_NAME: multimodal-rag-retrieval
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - ./scripts:/app/scripts:ro
     networks:
       - ami-network
 

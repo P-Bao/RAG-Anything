@@ -51,28 +51,65 @@ logger = logging.getLogger("eval_rerank_fusion")
 RECALL_KS = (1, 3, 5)
 
 
-def load_cases(path: Path, query_field: str, id_field: str) -> list[dict]:
-    """Đọc bộ test JSONL: mỗi case {query, expected_chunk_ids, expected_modality}."""
-    cases: list[dict] = []
-    with open(path, encoding="utf-8") as f:
-        for line_no, line in enumerate(f, start=1):
+def _is_match(chunk: dict, targets: set[str]) -> bool:
+    cid = chunk.get("chunk_id")
+    did = chunk.get("doc_id") or (chunk.get("doc") or {}).get("document_id")
+    return bool((cid and cid in targets) or (did and did in targets))
+
+
+def load_cases(
+    path: Path, query_field: str, id_field: str, skip_xfail: bool = False
+) -> list[dict]:
+    """Đọc bộ test JSON (array) hoặc JSONL: mỗi case {query, expected_chunk_ids, modality}."""
+    raw_text = path.read_text(encoding="utf-8").strip()
+    if not raw_text:
+        return []
+
+    rows: list[dict] = []
+    if raw_text.startswith("["):
+        try:
+            data = json.loads(raw_text)
+            if isinstance(data, list):
+                rows = data
+        except json.JSONDecodeError:
+            pass
+
+    if not rows:
+        for line_no, line in enumerate(raw_text.splitlines(), start=1):
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            row = json.loads(line)
-            query = row.get(query_field) or ""
-            targets = row.get(f"{id_field}s") or [row.get(id_field)]
-            targets = [t for t in targets if t]
-            if not query or not targets:
-                logger.warning("dòng %d thiếu query/target, bỏ qua", line_no)
-                continue
-            cases.append(
-                {
-                    "query": query,
-                    "targets": set(targets),
-                    "modality": row.get("expected_modality") or "text",
-                }
-            )
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError as exc:
+                logger.warning("dòng %d lỗi JSON: %s", line_no, exc)
+
+    cases: list[dict] = []
+    for line_no, row in enumerate(rows, start=1):
+        if skip_xfail and row.get("xfail"):
+            continue
+        query = row.get(query_field) or ""
+        targets = (
+            row.get(f"{id_field}s")
+            or ([row.get(id_field)] if row.get(id_field) else None)
+            or row.get("expected_doc_ids")
+            or ([row.get("expected_doc_id")] if row.get("expected_doc_id") else None)
+            or []
+        )
+        targets = [t for t in targets if t]
+        if not query or not targets:
+            logger.warning("dòng %d thiếu query/target, bỏ qua", line_no)
+            continue
+        modality = row.get("expected_modality") or row.get("modality") or "text"
+        cases.append(
+            {
+                "query": query,
+                "targets": set(targets),
+                "modality": modality,
+                "id": row.get("id"),
+                "xfail": bool(row.get("xfail")),
+            }
+        )
     return cases
 
 
@@ -130,7 +167,7 @@ def refuse(scored: list[dict], **fusion_params) -> list[dict]:
 def rank_of_targets(scored: list[dict], targets: set[str]) -> int | None:
     """Hạng (1-based) tốt nhất của target trong danh sách đã sort; None nếu vắng."""
     for rank, s in enumerate(scored, start=1):
-        if s["chunk"].get("chunk_id") in targets:
+        if _is_match(s["chunk"], targets):
             return rank
     return None
 
@@ -201,7 +238,7 @@ def evaluate(cases: list[dict], runs: list[dict]) -> dict:
         rel: dict[bool, list[float]] = {True: [], False: []}
         for case in subset:
             for s in case["scored"]:
-                rel[s["chunk"].get("chunk_id") in case["targets"]].append(s["raw"])
+                rel[_is_match(s["chunk"], case["targets"])].append(s["raw"])
         report["distributions"][group] = {
             "relevant": _quantiles(rel[True]),
             "irrelevant": _quantiles(rel[False]),
@@ -242,7 +279,12 @@ def print_report(report: dict, fusion_params: dict) -> None:
 async def main_async(args: argparse.Namespace) -> None:
     from ami_rag.core.factory import get_pipeline
 
-    cases = load_cases(Path(args.dataset), args.query_field, args.id_field)
+    cases = load_cases(
+        Path(args.dataset),
+        args.query_field,
+        args.id_field,
+        skip_xfail=args.skip_xfail,
+    )
     if not cases:
         print("Bộ test rỗng - không chạy.")
         return
@@ -329,6 +371,7 @@ def main() -> None:
     parser.add_argument("--visual-floor", type=float, default=0.01)
     parser.add_argument("--text-floor", type=float, default=0.05)
     parser.add_argument("--sweep", action="store_true", help="quét weight x rrf_k")
+    parser.add_argument("--skip-xfail", action="store_true", help="bỏ qua các case đánh dấu xfail")
     parser.add_argument("--output", help="ghi kết quả JSON ra file")
     args = parser.parse_args()
     asyncio.run(main_async(args))
