@@ -189,6 +189,11 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `RERANK_TIMEOUT` | `60` | giây |
 | | `RERANK_MAX_INPUT_TOKENS` | `6000` | budget token text mỗi document rerank; vượt bị cắt đầu (kèm ảnh → trừ `RERANK_IMAGE_TOKEN_RESERVE`) — rerank server cùng vLLM giới hạn `max_model_len` |
 | | `RERANK_IMAGE_TOKEN_RESERVE` | `1792` | như `EMBED_IMAGE_TOKEN_RESERVE` |
+| | `RERANK_FUSION` | `raw` | `raw` (so điểm tuyệt đối - hành vi cũ) / `rrf` (so hạng nội bộ 2 nhóm modality qua RRF + sàn điểm, chỉ backend `vllm`) |
+| | `RERANK_RRF_K` | `10` | hằng số RRF: `fused = weight / (rrf_k + rank)` |
+| | `RERANK_VISUAL_WEIGHT` | `0.8` | weight nhóm image trong RRF (nhóm còn lại = 1.0, mã hoá prior text) |
+| | `RERANK_VISUAL_FLOOR` | `0.01` | raw score dưới floor nhóm image bị chặn không được promote (xếp cuối theo raw) |
+| | `RERANK_TEXT_FLOOR` | `0.05` | như trên cho nhóm không-image (text/table/equation) |
 | Retrieval | `RETRIEVAL_CHUNK_TOP_K` | `40` | số chunk tối thiểu lấy từ Qdrant trước khi rerank |
 | | `RETRIEVAL_OVERFETCH` | `4` | hệ số nhân lấy ứng viên: `max(RETRIEVAL_CHUNK_TOP_K, top_k * RETRIEVAL_OVERFETCH)` để sau khi rerank vẫn đủ `top_k` kết quả |
 | Pipeline/CLI | `CHUNKER_VERSION` | `v1` | gắn vào collection + registry để kiểm tra tương thích lúc reindex |
@@ -268,6 +273,7 @@ Khuyến nghị:
   - **`openai` (mặc định)**: repo `nemotron-vl-vllm` (máy B, port 8080) — gateway FastAPI trước 2 vLLM (`nvidia/llama-nemotron-embed-vl-1b-v2` + `nvidia/llama-nemotron-rerank-vl-1b-v2`, vLLM ≥ 0.17.0 với template override; gateway nhận text/ảnh base64/bảng, fan-out batch song song xuống vLLM). Contract gateway: `GET /health` (200 khi cả hai sẵn sàng), `POST /v1/embeddings` với `{"input": [items], "input_type": "query"|"document"}` (item `str` | `{"text":..., "image": <base64>}` | `{"content": [parts]}`), `POST /v1/rerank` (alias `/rerank`) với `{query, documents, top_n}` → `{results: [{index, relevance_score}]}`. Client `OpenAIEmbedder` (`ami_rag/core/openai_embedder.py`): handshake `/health` + probe embed 1 lần lấy dim, batch `EMBED_BATCH_SIZE` item/request.
   - **`custom`**: `qwen-embedding-server/` (repo ngoài RAG-Anything, port 8007), model `Qwen/Qwen3-VL-Embedding-2B`: dim 2048 (MRL 64–2048), last-token pooling + L2 normalize, instruction qua system message, `transformers>=4.57`/`qwen-vl-utils>=0.0.14`. Tổng quan: `docs/qwen_embedding_notes.md`.
 - Rerank mặc định qua gateway `nemotron-vl-vllm` (documents text hoặc multimodal `{"content": [text/image_url parts]}`): chunk image/table/equation có `asset_key` được kèm ảnh render từ MinIO (`RERANK_MULTIMODAL`); thiếu ảnh thì rơi về text. Score là logit (có thể âm), chỉ dùng so thứ hạng — giống legacy BGE.
+- **Fusion 2 nhóm (`RERANK_FUSION`, mặc định `raw`)**: điểm cross-encoder không so sánh được giữa chunk image (thấp ~0.02–0.15, chỉ suy luận qua visual tokens) và text/table (cao ~0.15–0.65, khớp keyword trực tiếp), nên khi so điểm tuyệt đối trong 1 danh sách chung ảnh luôn bị text đè. `rrf` khắc phục: rerank xin **full scores** (`top_n` = toàn bộ candidates — gateway chấm điểm mọi documents rồi mới cắt, không tốn thêm GPU) rồi so **hạng nội bộ** từng nhóm qua RRF `fused = weight_m / (rrf_k + rank_m)` (nhóm image dùng `RERANK_VISUAL_WEIGHT`, nhóm còn lại 1.0), kèm **sàn điểm tuyệt đối** — item dưới floor của nhóm mình bị chặn không được promote (xếp cuối theo raw) để tránh đẩy ảnh rác lên top khi query thuần text. Response giữ nguyên `score` = raw relevance (không đổi ngữ nghĩa); thứ tự documents theo fused; `meta.fusion` = `"raw"|"rrf"` cho biết cấu hình đã áp dụng (legacy BGE luôn `raw`). Tune weight/floor qua `scripts/eval_rerank_fusion.py` trên bộ test server (Recall@k/MRR theo nhóm + paired win/tie/loss + phân bố điểm relevant/irrelevant).
 - `OpenAIEmbedder`/`RemoteEmbedder` handshake lúc khởi tạo: so model (và dim — probe embed 1 lần với `OpenAIEmbedder`); lệch thì dừng với lỗi rõ ràng (không ghi vector khi chưa xác minh). Mỗi response được kiểm tra model để phát hiện server bị đổi model giữa chừng.
 - Retry chỉ cho lỗi tạm thời (timeout, 5xx, 429, mất kết nối), backoff + jitter; **không retry** 4xx. Circuit breaker: 5 lô liên tiếp không với tới server thì dừng cả lô sớm (doc chưa xử lý không bị đánh fail hàng loạt). Lỗi `embed server unreachable` trong một doc không làm hỏng doc khác.
 - Cache embedding SQLite ở máy A (`EMBED_CACHE_ENABLED`, key = `model|dim|instruction_ns|sha256(text)`); `reindex --dry-run` dùng `count_cache_hits` để báo trước số chunk trúng cache, không gọi HTTP.
@@ -320,7 +326,7 @@ Response (rút gọn; mỗi document có đủ các field, giá trị không áp
 }
 ```
 
-Luồng: `embed_query` (máy B) → vector search Qdrant (`max(RETRIEVAL_CHUNK_TOP_K, top_k * RETRIEVAL_OVERFETCH)` ứng viên) → rerank service → trả `top_k` document đầu.
+Luồng: `embed_query` (máy B) → vector search Qdrant (`max(RETRIEVAL_CHUNK_TOP_K, top_k * RETRIEVAL_OVERFETCH)` ứng viên) → rerank service (`RERANK_FUSION=rrf` thì xin full scores + fuse 2 nhóm modality, xem mục Rerank) → trả `top_k` document đầu.
 
 - `top_k` (1..200) là số document trả về cuối cùng (mặc định `RERANK_TOP_K` khi không gửi).
 - `modality`: `text` | `image` | `table` | `equation` (từ `original_type` của chunk multimodal).
