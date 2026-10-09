@@ -106,6 +106,14 @@ class Settings(BaseSettings):
     # budget bị head-truncate (kèm ảnh -> trừ image token reserve).
     RERANK_MAX_INPUT_TOKENS: int = 6000
     RERANK_IMAGE_TOKEN_RESERVE: int = 1792
+    # Fusion điểm rerank 2 nhóm (image vs phần còn lại): "raw" = so điểm tuyệt
+    # đối (hành vi cũ), "rrf" = hạng nội bộ nhóm qua RRF + sàn điểm tuyệt đối
+    # (item dưới floor không được promote). Chỉ áp dụng backend vllm (full scores).
+    RERANK_FUSION: str = "raw"
+    RERANK_RRF_K: int = 10
+    RERANK_VISUAL_WEIGHT: float = 0.8
+    RERANK_VISUAL_FLOOR: float = 0.01
+    RERANK_TEXT_FLOOR: float = 0.05
 
     # candidates fetched = final top_k * RETRIEVAL_OVERFETCH, so rerank always yields top_k docs
     RETRIEVAL_CHUNK_TOP_K: int = 40

@@ -6,12 +6,15 @@ RERANK_BACKEND, build_rerank_documents multimodal (ảnh từ asset store, fallb
 import json
 
 import httpx
+import pytest
 
 from ami_rag.core.rerank_client import (
     build_rerank_documents,
     build_rerank_func,
     build_rerank_model_func,
     build_vllm_rerank_func,
+    fuse_modality_scores,
+    resolve_rerank_fusion,
 )
 from ami_rag.settings import Settings
 
@@ -215,3 +218,131 @@ async def test_build_rerank_documents_truncates_oversize_text():
     assert docs[1]["content"][0] == {"type": "text", "text": "b" * 600}
     assert docs[1]["content"][1]["type"] == "image_url"
     assert docs[2] == "short"
+
+
+# --- fuse_modality_scores ---
+
+
+def _chunks_for_fusion() -> list[dict]:
+    return [
+        {"modality": "text"},   # idx 0
+        {"modality": "image"},  # idx 1
+        {"modality": "table"},  # idx 2 (cùng nhóm text)
+        {"modality": "image"},  # idx 3
+        {"modality": "text"},   # idx 4
+        {},                     # idx 5 (thiếu modality -> text)
+    ]
+
+
+async def test_fuse_promotes_top_visual_over_low_text():
+    # image idx1 score 0.14 (đạt floor, hạng 1 nhóm visual -> 0.8/11);
+    # 4 text trên nó (hạng 1-4 nhóm text). Image thắng text hạng 4 (1/14).
+    chunks = _chunks_for_fusion()
+    results = [
+        {"index": 0, "relevance_score": 0.6},
+        {"index": 4, "relevance_score": 0.5},
+        {"index": 5, "relevance_score": 0.4},
+        {"index": 2, "relevance_score": 0.14},
+        {"index": 1, "relevance_score": 0.14},
+    ]
+    fused = fuse_modality_scores(results, chunks)
+
+    assert [f["index"] for f in fused] == [0, 4, 5, 1, 2]
+    assert fused[0]["fused_score"] == pytest.approx(1.0 / 11)
+    assert fused[1]["fused_score"] == pytest.approx(1.0 / 12)
+    assert fused[2]["fused_score"] == pytest.approx(1.0 / 13)
+    assert fused[3]["fused_score"] == pytest.approx(0.8 / 11)
+    assert fused[4]["fused_score"] == pytest.approx(1.0 / 14)
+    # relevance_score giữ nguyên raw
+    assert fused[0]["relevance_score"] == 0.6
+
+
+async def test_fuse_floor_blocks_promotion():
+    # image idx1 score 0.005 < visual_floor 0.01 -> bị chặn, xếp cuối (raw - 1)
+    chunks = _chunks_for_fusion()
+    results = [
+        {"index": 0, "relevance_score": 0.5},
+        {"index": 1, "relevance_score": 0.005},
+    ]
+    fused = fuse_modality_scores(results, chunks)
+
+    assert [f["index"] for f in fused] == [0, 1]
+    assert fused[0]["fused_score"] == pytest.approx(1.0 / 11)
+    assert fused[1]["fused_score"] == pytest.approx(0.005 - 1.0)
+
+
+async def test_fuse_floor_keeps_relative_order_within_blocked_group():
+    # 2 image dưới floor: raw cao hơn -> fused cao hơn (gần 0 hơn)
+    chunks = _chunks_for_fusion()
+    results = [
+        {"index": 1, "relevance_score": 0.002},
+        {"index": 3, "relevance_score": 0.008},
+    ]
+    fused = fuse_modality_scores(results, chunks)
+
+    assert [f["index"] for f in fused] == [3, 1]
+    assert fused[0]["fused_score"] == pytest.approx(0.008 - 1.0)
+    assert fused[1]["fused_score"] == pytest.approx(0.002 - 1.0)
+
+
+async def test_fuse_table_equation_same_group_as_text():
+    # table/equation cùng nhóm text với text chunk - chỉ image riêng nhóm
+    chunks = _chunks_for_fusion()
+    results = [
+        {"index": 2, "relevance_score": 0.3},  # table
+        {"index": 5, "relevance_score": 0.2},  # thiếu modality -> text
+        {"index": 1, "relevance_score": 0.14},  # image
+    ]
+    fused = fuse_modality_scores(results, chunks)
+
+    # text nhóm: table hạng 1 (1/11), no-modality hạng 2 (1/12) > image (0.8/11)
+    assert [f["index"] for f in fused] == [2, 5, 1]
+    assert fused[0]["fused_score"] == pytest.approx(1.0 / 11)
+    assert fused[1]["fused_score"] == pytest.approx(1.0 / 12)
+    assert fused[2]["fused_score"] == pytest.approx(0.8 / 11)
+
+
+async def test_fuse_visual_weight_affects_ranking():
+    # visual_weight thấp: image đạt floor vẫn thua text cùng khoảng hạng
+    chunks = _chunks_for_fusion()
+    results = [
+        {"index": 4, "relevance_score": 0.5},
+        {"index": 1, "relevance_score": 0.14},
+    ]
+    fused = fuse_modality_scores(results, chunks, visual_weight=0.3)
+    assert [f["index"] for f in fused] == [4, 1]
+    assert fused[1]["fused_score"] == pytest.approx(0.3 / 11)
+
+
+async def test_fuse_empty_and_invalid_results():
+    chunks = _chunks_for_fusion()
+    assert fuse_modality_scores([], chunks) == []
+    # idx ngoài phạm vi bị bỏ qua
+    fused = fuse_modality_scores([{"index": 99, "relevance_score": 0.9}], chunks)
+    assert fused == []
+    # results None
+    assert fuse_modality_scores(None, chunks) == []
+
+
+async def test_fuse_tie_break_stable():
+    # 2 text cùng điểm: giữ thứ tự xuất hiện trong results (stable sort)
+    chunks = _chunks_for_fusion()
+    results = [
+        {"index": 4, "relevance_score": 0.5},
+        {"index": 0, "relevance_score": 0.5},
+    ]
+    fused = fuse_modality_scores(results, chunks)
+    assert [f["index"] for f in fused] == [4, 0]
+
+
+def test_resolve_rerank_fusion():
+    assert resolve_rerank_fusion(Settings(RERANK_FUSION="raw")) == "raw"
+    assert resolve_rerank_fusion(Settings(RERANK_FUSION="rrf")) == "rrf"
+    assert resolve_rerank_fusion(Settings(RERANK_FUSION="")) == "raw"
+
+    class _NoFusionAttr:  # settings thiếu attr -> getattr default
+        pass
+
+    assert resolve_rerank_fusion(_NoFusionAttr()) == "raw"
+    with pytest.raises(ValueError):
+        resolve_rerank_fusion(Settings(RERANK_FUSION="bogus"))

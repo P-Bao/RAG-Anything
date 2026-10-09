@@ -191,6 +191,67 @@ async def build_rerank_documents(
     return documents
 
 
+def fuse_modality_scores(
+    results: list[dict],
+    chunks: list[dict],
+    *,
+    rrf_k: int = 10,
+    visual_weight: float = 0.8,
+    visual_floor: float = 0.01,
+    text_floor: float = 0.05,
+) -> list[dict]:
+    """Fuse điểm rerank theo 2 nhóm modality (image vs phần còn lại).
+
+    Điểm cross-encoder không so sánh được giữa image (thấp - chỉ suy luận qua
+    visual tokens) và text/table (cao - khớp keyword trực tiếp), nên xếp hạng
+    theo hạng nội bộ từng nhóm qua RRF thay vì so điểm tuyệt đối:
+
+    - nhóm visual: chunk ``modality == "image"``; nhóm text: modality còn lại.
+    - hạng trong nhóm tính theo raw score (desc, 1-based);
+      ``fused = weight / (rrf_k + rank)`` với weight của nhóm mình.
+    - sàn điểm: raw score dưới floor của nhóm bị chặn không được promote -
+      ``fused = raw - 1`` (luôn xếp sau mọi item đạt floor, giữ thứ tự raw).
+
+    Trả ``[{"index", "relevance_score", "fused_score"}]`` sorted theo fused desc.
+    """
+    scored: list[tuple[int, float, bool]] = []  # (idx, raw, is_visual)
+    for item in results or []:
+        idx = item.get("index")
+        if not isinstance(idx, int) or not 0 <= idx < len(chunks):
+            continue
+        is_visual = (chunks[idx].get("modality") or "text") == "image"
+        scored.append((idx, float(item.get("relevance_score") or 0.0), is_visual))
+
+    visual = [(i, s) for i, s, v in scored if v]
+    text = [(i, s) for i, s, v in scored if not v]
+
+    fused: dict[int, float] = {}
+
+    def _fuse(group: list[tuple[int, float]], weight: float, floor: float) -> None:
+        ordered = sorted(group, key=lambda pair: -pair[1])
+        for rank, (idx, raw) in enumerate(ordered, start=1):
+            if raw < floor:
+                fused[idx] = raw - 1.0
+            else:
+                fused[idx] = weight / (rrf_k + rank)
+
+    _fuse(visual, visual_weight, visual_floor)
+    _fuse(text, 1.0, text_floor)
+
+    return [
+        {"index": idx, "relevance_score": raw, "fused_score": fused[idx]}
+        for idx, raw, _ in sorted(scored, key=lambda t: -fused[t[0]])
+    ]
+
+
+def resolve_rerank_fusion(settings) -> str:
+    """Resolve RERANK_FUSION: "raw" (so điểm tuyệt đối) | "rrf" (fusion 2 nhóm)."""
+    fusion = (getattr(settings, "RERANK_FUSION", "raw") or "raw").lower()
+    if fusion not in ("raw", "rrf"):
+        raise ValueError(f"RERANK_FUSION không hợp lệ: {fusion} (raw | rrf)")
+    return fusion
+
+
 def build_rerank_func(settings: Settings | None = None):
     """Dispatcher theo RERANK_BACKEND: legacy (BGE) | vllm (Nemotron VL)."""
     from ami_rag.settings import resolve_rerank_backend
