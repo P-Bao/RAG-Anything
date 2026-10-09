@@ -7,6 +7,8 @@ import httpx
 _IMAGE_MARKDOWN_RE = re.compile(r"!\[[^\]]*\]\((https?://[^)\s]+)\)")
 _IMAGE_BULLET_RE = re.compile(r"^\s*[-*]\s*(https?://\S+)\s*$", re.MULTILINE)
 
+_MINIO_POOL_MAXSIZE = 16
+
 
 def _ext_from_url(url: str, content_type: str | None) -> str:
     for ext in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".webm", ".mp4"):
@@ -54,6 +56,7 @@ class CrawlImageWorker:
             http_client = urllib3.PoolManager(
                 timeout=urllib3.Timeout(connect=3, read=60),
                 retries=urllib3.Retry(total=1, backoff_factor=0),
+                maxsize=_MINIO_POOL_MAXSIZE,
             )
             self._client = Minio(
                 self._endpoint,

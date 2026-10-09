@@ -8,6 +8,8 @@ from pathlib import Path
 ASSET_TYPES = ("image", "table", "equation")
 CONTENT_LIST_NAME = "content_list.json"
 
+_MINIO_POOL_MAXSIZE = 16
+
 
 class MinioAssetStore:
     """MinIO access for the RAG pipeline (single bucket, `ASSET_PREFIX/{doc_id}/...`).
@@ -50,6 +52,7 @@ class MinioAssetStore:
             http_client = urllib3.PoolManager(
                 timeout=urllib3.Timeout(connect=3, read=60),
                 retries=urllib3.Retry(total=1, backoff_factor=0),
+                maxsize=_MINIO_POOL_MAXSIZE,
             )
             self._client = Minio(
                 self._endpoint,

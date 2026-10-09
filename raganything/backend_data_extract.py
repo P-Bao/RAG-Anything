@@ -62,8 +62,10 @@ class BackendDataExtractor:
         text_endpoint: str = DEFAULT_TEXT_ENDPOINT,
         http_client=None,
     ):
+        import httpx
+
         self._base_url = (base_url or DEFAULT_BASE_URL).rstrip("/")
-        self._timeout = timeout
+        self._timeout = httpx.Timeout(timeout, connect=min(10.0, float(timeout)))
         self._table_endpoint = table_endpoint.lstrip("/")
         self._text_endpoint = text_endpoint.lstrip("/")
         self._http_client = http_client
@@ -88,7 +90,15 @@ class BackendDataExtractor:
                         headers={"Accept": "application/json"},
                     )
         except httpx.HTTPError as exc:
-            raise BackendDataParseError(f"Không kết nối được OCR service: {exc}") from exc
+            if isinstance(exc, (httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout)):
+                hint = "OCR service nhận kết nối nhưng không phản hồi (service treo/quá tải)"
+            elif isinstance(exc, httpx.ConnectError):
+                hint = "Không kết nối được OCR service (host/port unreachable hoặc firewall)"
+            elif isinstance(exc, httpx.ConnectTimeout):
+                hint = "Kết nối OCR service timeout (firewall drop SYN?)"
+            else:
+                hint = "Lỗi HTTP OCR service"
+            raise BackendDataParseError(f"{hint}: {type(exc).__name__}: {exc}") from exc
 
         if response.status_code >= 400:
             raise BackendDataParseError(
