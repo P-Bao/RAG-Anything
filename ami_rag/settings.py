@@ -197,6 +197,23 @@ def resolve_rerank_backend(settings) -> str:
     return "vllm" if model and "bge" not in model else "legacy"
 
 
+def resolve_image_describe_mode(settings) -> str:
+    """Resolve IMAGE_DESCRIBE_MODE: "vision" (gửi ảnh cho VLM) | "text" (Qwen
+    text-only + OCR chữ trong ảnh + ngữ cảnh xung quanh).
+
+    - IMAGE_DESCRIBE_MODE đặt rõ -> dùng luôn (vision | text).
+    - auto: có QWEN_VLM_MODEL -> "vision", không -> "text".
+    """
+    mode = (getattr(settings, "IMAGE_DESCRIBE_MODE", "auto") or "auto").lower()
+    if mode != "auto":
+        if mode not in ("vision", "text"):
+            raise ValueError(
+                f"IMAGE_DESCRIBE_MODE không hợp lệ: {mode} (vision | text | auto)"
+            )
+        return mode
+    return "vision" if getattr(settings, "QWEN_VLM_MODEL", "") else "text"
+
+
 def parser_kwargs(settings) -> dict:
     """Extra kwargs for `RAGAnything.parse_document` derived from MINERU_* settings.
 

@@ -26,6 +26,7 @@ Data giữa các stage nằm trong MinIO: `{doc_id}/content_list.json`,
 import asyncio
 import base64
 import hashlib
+import json
 import logging
 import re
 import tempfile
@@ -36,7 +37,7 @@ from typing import Any
 from ami_rag.core.embedder import collection_name
 from ami_rag.core.pipeline import PipelineRunner, StageOutcome
 from ami_rag.core.vector_store import ChunkRecord, VectorStore, VectorStoreError
-from ami_rag.settings import parser_kwargs
+from ami_rag.settings import parser_kwargs, resolve_image_describe_mode
 from ami_rag.sources import (
     SOURCE_MINIO_PARSE,
     resolve_file_path,
@@ -191,6 +192,24 @@ def _join_caption(value) -> str:
     return str(value)
 
 
+def _parse_image_description(response: str) -> str:
+    """Trích ``detailed_description`` từ JSON response của LLM; fail -> trả raw text."""
+    if not response:
+        return ""
+    text = response.strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end > start:
+        try:
+            data = json.loads(text[start : end + 1])
+            description = str(data.get("detailed_description") or "").strip()
+            if description:
+                return description
+        except (json.JSONDecodeError, AttributeError):
+            pass
+    return text
+
+
 def chunk_text(text: str, max_tokens: int = 1200, overlap_tokens: int = 100) -> list[str]:
     """Plain paragraph splitter xấp xỉ token budget (fallback ~4 chars/token)."""
     max_chars = max(512, max_tokens * 4)
@@ -241,6 +260,7 @@ class VectorPipeline(PipelineRunner):
         docs_repo=None,
         parser=None,
         modal_processors=None,
+        llm_func=None,
     ):
         self.settings = settings
         self.embedder = embedder
@@ -250,7 +270,10 @@ class VectorPipeline(PipelineRunner):
         self.docs_repo = docs_repo
         self.parser = parser
         self.modal_processors = modal_processors or {}
+        # LLM text-only cho describe ảnh khi không có VLM (OCR + ngữ cảnh)
+        self.llm_func = llm_func
         self._bd_extractor = None
+        self._ocr_sem: asyncio.Semaphore | None = None
         self.collection = collection_name(
             settings.WORKSPACE, settings.EMBED_MODEL, settings.CHUNKER_VERSION
         )
@@ -399,25 +422,41 @@ class VectorPipeline(PipelineRunner):
             self.store.mark_stage(doc_id, STAGE_DESCRIBE)
             return []
 
-        descriptions: list[dict] = []
-        for i in multimodal_indices:
+        # Context source cho processor: trích ngữ cảnh xung quanh item (cùng trang)
+        for processor in self.modal_processors.values():
+            set_source = getattr(processor, "set_content_source", None)
+            if callable(set_source):
+                set_source(content_list, "minerU")
+
+        async def _one(i: int) -> dict:
             item = content_list[i]
             type_ = _normalize_item_type(item.get("type"))
             try:
-                desc_text = await self._describe_item(type_, item, content_list)
+                desc_text = await self._describe_item(
+                    type_, item, content_list, i, doc_id
+                )
             except Exception as exc:
                 logger.warning("describe doc=%s item=%d lỗi: %s", doc_id, i, exc)
                 desc_text = ""
-            descriptions.append(
-                {"index": i, "type": type_, "description": desc_text}
-            )
+            return {"index": i, "type": type_, "description": desc_text}
+
+        descriptions = list(await asyncio.gather(*(_one(i) for i in multimodal_indices)))
         self._save_json(
             ArtifactPaths.descriptions_key(self.asset_store, doc_id), descriptions
         )
         self.store.mark_stage(doc_id, STAGE_DESCRIBE)
         return descriptions
 
-    async def _describe_item(self, type_: str, item: dict, content_list: list[dict]) -> str:
+    async def _describe_item(
+        self,
+        type_: str,
+        item: dict,
+        content_list: list[dict],
+        index: int = 0,
+        doc_id: str = "",
+    ) -> str:
+        if type_ == "image" and resolve_image_describe_mode(self.settings) == "text":
+            return await self._describe_image_text_only(item, content_list, index, doc_id)
         processor = self.modal_processors.get(type_) or self.modal_processors.get("generic")
         if processor is None:
             return item.get("text") or item.get("table_body") or str(item)
@@ -427,7 +466,7 @@ class VectorPipeline(PipelineRunner):
                 content_type=type_,
                 item_info={
                     "page_idx": item.get("page_idx", 0),
-                    "index": 0,
+                    "index": index,
                     "type": type_,
                 },
                 entity_name=None,
@@ -437,8 +476,129 @@ class VectorPipeline(PipelineRunner):
             return item.get("text") or item.get("table_body") or str(item)
 
     # ------------------------------------------------------------------
-    # Stage: chunk (chỉ dùng mô tả đã lưu – KHÔNG gọi LLM)
+    # Describe ảnh không VLM: OCR chữ trong ảnh (service ngoài) + ngữ cảnh
     # ------------------------------------------------------------------
+    def _image_ocr_enabled(self, item: dict) -> bool:
+        if not getattr(self.settings, "DESCRIBE_IMAGE_OCR", True):
+            return False
+        if not item.get("asset_key") or not hasattr(self.asset_store, "get_bytes"):
+            return False
+        return not (
+            getattr(self.settings, "DESCRIBE_IMAGE_OCR_SKIP_IF_CAPTION", True)
+            and _join_caption(
+                item.get("image_caption") or item.get("img_caption")
+            ).strip()
+        )
+
+    def _get_ocr_semaphore(self) -> asyncio.Semaphore:
+        if self._ocr_sem is None:
+            limit = max(1, int(getattr(self.settings, "DESCRIBE_IMAGE_OCR_MAX_CONCURRENCY", 3)))
+            self._ocr_sem = asyncio.Semaphore(limit)
+        return self._ocr_sem
+
+    async def _ocr_image_text(self, item: dict, doc_id: str) -> str:
+        """OCR chữ trong ảnh qua service ngoài (bọc PDF -> hierarchy-parse).
+
+        Lỗi/timeout/rỗng -> trả "" (fallback context-only, không crash describe).
+        """
+        if not self._image_ocr_enabled(item):
+            return ""
+        try:
+            data = await asyncio.to_thread(
+                self.asset_store.get_bytes, item.get("asset_key")
+            )
+            if not data:
+                return ""
+
+            async def _call() -> str:
+                async with self._get_ocr_semaphore():
+                    return await self._get_bd_extractor().extract_image_ocr_text(
+                        data, item.get("asset_key") or "image"
+                    )
+
+            timeout = int(getattr(self.settings, "DESCRIBE_IMAGE_OCR_TIMEOUT", 120))
+            return (await asyncio.wait_for(_call(), timeout=timeout)).strip()
+        except asyncio.TimeoutError:
+            logger.warning(
+                "OCR ảnh doc=%s asset=%s timeout - bỏ qua OCR",
+                doc_id,
+                item.get("asset_key"),
+            )
+        except Exception as exc:
+            logger.warning(
+                "OCR ảnh doc=%s asset=%s lỗi - bỏ qua OCR: %s",
+                doc_id,
+                item.get("asset_key"),
+                exc,
+            )
+        return ""
+
+    async def _describe_image_text_only(
+        self, item: dict, content_list: list[dict], index: int, doc_id: str = ""
+    ) -> str:
+        """Mô tả ảnh không có VLM: OCR chữ trong ảnh + caption + ngữ cảnh xung quanh.
+
+        Trả mô tả text thuần (không JSON). Thiếu llm_func hoặc LLM lỗi -> trả
+        text thô ghép từ caption/OCR/context (không rỗng như trước).
+        """
+        caption = _join_caption(item.get("image_caption") or item.get("img_caption"))
+        footnotes = _join_caption(item.get("image_footnote") or item.get("img_footnote"))
+        ocr_text = await self._ocr_image_text(item, doc_id)
+        context = self._extract_image_context(content_list, index)
+
+        if self.llm_func is None:
+            return "\n".join(p for p in (caption, ocr_text, context) if p).strip()
+
+        from raganything.prompt import PROMPTS
+
+        prompt = PROMPTS["image_text_only_prompt"].format(
+            entity_name="a descriptive name for this image",
+            caption=caption or "None",
+            footnotes=footnotes or "None",
+            ocr_text=ocr_text or "(không OCR được chữ trong ảnh)",
+            context=context or "(không có ngữ cảnh)",
+        )
+        try:
+            response = await self.llm_func(
+                prompt, system_prompt=PROMPTS["IMAGE_TEXT_ONLY_SYSTEM"]
+            )
+        except Exception as exc:
+            logger.warning("LLM mô tả ảnh lỗi, dùng text thô: %s", exc)
+            return "\n".join(p for p in (caption, ocr_text, context) if p).strip()
+        return _parse_image_description(response) or "\n".join(
+            p for p in (caption, ocr_text, context) if p
+        ).strip()
+
+    def _extract_image_context(
+        self, content_list: list[dict], index: int, window: int = 1
+    ) -> str:
+        """Ngữ cảnh text xung quanh ảnh (cùng trang, ±window trang)."""
+        processor = self.modal_processors.get("image") or self.modal_processors.get("generic")
+        item_info = {
+            "page_idx": content_list[index].get("page_idx", 0),
+            "index": index,
+            "type": "image",
+        }
+        getter = getattr(processor, "_get_context_for_item", None)
+        if callable(getter):
+            try:
+                return getter(item_info)
+            except Exception:
+                pass
+        # Fallback: tự trích text các trang lân cận khi processor không có context extractor
+        page = content_list[index].get("page_idx") or 0
+        parts = []
+        for it in content_list:
+            if it.get("type") != "text":
+                continue
+            it_page = it.get("page_idx") or 0
+            if abs(it_page - page) > window:
+                continue
+            text = (it.get("text") or "").strip()
+            if text:
+                parts.append(text)
+        return "\n".join(parts)[:4000]
+
     def _build_chunks(
         self,
         doc_id: str,

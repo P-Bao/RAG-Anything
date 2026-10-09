@@ -205,6 +205,7 @@ def build_pipeline(
     store=None,
     docs_repo=None,
     modal_processors=None,
+    llm_func=None,
 ):
     """Build VectorPipeline wired to AMI infrastructure (test paths can inject deps)."""
     from ami_rag.core.vector_pipeline import VectorPipeline
@@ -238,6 +239,7 @@ def build_pipeline(
             collection_name=settings.DOC_COLLECTION,
         ),
         modal_processors=modal_processors or _build_modal_processors(settings),
+        llm_func=llm_func or _build_llm_func(settings),
     )
 
 

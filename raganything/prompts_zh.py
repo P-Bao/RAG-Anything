@@ -99,6 +99,36 @@ PROMPTS_ZH["text_prompt"] = """根据以下图片信息提供分析：
 
 {vision_prompt}"""
 
+# Image description prompt for text-only LLM (no vision model available).
+PROMPTS_ZH["IMAGE_TEXT_ONLY_SYSTEM"] = (
+    "你是一位专业的文档分析专家。你为检索撰写精确的图片描述，"
+    "严格基于给定的信息，绝不编造细节。"
+)
+PROMPTS_ZH["image_text_only_prompt"] = """请仅根据以下信息为文档中的一张图片撰写描述。不要编造信息中不存在的内容。请用中文以如下 JSON 结构回答：
+
+{{
+    "detailed_description": "对图片内容的详细描述：图片展示了什么（示意图/图表/照片/插图）、图片中的标签、名称和文字（来自 OCR 部分），以及它与周围内容的关系。始终使用具体名称而非代词。",
+    "entity_info": {{
+        "entity_name": "{entity_name}",
+        "entity_type": "image",
+        "summary": "图片内容的简明摘要（最多100词）"
+    }}
+}}
+
+图片信息：
+- 标注：{caption}
+- 脚注：{footnotes}
+- 图片内 OCR 识别出的文字：
+{ocr_text}
+
+文档中的周围上下文：
+{context}
+
+要求：
+- 如果 OCR 文字列出了标签/名称（例如组织架构图的方框、表格的列、流程图的节点），请在描述中原样包含它们。
+- 如果标注或上下文说明了图片类型（示意图、图表、照片等），请明确指出。
+- 如果信息不足，请仅根据标注/上下文撰写最简描述；不要虚构视觉细节。"""
+
 # Table analysis prompt template
 PROMPTS_ZH["table_prompt"] = """请分析此表格内容，并以以下JSON结构提供回答：
 

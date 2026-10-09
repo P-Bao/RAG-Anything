@@ -158,6 +158,38 @@ Footnotes: {footnotes}
 
 {vision_prompt}"""
 
+# Image description prompt for text-only LLM (no vision model available).
+# Inputs: caption/footnotes từ parser, chữ OCR trong ảnh (nếu có), ngữ cảnh văn bản
+# xung quanh. Output: JSON như vision prompt để tái dùng parser hiện có.
+PROMPTS["IMAGE_TEXT_ONLY_SYSTEM"] = (
+    "You are an expert document analyst. You write precise descriptions of images "
+    "for retrieval, strictly based on the given information. You never invent details."
+)
+PROMPTS["image_text_only_prompt"] = """Write a description for an image in a document, based STRICTLY on the information below. Do NOT invent details that are not present. Respond in Vietnamese with a JSON object of this exact structure:
+
+{{
+    "detailed_description": "A detailed description of the image content: what the image shows (diagram/chart/photo/illustration), the labels, names and text inside the image (from the OCR section), and how it relates to the surrounding content. Always use specific names instead of pronouns.",
+    "entity_info": {{
+        "entity_name": "{entity_name}",
+        "entity_type": "image",
+        "summary": "concise summary of the image content (max 100 words)"
+    }}
+}}
+
+Image information:
+- Caption: {caption}
+- Footnotes: {footnotes}
+- OCR text found inside the image:
+{ocr_text}
+
+Surrounding context in the document:
+{context}
+
+Guidelines:
+- If the OCR text lists labels/names (e.g. boxes of an organization chart, columns of a table, nodes of a flowchart), include them verbatim in the description.
+- If the caption or context indicates the image type (diagram, chart, photo...), state it explicitly.
+- If there is not enough information, write a minimal description based only on the caption/context; do NOT fabricate visual details."""
+
 # Table analysis prompt template
 PROMPTS[
     "table_prompt"

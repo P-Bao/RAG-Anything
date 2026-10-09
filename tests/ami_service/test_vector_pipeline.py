@@ -7,7 +7,7 @@ from ami_rag.core.vector_pipeline import (
     VectorPipeline,
     chunk_text,
 )
-from ami_rag.settings import Settings
+from ami_rag.settings import Settings, resolve_image_describe_mode
 from ami_rag.storage.doc_status import STATUS_INDEXED
 from raganything.backend_data_extract import BackendDataParseError
 from tests.ami_service.conftest import FakeEmbedder, FakeParser, FakeVectorStore
@@ -467,5 +467,261 @@ async def test_prepare_embed_items_attaches_assets_for_table_and_equation(pipeli
     assert items[2]["image_b64"]
     # table không có asset_key -> text-only
     assert items[3] == "table no asset"
+
+
+# ----------------------------------------------------------------------
+# Describe ảnh không VLM: OCR bridge + ngữ cảnh + Qwen text-only
+# ----------------------------------------------------------------------
+
+class _FakeOCR:
+    """Stand-in cho BackendDataExtractor (chỉ extract_image_ocr_text)."""
+
+    def __init__(self, text="SƠ ĐỒ CƠ CẤU TỔ CHỨC\nGiám đốc: Đặng Hoài Bắc", fail=False, delay=0.0):
+        self.text = text
+        self.fail = fail
+        self.delay = delay
+        self.calls = []
+        self._active = 0
+        self.max_active = 0
+
+    async def extract_image_ocr_text(self, image_bytes, filename="image.png"):
+        self.calls.append((len(image_bytes), filename))
+        self._active += 1
+        self.max_active = max(self.max_active, self._active)
+        try:
+            if self.delay:
+                import asyncio
+
+                await asyncio.sleep(self.delay)
+            if self.fail:
+                raise BackendDataParseError("OCR boom")
+            return self.text
+        finally:
+            self._active -= 1
+
+
+class _FakeLLM:
+    def __init__(self, response='{"detailed_description": "Mô tả ảnh từ LLM"}'):
+        self.response = response
+        self.prompts = []
+
+    async def __call__(self, prompt, system_prompt=None, **kwargs):
+        self.prompts.append((prompt, system_prompt))
+        return self.response
+
+
+def _image_content_list(asset_key="rag-assets/docX/img0.png", caption=None, page=0):
+    item = {"type": "image", "img_path": "gone.png", "asset_key": asset_key, "page_idx": page}
+    if caption:
+        item["image_caption"] = [caption]
+    return [
+        {"type": "text", "text": "Cơ cấu tổ chức của Học viện gồm các phòng ban.", "page_idx": page},
+        item,
+    ]
+
+
+def _settings_text_mode(**overrides):
+    base = {
+        "_env_file": None,
+        "WORKSPACE": "test",
+        "EMBED_MODEL": "Qwen/Qwen3-VL-Embedding-2B",
+        "EMBED_DIM": 8,
+        "CHUNKER_VERSION": "v1",
+        "QWEN_VLM_MODEL": "",
+    }
+    base.update(overrides)
+    return Settings(**base)
+
+
+def test_resolve_image_describe_mode():
+    assert resolve_image_describe_mode(_settings_text_mode()) == "text"
+    assert resolve_image_describe_mode(_settings_text_mode(QWEN_VLM_MODEL="Qwen/Qwen3-VL")) == "vision"
+    assert resolve_image_describe_mode(_settings_text_mode(IMAGE_DESCRIBE_MODE="vision")) == "vision"
+    assert (
+        resolve_image_describe_mode(
+            _settings_text_mode(IMAGE_DESCRIBE_MODE="text", QWEN_VLM_MODEL="Qwen/Qwen3-VL")
+        )
+        == "text"
+    )
+    with pytest.raises(ValueError):
+        resolve_image_describe_mode(_settings_text_mode(IMAGE_DESCRIBE_MODE="bogus"))
+
+
+def _make_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_status_store, **settings_kw):
+    return VectorPipeline(
+        _settings_text_mode(**settings_kw),
+        embedder=fake_embedder,
+        vector_store=fake_vector_store,
+        asset_store=fake_asset_store,
+        store=fake_status_store,
+        parser=FakeParser(),
+        modal_processors={},
+    )
+
+
+async def test_describe_image_text_only_with_ocr(
+    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
+):
+    pipeline = _make_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_status_store)
+    ocr = _FakeOCR()
+    llm = _FakeLLM()
+    pipeline._bd_extractor = ocr
+    pipeline.llm_func = llm
+
+    descriptions = await pipeline._stage_describe("docX", _image_content_list())
+
+    assert len(descriptions) == 1
+    assert descriptions[0]["description"] == "Mô tả ảnh từ LLM"
+    assert descriptions[0]["type"] == "image"
+    # OCR được gọi với bytes từ MinIO (asset_key), không phải img_path local
+    assert ocr.calls == [(len(b"\x89PNG-fake-bytes"), "rag-assets/docX/img0.png")]
+    # Prompt LLM chứa OCR text + ngữ cảnh xung quanh
+    prompt, system = llm.prompts[0]
+    assert "SƠ ĐỒ CƠ CẤU TỔ CHỨC" in prompt
+    assert "Cơ cấu tổ chức của Học viện gồm các phòng ban." in prompt
+    assert "IMAGE_TEXT_ONLY_SYSTEM" in system or "expert document analyst" in system
+
+
+async def test_describe_image_skips_ocr_when_caption_present(
+    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
+):
+    pipeline = _make_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_status_store)
+    ocr = _FakeOCR()
+    llm = _FakeLLM()
+    pipeline._bd_extractor = ocr
+    pipeline.llm_func = llm
+
+    content_list = _image_content_list(caption="Sơ đồ tổ chức PTIT")
+    await pipeline._stage_describe("docX", content_list)
+
+    assert ocr.calls == []  # SKIP_IF_CAPTION mặc định True
+    assert "Sơ đồ tổ chức PTIT" in llm.prompts[0][0]
+
+
+async def test_describe_image_ocr_fail_falls_back_to_context(
+    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
+):
+    pipeline = _make_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_status_store)
+    pipeline._bd_extractor = _FakeOCR(fail=True)
+    llm = _FakeLLM()
+    pipeline.llm_func = llm
+
+    descriptions = await pipeline._stage_describe("docX", _image_content_list())
+
+    # Không crash; LLM vẫn được gọi với marker không OCR được
+    assert descriptions[0]["description"] == "Mô tả ảnh từ LLM"
+    assert "(không OCR được chữ trong ảnh)" in llm.prompts[0][0]
+    assert "Cơ cấu tổ chức của Học viện" in llm.prompts[0][0]
+
+
+async def test_describe_image_llm_fail_returns_raw_text(
+    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
+):
+    pipeline = _make_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_status_store)
+    pipeline._bd_extractor = _FakeOCR()
+
+    async def broken_llm(prompt, system_prompt=None, **kwargs):
+        raise RuntimeError("LLM down")
+
+    pipeline.llm_func = broken_llm
+    descriptions = await pipeline._stage_describe("docX", _image_content_list())
+
+    text = descriptions[0]["description"]
+    assert "SƠ ĐỒ CƠ CẤU TỔ CHỨC" in text
+    assert "Cơ cấu tổ chức của Học viện" in text
+
+
+async def test_describe_image_no_llm_returns_raw_text(
+    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
+):
+    pipeline = _make_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_status_store)
+    ocr = _FakeOCR()
+    pipeline._bd_extractor = ocr
+    pipeline.llm_func = None
+
+    descriptions = await pipeline._stage_describe("docX", _image_content_list())
+    text = descriptions[0]["description"]
+    assert "SƠ ĐỒ CƠ CẤU TỔ CHỨC" in text
+    assert "Cơ cấu tổ chức của Học viện" in text
+
+
+async def test_describe_image_no_asset_key_skips_ocr(
+    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
+):
+    pipeline = _make_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_status_store)
+    ocr = _FakeOCR()
+    pipeline._bd_extractor = ocr
+    pipeline.llm_func = _FakeLLM()
+
+    content_list = _image_content_list()
+    del content_list[1]["asset_key"]
+    await pipeline._stage_describe("docX", content_list)
+    assert ocr.calls == []
+
+
+async def test_describe_ocr_concurrency_limited(
+    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
+):
+    pipeline = _make_pipeline(
+        fake_embedder, fake_vector_store, fake_asset_store, fake_status_store,
+        DESCRIBE_IMAGE_OCR_MAX_CONCURRENCY=2,
+    )
+    ocr = _FakeOCR(delay=0.01)
+    pipeline._bd_extractor = ocr
+    pipeline.llm_func = None
+
+    content_list = [
+        {"type": "image", "asset_key": f"rag-assets/docX/img{i}.png", "page_idx": 0}
+        for i in range(5)
+    ]
+    await pipeline._stage_describe("docX", content_list)
+    assert len(ocr.calls) == 5
+    assert ocr.max_active <= 2
+
+
+async def test_describe_sets_content_source_on_processors(
+    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
+):
+    class _RecProc:
+        def __init__(self):
+            self.sources = []
+
+        def set_content_source(self, content_source, content_format="auto"):
+            self.sources.append((content_source, content_format))
+
+        async def generate_chunk_sections(self, modal_content, content_type, item_info=None, entity_name=None):
+            return [{"description": "desc", "entity_info": {}, "window_meta": None}]
+
+    pipeline = _make_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_status_store)
+    proc = _RecProc()
+    pipeline.modal_processors = {"image": proc, "table": proc}
+
+    content_list = _image_content_list()
+    await pipeline._stage_describe("docX", content_list)
+
+    assert proc.sources and proc.sources[0][1] == "minerU"
+    assert proc.sources[0][0] is content_list
+
+
+async def test_describe_vision_mode_uses_processor(
+    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store, fake_modal_processors
+):
+    pipeline = _make_pipeline(
+        fake_embedder, fake_vector_store, fake_asset_store, fake_status_store,
+        QWEN_VLM_MODEL="Qwen/Qwen3-VL-Embedding-2B",
+    )
+    pipeline.modal_processors = fake_modal_processors
+    ocr = _FakeOCR()
+    pipeline._bd_extractor = ocr
+
+    descriptions = await pipeline._stage_describe("docX", _image_content_list())
+
+    # vision mode: đi qua processor như cũ, KHÔNG gọi OCR bridge
+    assert descriptions[0]["description"] == "mô tả image"
+    assert ocr.calls == []
+    calls = []
+    for proc in fake_modal_processors.values():
+        calls.extend(proc.calls)
+    assert any(c[0] == "image" for c in calls)
 
 
