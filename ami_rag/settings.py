@@ -17,6 +17,21 @@ class Settings(BaseSettings):
     QWEN_LLM_API_KEY: str = ""
     QWEN_VLM_MODEL: str = ""
 
+    # --- Describe stage: mô tả chunk multimodal (ảnh/bảng/công thức) ---
+    # auto | vision | text. auto: có QWEN_VLM_MODEL -> vision (gửi ảnh cho VLM),
+    # không -> text (Qwen text-only + OCR chữ trong ảnh + ngữ cảnh xung quanh).
+    # vision: luôn gửi ảnh cho VLM. text: không bao giờ gửi ảnh (chỉ OCR + ngữ cảnh).
+    IMAGE_DESCRIBE_MODE: str = "auto"
+    # OCR chữ trong ảnh đơn lẻ qua OCR service (bọc ảnh vào PDF -> hierarchy-parse).
+    # Chỉ dùng ở chế độ text (không VLM). Tốn ~30s/ảnh nên có guard bên dưới.
+    DESCRIBE_IMAGE_OCR: bool = True
+    # Bỏ qua OCR khi ảnh đã có caption (MinerU trích sẵn) - tiết kiệm, caption đủ dùng.
+    DESCRIBE_IMAGE_OCR_SKIP_IF_CAPTION: bool = True
+    # Giới hạn số request OCR đồng thời (OCR service ~30s/ảnh, tránh đè service).
+    DESCRIBE_IMAGE_OCR_MAX_CONCURRENCY: int = 3
+    # Timeout mỗi request OCR ảnh (giây). Quá -> bỏ qua, fallback ngữ cảnh.
+    DESCRIBE_IMAGE_OCR_TIMEOUT: int = 120
+
     # --- Remote embedding server (máy B) ---
     # backend "custom": qwen-embedding-server (/info + /embed);
     # backend "openai": gateway nemotron-vl-vllm (máy B) — /health + /v1/embeddings

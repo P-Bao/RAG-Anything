@@ -32,6 +32,27 @@ class BackendDataParseError(Exception):
     """Lỗi chung khi trích xuất text/bảng kiểu backend_data."""
 
 
+def image_to_pdf_bytes(image_bytes: bytes) -> bytes:
+    """Bọc ảnh (jpg/png) vào PDF 1 trang để gửi OCR service (chỉ nhận PDF/DOCX/TXT).
+
+    OCR service (`hierarchy-parse`) không nhận ảnh đơn lẻ; bọc ảnh vào PDF khiến
+    service xử lý nó như "scanned PDF" và OCR chữ bên trong. Trang PDF đặt đúng
+    kích thước pixel ảnh (1 px = 1 pt @72 dpi) để không làm biến dạng OCR.
+    """
+    import fitz
+
+    pix = fitz.Pixmap(image_bytes)
+    width, height = pix.width, pix.height
+    pix = None
+    doc = fitz.open()
+    page = doc.new_page(width=width, height=height)
+    page.insert_image(fitz.Rect(0, 0, width, height), stream=image_bytes)
+    out = io.BytesIO()
+    doc.save(out, garbage=3, deflate=True)
+    doc.close()
+    return out.getvalue()
+
+
 class BackendDataExtractor:
     def __init__(
         self,
@@ -227,6 +248,55 @@ class BackendDataExtractor:
                 return pymupdf_text
             raise BackendDataParseError("OCR service không trích xuất được nội dung từ PDF scan")
         return text
+
+    # ------------------------------------------------------------------
+    # OCR ảnh đơn lẻ: bọc PDF -> hierarchy-parse (đọc heading + summary)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _flatten_hierarchy_headings(node: dict, parts: list[str]) -> None:
+        """Như ``_flatten_hierarchy`` nhưng gom cả ``heading``.
+
+        Với ảnh OCR, service đặt chữ nhận dạng được vào ``heading`` (text=None),
+        nên phải đọc cả 2 trường; dedupe giữ thứ tự (heading thường trùng text
+        với PDF thường).
+        """
+        if not isinstance(node, dict):
+            return
+        for key in ("heading", "text"):
+            value = node.get(key)
+            if isinstance(value, str) and value.strip() and value.strip() not in parts:
+                parts.append(value.strip())
+        for child in node.get("children") or []:
+            BackendDataExtractor._flatten_hierarchy_headings(child, parts)
+
+    async def extract_image_ocr_text(
+        self, image_bytes: bytes, filename: str = "image.png"
+    ) -> str:
+        """OCR chữ trong ảnh đơn lẻ qua OCR service (bọc ảnh vào PDF 1 trang).
+
+        Trả về text gồm: chữ OCR (heading+text của cây hierarchy), tóm tắt và
+        key points do service sinh. Ảnh không có chữ -> trả "" (không phải lỗi;
+        caller tự fallback). Lỗi HTTP/kết nối -> raise BackendDataParseError.
+        """
+        pdf_bytes = image_to_pdf_bytes(image_bytes)
+        data = await self._post_file(
+            self._text_endpoint, pdf_bytes, f"{filename}.pdf", "application/pdf"
+        )
+        if not isinstance(data, dict):
+            return ""
+        parts: list[str] = []
+        content = data.get("content")
+        if isinstance(content, dict) and content:
+            self._flatten_hierarchy_headings(content, parts)
+        summary = (data.get("summary") or "").strip()
+        if summary:
+            parts.append(f"Tóm tắt: {summary}")
+        key_points = data.get("key_points") or []
+        if isinstance(key_points, list) and key_points:
+            points = "\n".join(f"- {str(p).strip()}" for p in key_points if p)
+            if points:
+                parts.append(f"Ý chính:\n{points}")
+        return "\n".join(parts).strip()
 
     # ------------------------------------------------------------------
     # Bảng: Qwen table endpoint

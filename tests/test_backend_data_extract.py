@@ -10,6 +10,7 @@ from raganything.backend_data_extract import (
     BackendDataParseError,
     append_image_items,
     build_pdf_content_blocks,
+    image_to_pdf_bytes,
     rebuild_content_list,
     rebuild_docx_content_list,
 )
@@ -244,3 +245,96 @@ async def test_extract_scan_text_error_raises():
     with pytest.raises(BackendDataParseError):
         await ex.extract_scan_text(b"%PDF-fake", "doc.pdf")
     await client.aclose()
+
+
+def _png_bytes(width: int = 120, height: int = 60) -> bytes:
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (width, height), "white").save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def test_image_to_pdf_bytes_wraps_image():
+    import fitz
+
+    pdf = image_to_pdf_bytes(_png_bytes(120, 60))
+    assert pdf.startswith(b"%PDF-")
+    doc = fitz.open(stream=pdf, filetype="pdf")
+    assert doc.page_count == 1
+    assert (round(doc[0].rect.width), round(doc[0].rect.height)) == (120, 60)
+    assert len(doc[0].get_images()) == 1
+    doc.close()
+
+
+async def test_extract_image_ocr_text_flattens_headings_and_summary():
+    payload = {
+        "status": "success",
+        "pages": 1,
+        "content": {
+            "type": "root",
+            "heading": "SƠ ĐỒ CƠ CẤU TỔ CHỨC",
+            "text": None,
+            "children": [
+                {
+                    "type": "unknown",
+                    "heading": "Giám đốc: Đặng Hoài Bắc",
+                    "text": None,
+                    "children": [],
+                },
+            ],
+        },
+        "summary": "Sơ đồ tổ chức của PTIT.",
+        "key_points": ["Giám đốc là Đặng Hoài Bắc"],
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path.endswith("/api/v1/hierarchy-parse")
+        assert request.headers["content-type"].startswith("multipart/form-data")
+        return httpx.Response(200, json=payload)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    ex = BackendDataExtractor(base_url="http://ocr-fake:12006", http_client=client)
+    text = await ex.extract_image_ocr_text(_png_bytes(), "org_chart.png")
+    await client.aclose()
+
+    assert "SƠ ĐỒ CƠ CẤU TỔ CHỨC" in text
+    assert "Giám đốc: Đặng Hoài Bắc" in text
+    assert "Tóm tắt: Sơ đồ tổ chức của PTIT." in text
+    assert "- Giám đốc là Đặng Hoài Bắc" in text
+
+
+async def test_extract_image_ocr_text_empty_when_no_content():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": "success", "pages": 1, "content": {}})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    ex = BackendDataExtractor(base_url="http://ocr-fake:12006", http_client=client)
+    text = await ex.extract_image_ocr_text(_png_bytes(), "blank.png")
+    await client.aclose()
+    assert text == ""
+
+
+async def test_extract_image_ocr_text_error_raises():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, text="unavailable")
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    ex = BackendDataExtractor(base_url="http://ocr-fake:12006", http_client=client)
+    with pytest.raises(BackendDataParseError):
+        await ex.extract_image_ocr_text(_png_bytes(), "org.png")
+    await client.aclose()
+
+
+def test_flatten_hierarchy_headings_dedupe_heading_vs_text():
+    node = {
+        "heading": "Tiêu đề A",
+        "text": "Tiêu đề A",
+        "children": [
+            {"heading": None, "text": "Nội dung B", "children": []},
+            {"heading": "Nội dung B", "text": None, "children": []},
+        ],
+    }
+    parts: list[str] = []
+    BackendDataExtractor._flatten_hierarchy_headings(node, parts)
+    assert parts == ["Tiêu đề A", "Nội dung B"]
