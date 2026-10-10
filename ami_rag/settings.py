@@ -86,6 +86,22 @@ class Settings(BaseSettings):
     OCR_TABLE_ENDPOINT: str = "/api/v1/raw_miner_ocr/qwen"
     OCR_TEXT_ENDPOINT: str = "/api/v1/hierarchy-parse"
 
+    # --- OCR fallback (Vinter, máy B) ---
+    # Dự phòng khi OCR service chính lỗi/timeout/trả rỗng: gateway vintern-vllm
+    # (repo máy B, FastAPI :8090 trước vLLM serving 5CD-AI/Vintern-1B-v3_5).
+    # Client: ami_rag/core/ocr_client.py; inject qua BackendDataExtractor.
+    OCR_FALLBACK_ENABLED: bool = True
+    # Trên máy A phải trỏ sang IP máy B qua env (localhost:8090 chỉ là default dev)
+    OCR_FALLBACK_URL: str = "http://localhost:8090"
+    OCR_FALLBACK_MODEL: str = "5CD-AI/Vintern-1B-v3_5"  # chỉ để log/verify
+    OCR_FALLBACK_TOKEN: str = ""  # chỉ từ env - không commit
+    OCR_FALLBACK_TIMEOUT: int = 300
+    OCR_FALLBACK_RETRIES: int = 1
+    # Primary trả rỗng cũng chuyển sang fallback (đặt False để chỉ fallback khi lỗi)
+    OCR_FALLBACK_ON_EMPTY: bool = True
+    # Tắt fallback riêng từng loại: "text,table" | "text" | "table" | "" (tắt hết)
+    OCR_FALLBACK_MODES: str = "text,table"
+
     # MinerU (only used when PARSER=mineru). Measured on Colab T4, 10-page PDF: `pipeline` peaks at
     # ~1.8 GiB with auto VRAM (1.1 GiB at MINERU_VIRTUAL_VRAM_SIZE=4, 3.3 GiB at 16) in ~50 s;
     # `hybrid-engine` (MinerU 3.4.x default when -b is omitted) peaks at ~14.5 GiB in ~286 s,
@@ -213,6 +229,26 @@ def resolve_image_describe_mode(settings) -> str:
         return mode
     return "vision" if getattr(settings, "QWEN_VLM_MODEL", "") else "text"
 
+
+def resolve_ocr_fallback_modes(settings) -> frozenset[str]:
+    """Parse OCR_FALLBACK_MODES ("text,table") -> frozenset({"text", "table"}).
+
+    - Chuỗi rỗng -> frozenset() (tắt fallback cho cả text lẫn table).
+    - Giá trị lạ -> ValueError (để cấu hình sai được phát hiện lúc khởi động).
+    """
+    raw = (getattr(settings, "OCR_FALLBACK_MODES", "text,table") or "").strip()
+    modes: set[str] = set()
+    for part in raw.replace(";", ",").split(","):
+        part = part.strip().lower()
+        if not part:
+            continue
+        if part not in ("text", "table"):
+            raise ValueError(
+                f"OCR_FALLBACK_MODES không hợp lệ: '{part}' (chỉ 'text', 'table', "
+                "phân cách bằng dấu phẩy; chuỗi rỗng = tắt fallback)"
+            )
+        modes.add(part)
+    return frozenset(modes)
 
 def parser_kwargs(settings) -> dict:
     """Extra kwargs for `RAGAnything.parse_document` derived from MINERU_* settings.

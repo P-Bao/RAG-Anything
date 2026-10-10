@@ -61,6 +61,9 @@ class BackendDataExtractor:
         table_endpoint: str = DEFAULT_TABLE_ENDPOINT,
         text_endpoint: str = DEFAULT_TEXT_ENDPOINT,
         http_client=None,
+        fallback=None,
+        fallback_modes: frozenset = frozenset({"text", "table"}),
+        fallback_on_empty: bool = True,
     ):
         import httpx
 
@@ -69,6 +72,20 @@ class BackendDataExtractor:
         self._table_endpoint = table_endpoint.lstrip("/")
         self._text_endpoint = text_endpoint.lstrip("/")
         self._http_client = http_client
+        # OCR fallback Vinter (ami_rag/core/ocr_client.py); None = tắt.
+        self._fallback = fallback
+        self._fallback_modes = frozenset(fallback_modes or ())
+        self._fallback_on_empty = bool(fallback_on_empty)
+
+    # ------------------------------------------------------------------
+    # Fallback Vinter (OCR service chính lỗi/timeout/trả rỗng)
+    # ------------------------------------------------------------------
+    def _fallback_enabled(self, kind: str) -> bool:
+        return self._fallback is not None and kind in self._fallback_modes
+
+    def _log_fallback(self, kind: str, reason: str, exc: BaseException | None = None) -> None:
+        detail = f": {exc}" if exc is not None else ""
+        logger.warning("OCR %s: %s -> chuyển sang fallback Vinter%s", kind, reason, detail)
 
     # ------------------------------------------------------------------
     # HTTP helper
@@ -242,7 +259,13 @@ class BackendDataExtractor:
             BackendDataExtractor._flatten_hierarchy(child, parts)
 
     async def extract_scan_text(self, file_bytes: bytes, filename: str = "document.pdf") -> str:
-        data = await self._post_file(self._text_endpoint, file_bytes, filename, "application/pdf")
+        primary_exc: BackendDataParseError | None = None
+        fallback_exc: BaseException | None = None
+        data = None
+        try:
+            data = await self._post_file(self._text_endpoint, file_bytes, filename, "application/pdf")
+        except BackendDataParseError as exc:
+            primary_exc = exc
         parts: list[str] = []
         text = ""
         if isinstance(data, dict):
@@ -252,12 +275,36 @@ class BackendDataExtractor:
                 text = "\n\n".join(parts).strip()
             if not text:
                 text = (data.get("text") or "").strip()
-        if not text:
-            pymupdf_text = self._extract_with_pymupdf(file_bytes)
-            if pymupdf_text.strip():
-                return pymupdf_text
-            raise BackendDataParseError("OCR service không trích xuất được nội dung từ PDF scan")
-        return text
+        # Fallback Vinter: primary lỗi, hoặc primary trả rỗng (khi fallback_on_empty)
+        if (
+            not text
+            and self._fallback_enabled("text")
+            and (primary_exc is not None or self._fallback_on_empty)
+        ):
+            self._log_fallback(
+                "text",
+                "primary lỗi" if primary_exc is not None else "primary trả rỗng",
+                primary_exc,
+            )
+            fallback_exc = None
+            try:
+                text = (await self._fallback.ocr_text(file_bytes, filename=filename)).strip()
+            except Exception as exc:  # nuốt mọi lỗi fallback để còn lớp PyMuPDF
+                fallback_exc = exc
+                logger.warning("OCR text: fallback Vinter cũng lỗi: %s", exc)
+        if text:
+            return text
+        # Lớp cuối: PyMuPDF local (giữ như cũ)
+        pymupdf_text = self._extract_with_pymupdf(file_bytes)
+        if pymupdf_text.strip():
+            return pymupdf_text
+        if primary_exc is not None:
+            if fallback_exc is not None:
+                raise BackendDataParseError(
+                    f"OCR service chính lỗi: {primary_exc}; OCR fallback Vinter cũng lỗi: {fallback_exc}"
+                ) from primary_exc
+            raise primary_exc
+        raise BackendDataParseError("OCR service không trích xuất được nội dung từ PDF scan")
 
     # ------------------------------------------------------------------
     # OCR ảnh đơn lẻ: bọc PDF -> hierarchy-parse (đọc heading + summary)
@@ -312,8 +359,31 @@ class BackendDataExtractor:
     # Bảng: Qwen table endpoint
     # ------------------------------------------------------------------
     async def extract_tables(self, file_bytes: bytes, filename: str = "document.pdf") -> list[dict]:
-        data = await self._post_file(self._table_endpoint, file_bytes, filename, "application/pdf")
-        return self._parse_table_response(data)
+        primary_exc: BackendDataParseError | None = None
+        tables: list[dict] = []
+        try:
+            data = await self._post_file(self._table_endpoint, file_bytes, filename, "application/pdf")
+            tables = self._parse_table_response(data)
+        except BackendDataParseError as exc:
+            primary_exc = exc
+        if tables:
+            return tables
+        # Fallback Vinter: primary lỗi, hoặc primary trả rỗng (khi fallback_on_empty)
+        if self._fallback_enabled("table") and (primary_exc is not None or self._fallback_on_empty):
+            self._log_fallback(
+                "table",
+                "primary lỗi" if primary_exc is not None else "primary trả rỗng",
+                primary_exc,
+            )
+            try:
+                return await self._fallback.ocr_tables(file_bytes, filename=filename)
+            except Exception as exc:  # bảng có html pdfplumber làm lưới an toàn
+                logger.warning("OCR table: fallback Vinter cũng lỗi, dùng html pdfplumber: %s", exc)
+                return []
+        # Không có fallback (tắt/không configured): giữ hành vi cũ
+        if primary_exc is not None:
+            raise primary_exc
+        return []
 
     def _parse_table_response(self, data) -> list[dict]:
         tables = []
@@ -461,11 +531,18 @@ class BackendDataExtractor:
 
 
 def create_extractor(settings) -> BackendDataExtractor:
+    # Lazy import: raganything không phụ thuộc ami_rag ở module level
+    from ami_rag.core.ocr_client import build_vinter_ocr_client
+    from ami_rag.settings import resolve_ocr_fallback_modes
+
     return BackendDataExtractor(
         base_url=getattr(settings, "OCR_SERVICE_URL", "") or DEFAULT_BASE_URL,
         timeout=float(getattr(settings, "OCR_SERVICE_TIMEOUT", 300) or 300),
         table_endpoint=getattr(settings, "OCR_TABLE_ENDPOINT", "") or DEFAULT_TABLE_ENDPOINT,
         text_endpoint=getattr(settings, "OCR_TEXT_ENDPOINT", "") or DEFAULT_TEXT_ENDPOINT,
+        fallback=build_vinter_ocr_client(settings),
+        fallback_modes=resolve_ocr_fallback_modes(settings),
+        fallback_on_empty=bool(getattr(settings, "OCR_FALLBACK_ON_EMPTY", True)),
     )
 
 
