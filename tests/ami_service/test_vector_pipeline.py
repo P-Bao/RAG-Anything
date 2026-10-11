@@ -1,5 +1,9 @@
 """Test VectorPipeline (fake embedder/vector_store/asset_store/DocsStatusStore)."""
 
+import asyncio
+import base64
+from pathlib import Path
+
 import pytest
 
 from ami_rag.core.vector_pipeline import (
@@ -470,86 +474,70 @@ async def test_prepare_embed_items_attaches_assets_for_table_and_equation(pipeli
 
 
 # ----------------------------------------------------------------------
-# Describe ảnh không VLM: OCR bridge + ngữ cảnh + Qwen text-only
+# Describe ảnh: materialize MinIO -> img_path + caption func (Gemini/vision)
 # ----------------------------------------------------------------------
 
-class _FakeOCR:
-    """Stand-in cho BackendDataExtractor (chỉ extract_image_ocr_text)."""
-
-    def __init__(self, text="SƠ ĐỒ CƠ CẤU TỔ CHỨC\nGiám đốc: Đặng Hoài Bắc", fail=False, delay=0.0):
-        self.text = text
-        self.fail = fail
-        self.delay = delay
-        self.calls = []
-        self._active = 0
-        self.max_active = 0
-
-    async def extract_image_ocr_text(self, image_bytes, filename="image.png"):
-        self.calls.append((len(image_bytes), filename))
-        self._active += 1
-        self.max_active = max(self.max_active, self._active)
-        try:
-            if self.delay:
-                import asyncio
-
-                await asyncio.sleep(self.delay)
-            if self.fail:
-                raise BackendDataParseError("OCR boom")
-            return self.text
-        finally:
-            self._active -= 1
-
-
-class _FakeLLM:
-    def __init__(self, response='{"detailed_description": "Mô tả ảnh từ LLM"}'):
-        self.response = response
-        self.prompts = []
-
-    async def __call__(self, prompt, system_prompt=None, **kwargs):
-        self.prompts.append((prompt, system_prompt))
-        return self.response
-
-
-def _image_content_list(asset_key="rag-assets/docX/img0.png", caption=None, page=0):
+def _image_content_list(asset_key="rag-assets/docX/img0.png", caption=None, footnotes=None, page=0):
     item = {"type": "image", "img_path": "gone.png", "asset_key": asset_key, "page_idx": page}
     if caption:
         item["image_caption"] = [caption]
+    if footnotes:
+        item["image_footnote"] = [footnotes]
     return [
         {"type": "text", "text": "Cơ cấu tổ chức của Học viện gồm các phòng ban.", "page_idx": page},
         item,
     ]
 
 
-def _settings_text_mode(**overrides):
+def _describe_settings(**overrides):
     base = {
         "_env_file": None,
         "WORKSPACE": "test",
         "EMBED_MODEL": "Qwen/Qwen3-VL-Embedding-2B",
         "EMBED_DIM": 8,
         "CHUNKER_VERSION": "v1",
-        "QWEN_VLM_MODEL": "",
     }
     base.update(overrides)
     return Settings(**base)
 
 
-def test_resolve_image_describe_mode():
-    assert resolve_image_describe_mode(_settings_text_mode()) == "text"
-    assert resolve_image_describe_mode(_settings_text_mode(QWEN_VLM_MODEL="Qwen/Qwen3-VL")) == "vision"
-    assert resolve_image_describe_mode(_settings_text_mode(IMAGE_DESCRIBE_MODE="vision")) == "vision"
-    assert (
-        resolve_image_describe_mode(
-            _settings_text_mode(IMAGE_DESCRIBE_MODE="text", QWEN_VLM_MODEL="Qwen/Qwen3-VL")
-        )
-        == "text"
-    )
-    with pytest.raises(ValueError):
-        resolve_image_describe_mode(_settings_text_mode(IMAGE_DESCRIBE_MODE="bogus"))
+class _FakeCaptionFunc:
+    """Stand-in cho caption func (Gemini/vision): ghi call + đo concurrency."""
+
+    def __init__(
+        self,
+        response=(
+            '{"detailed_description": "Mô tả ảnh từ caption func", '
+            '"entity_info": {"entity_name": "Sơ đồ tổ chức", "entity_type": "image", '
+            '"summary": "Sơ đồ tổ chức của PTIT"}}'
+        ),
+        fail=False,
+        delay=0.0,
+    ):
+        self.response = response
+        self.fail = fail
+        self.delay = delay
+        self.calls = []  # (prompt, image_data)
+        self._active = 0
+        self.max_active = 0
+
+    async def __call__(self, prompt, system_prompt=None, history_messages=None, image_data=None, messages=None, **kwargs):
+        self._active += 1
+        self.max_active = max(self.max_active, self._active)
+        try:
+            if self.delay:
+                await asyncio.sleep(self.delay)
+            if self.fail:
+                raise RuntimeError("caption func down")
+            self.calls.append((prompt, image_data))
+            return self.response
+        finally:
+            self._active -= 1
 
 
 def _make_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_status_store, **settings_kw):
     return VectorPipeline(
-        _settings_text_mode(**settings_kw),
+        _describe_settings(**settings_kw),
         embedder=fake_embedder,
         vector_store=fake_vector_store,
         asset_store=fake_asset_store,
@@ -559,124 +547,185 @@ def _make_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_stat
     )
 
 
-async def test_describe_image_text_only_with_ocr(
+def _real_image_processor(caption_func, chunk_size=64):
+    """ImageModalProcessor THẬT chạy caption func giả (chứng minh img_path materialize)."""
+    from raganything.modalprocessors import ImageModalProcessor
+
+    return ImageModalProcessor(
+        lightrag=None,
+        modal_caption_func=caption_func,
+        global_config={"chunk_token_size": chunk_size},
+    )
+
+
+def test_resolve_image_describe_mode():
+    # auto: có CAPTION_LLM_API_KEY -> gemini
+    assert resolve_image_describe_mode(_describe_settings(CAPTION_LLM_API_KEY="k")) == "gemini"
+    # auto: không key nhưng có QWEN_VLM_MODEL -> vision
+    assert resolve_image_describe_mode(_describe_settings(QWEN_VLM_MODEL="Qwen/Qwen3-VL")) == "vision"
+    # auto: thiếu cả hai -> none (text thô, không LLM)
+    assert resolve_image_describe_mode(_describe_settings()) == "none"
+    # giá trị rõ được dùng luôn
+    for mode in ("gemini", "vision", "none"):
+        assert resolve_image_describe_mode(_describe_settings(IMAGE_DESCRIBE_MODE=mode)) == mode
+    # legacy "text" (path OCR-ảnh đã xoá) -> "none"
+    assert resolve_image_describe_mode(_describe_settings(IMAGE_DESCRIBE_MODE="text")) == "none"
+    with pytest.raises(ValueError):
+        resolve_image_describe_mode(_describe_settings(IMAGE_DESCRIBE_MODE="bogus"))
+
+
+async def test_describe_image_via_real_image_processor(
     fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
 ):
-    pipeline = _make_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_status_store)
-    ocr = _FakeOCR()
-    llm = _FakeLLM()
-    pipeline._bd_extractor = ocr
-    pipeline.llm_func = llm
-
-    descriptions = await pipeline._stage_describe("docX", _image_content_list())
-
-    assert len(descriptions) == 1
-    assert descriptions[0]["description"] == "Mô tả ảnh từ LLM"
-    assert descriptions[0]["type"] == "image"
-    # OCR được gọi với bytes từ MinIO (asset_key), không phải img_path local
-    assert ocr.calls == [(len(b"\x89PNG-fake-bytes"), "rag-assets/docX/img0.png")]
-    # Prompt LLM chứa OCR text + ngữ cảnh xung quanh
-    prompt, system = llm.prompts[0]
-    assert "SƠ ĐỒ CƠ CẤU TỔ CHỨC" in prompt
-    assert "Cơ cấu tổ chức của Học viện gồm các phòng ban." in prompt
-    assert "IMAGE_TEXT_ONLY_SYSTEM" in system or "expert document analyst" in system
-
-
-async def test_describe_image_skips_ocr_when_caption_present(
-    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
-):
-    pipeline = _make_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_status_store)
-    ocr = _FakeOCR()
-    llm = _FakeLLM()
-    pipeline._bd_extractor = ocr
-    pipeline.llm_func = llm
+    """Materialize MinIO -> img_path thật -> ImageModalProcessor THẬT gửi đúng base64."""
+    caption = _FakeCaptionFunc()
+    pipeline = _make_pipeline(
+        fake_embedder, fake_vector_store, fake_asset_store, fake_status_store,
+        IMAGE_DESCRIBE_MODE="gemini",
+    )
+    pipeline.modal_processors = {"image": _real_image_processor(caption)}
 
     content_list = _image_content_list(caption="Sơ đồ tổ chức PTIT")
+    descriptions = await pipeline._stage_describe("docX", content_list)
+
+    assert descriptions[0]["type"] == "image"
+    # JSON response được _parse_response của ImageModalProcessor parse ra description
+    assert descriptions[0]["description"] == "Mô tả ảnh từ caption func"
+    assert len(caption.calls) == 1
+    prompt, image_data = caption.calls[0]
+    # caption func nhận đúng bytes ảnh lấy từ MinIO theo asset_key
+    assert base64.b64decode(image_data) == b"\x89PNG-fake-bytes"
+    # prompt chứa caption + ngữ cảnh (content source = content_list gốc)
+    assert "Sơ đồ tổ chức PTIT" in prompt
+    assert "Cơ cấu tổ chức của Học viện" in prompt
+    # content_list gốc KHÔNG bị gán img_path mới (describe_items là bản copy)
+    assert content_list[1]["img_path"] == "gone.png"
+    assert "asset_key" in content_list[1]
+
+
+async def test_describe_image_temp_dir_cleaned_after_stage(
+    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
+):
+    """img_path tồn tại LÚC describe chạy; temp dir bị xoá SAU _stage_describe."""
+    seen: list[tuple[str, bool]] = []
+
+    class _ProbeProc:
+        def set_content_source(self, content_source, content_format="auto"):
+            pass
+
+        async def generate_chunk_sections(self, modal_content, content_type, item_info=None, entity_name=None):
+            path = modal_content.get("img_path")
+            seen.append((path, Path(path).exists()))
+            return [{"description": "mô tả image", "entity_info": {}, "window_meta": None}]
+
+    pipeline = _make_pipeline(
+        fake_embedder, fake_vector_store, fake_asset_store, fake_status_store,
+        IMAGE_DESCRIBE_MODE="gemini",
+    )
+    pipeline.modal_processors = {"image": _ProbeProc()}
+
+    content_list = _image_content_list()
     await pipeline._stage_describe("docX", content_list)
 
-    assert ocr.calls == []  # SKIP_IF_CAPTION mặc định True
-    assert "Sơ đồ tổ chức PTIT" in llm.prompts[0][0]
+    assert len(seen) == 1
+    path, existed_during = seen[0]
+    assert existed_during, "img_path phải là file thật khi processor chạy"
+    assert not Path(path).exists(), "temp dir phải bị xoá sau _stage_describe"
+    # bản gốc giữ img_path cũ, không bị mutate
+    assert content_list[1]["img_path"] == "gone.png"
 
 
-async def test_describe_image_ocr_fail_falls_back_to_context(
+async def test_describe_image_mode_none_raw_text(
     fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
 ):
-    pipeline = _make_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_status_store)
-    pipeline._bd_extractor = _FakeOCR(fail=True)
-    llm = _FakeLLM()
-    pipeline.llm_func = llm
+    """mode none: text thô caption + footnotes + ngữ cảnh; KHÔNG gọi caption func / fetch MinIO."""
+    caption = _FakeCaptionFunc()
+    pipeline = _make_pipeline(
+        fake_embedder, fake_vector_store, fake_asset_store, fake_status_store,
+        IMAGE_DESCRIBE_MODE="none",
+    )
+    pipeline.modal_processors = {"image": _real_image_processor(caption)}
 
-    descriptions = await pipeline._stage_describe("docX", _image_content_list())
+    fetched: list[str] = []
+    original_get_bytes = fake_asset_store.get_bytes
 
-    # Không crash; LLM vẫn được gọi với marker không OCR được
-    assert descriptions[0]["description"] == "Mô tả ảnh từ LLM"
-    assert "(không OCR được chữ trong ảnh)" in llm.prompts[0][0]
-    assert "Cơ cấu tổ chức của Học viện" in llm.prompts[0][0]
+    def _spy(key):
+        fetched.append(key)
+        return original_get_bytes(key)
 
+    fake_asset_store.get_bytes = _spy
 
-async def test_describe_image_llm_fail_returns_raw_text(
-    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
-):
-    pipeline = _make_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_status_store)
-    pipeline._bd_extractor = _FakeOCR()
-
-    async def broken_llm(prompt, system_prompt=None, **kwargs):
-        raise RuntimeError("LLM down")
-
-    pipeline.llm_func = broken_llm
-    descriptions = await pipeline._stage_describe("docX", _image_content_list())
+    content_list = _image_content_list(caption="Sơ đồ tổ chức PTIT", footnotes="Nguồn: PTIT")
+    descriptions = await pipeline._stage_describe("docX", content_list)
 
     text = descriptions[0]["description"]
-    assert "SƠ ĐỒ CƠ CẤU TỔ CHỨC" in text
-    assert "Cơ cấu tổ chức của Học viện" in text
+    assert text == "Sơ đồ tổ chức PTIT\nNguồn: PTIT\nCơ cấu tổ chức của Học viện gồm các phòng ban."
+    assert caption.calls == []
+    assert fetched == []
 
 
-async def test_describe_image_no_llm_returns_raw_text(
+async def test_describe_image_caption_func_fails_falls_back_to_raw(
     fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
 ):
-    pipeline = _make_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_status_store)
-    ocr = _FakeOCR()
-    pipeline._bd_extractor = ocr
-    pipeline.llm_func = None
+    """Caption func raise -> processor nuốt lỗi (trả dict repr) -> phát hiện -> text thô, không crash."""
+    caption = _FakeCaptionFunc(fail=True)
+    pipeline = _make_pipeline(
+        fake_embedder, fake_vector_store, fake_asset_store, fake_status_store,
+        IMAGE_DESCRIBE_MODE="gemini",
+    )
+    pipeline.modal_processors = {"image": _real_image_processor(caption)}
 
-    descriptions = await pipeline._stage_describe("docX", _image_content_list())
+    content_list = _image_content_list(caption="Sơ đồ tổ chức PTIT")
+    descriptions = await pipeline._stage_describe("docX", content_list)
+
+    # descriptions.json vẫn ghi, mô tả là text thô (không phải dict repr của item)
     text = descriptions[0]["description"]
-    assert "SƠ ĐỒ CƠ CẤU TỔ CHỨC" in text
+    assert "Sơ đồ tổ chức PTIT" in text
     assert "Cơ cấu tổ chức của Học viện" in text
+    assert not text.startswith("{")
 
 
-async def test_describe_image_no_asset_key_skips_ocr(
+async def test_describe_image_missing_asset_key_keeps_original(
     fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
 ):
-    pipeline = _make_pipeline(fake_embedder, fake_vector_store, fake_asset_store, fake_status_store)
-    ocr = _FakeOCR()
-    pipeline._bd_extractor = ocr
-    pipeline.llm_func = _FakeLLM()
+    """Ảnh thiếu asset_key -> không materialize -> img_path cũ hỏng -> text thô, không crash."""
+    caption = _FakeCaptionFunc()
+    pipeline = _make_pipeline(
+        fake_embedder, fake_vector_store, fake_asset_store, fake_status_store,
+        IMAGE_DESCRIBE_MODE="gemini",
+    )
+    pipeline.modal_processors = {"image": _real_image_processor(caption)}
 
     content_list = _image_content_list()
     del content_list[1]["asset_key"]
-    await pipeline._stage_describe("docX", content_list)
-    assert ocr.calls == []
+    descriptions = await pipeline._stage_describe("docX", content_list)
+
+    # img_path cũ ("gone.png") không tồn tại -> processor lỗi -> text thô
+    text = descriptions[0]["description"]
+    assert "Cơ cấu tổ chức của Học viện" in text
+    assert not text.startswith("{")
 
 
-async def test_describe_ocr_concurrency_limited(
+async def test_describe_caption_concurrency_limited(
     fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
 ):
+    caption = _FakeCaptionFunc(delay=0.01)
     pipeline = _make_pipeline(
         fake_embedder, fake_vector_store, fake_asset_store, fake_status_store,
-        DESCRIBE_IMAGE_OCR_MAX_CONCURRENCY=2,
+        IMAGE_DESCRIBE_MODE="gemini",
+        CAPTION_LLM_MAX_CONCURRENCY=2,
     )
-    ocr = _FakeOCR(delay=0.01)
-    pipeline._bd_extractor = ocr
-    pipeline.llm_func = None
+    pipeline.modal_processors = {"image": _real_image_processor(caption)}
 
     content_list = [
-        {"type": "image", "asset_key": f"rag-assets/docX/img{i}.png", "page_idx": 0}
+        {"type": "image", "img_path": "gone.png", "asset_key": f"rag-assets/docX/img{i}.png", "page_idx": 0}
         for i in range(5)
     ]
-    await pipeline._stage_describe("docX", content_list)
-    assert len(ocr.calls) == 5
-    assert ocr.max_active <= 2
+    descriptions = await pipeline._stage_describe("docX", content_list)
+
+    assert len(descriptions) == 5
+    assert len(caption.calls) == 5
+    assert caption.max_active <= 2
 
 
 async def test_describe_sets_content_source_on_processors(
@@ -708,20 +757,21 @@ async def test_describe_vision_mode_uses_processor(
 ):
     pipeline = _make_pipeline(
         fake_embedder, fake_vector_store, fake_asset_store, fake_status_store,
-        QWEN_VLM_MODEL="Qwen/Qwen3-VL-Embedding-2B",
+        QWEN_VLM_MODEL="Qwen/Qwen3-VL",  # auto -> vision
     )
     pipeline.modal_processors = fake_modal_processors
-    ocr = _FakeOCR()
-    pipeline._bd_extractor = ocr
 
     descriptions = await pipeline._stage_describe("docX", _image_content_list())
 
-    # vision mode: đi qua processor như cũ, KHÔNG gọi OCR bridge
+    # vision mode: đi qua processor, được gán img_path file tạm (đã xoá sau stage)
     assert descriptions[0]["description"] == "mô tả image"
-    assert ocr.calls == []
     calls = []
     for proc in fake_modal_processors.values():
         calls.extend(proc.calls)
-    assert any(c[0] == "image" for c in calls)
+    img_calls = [c for c in calls if c[0] == "image"]
+    assert img_calls, "processor image phải được gọi ở mode vision"
+    img_item = img_calls[0][1]
+    assert img_item["img_path"] != "gone.png", "materialize phải gán img_path temp"
+    assert not Path(img_item["img_path"]).exists(), "temp dir xoá sau stage"
 
 

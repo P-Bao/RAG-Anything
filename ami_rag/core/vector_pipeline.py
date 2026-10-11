@@ -26,7 +26,6 @@ Data giữa các stage nằm trong MinIO: `{doc_id}/content_list.json`,
 import asyncio
 import base64
 import hashlib
-import json
 import logging
 import re
 import tempfile
@@ -192,24 +191,6 @@ def _join_caption(value) -> str:
     return str(value)
 
 
-def _parse_image_description(response: str) -> str:
-    """Trích ``detailed_description`` từ JSON response của LLM; fail -> trả raw text."""
-    if not response:
-        return ""
-    text = response.strip()
-    start = text.find("{")
-    end = text.rfind("}")
-    if start != -1 and end > start:
-        try:
-            data = json.loads(text[start : end + 1])
-            description = str(data.get("detailed_description") or "").strip()
-            if description:
-                return description
-        except (json.JSONDecodeError, AttributeError):
-            pass
-    return text
-
-
 def chunk_text(text: str, max_tokens: int = 1200, overlap_tokens: int = 100) -> list[str]:
     """Plain paragraph splitter xấp xỉ token budget (fallback ~4 chars/token)."""
     max_chars = max(512, max_tokens * 4)
@@ -270,10 +251,12 @@ class VectorPipeline(PipelineRunner):
         self.docs_repo = docs_repo
         self.parser = parser
         self.modal_processors = modal_processors or {}
-        # LLM text-only cho describe ảnh khi không có VLM (OCR + ngữ cảnh)
+        # LLM text-only (table/equation/generic processors); ảnh caption qua
+        # Gemini (CAPTION_LLM_*) hoặc vision func ngay trong modal processors.
         self.llm_func = llm_func
         self._bd_extractor = None
-        self._ocr_sem: asyncio.Semaphore | None = None
+        # Giới hạn song song cho caption ảnh (fetch MinIO + gọi caption func)
+        self._caption_sem: asyncio.Semaphore | None = None
         self.collection = collection_name(
             settings.WORKSPACE, settings.EMBED_MODEL, settings.CHUNKER_VERSION
         )
@@ -428,25 +411,133 @@ class VectorPipeline(PipelineRunner):
             if callable(set_source):
                 set_source(content_list, "minerU")
 
-        async def _one(i: int) -> dict:
-            item = content_list[i]
-            type_ = _normalize_item_type(item.get("type"))
-            try:
-                desc_text = await self._describe_item(
-                    type_, item, content_list, i, doc_id
-                )
-            except Exception as exc:
-                logger.warning("describe doc=%s item=%d lỗi: %s", doc_id, i, exc)
-                desc_text = ""
-            return {"index": i, "type": type_, "description": desc_text}
+        # Materialize ảnh MinIO -> file tạm (img_path) cho caption Gemini/vision.
+        # describe_items là shallow copy; content_list gốc KHÔNG bị mutate
+        # (stage chunk + save_content_list dùng bản gốc).
+        describe_items, temp_dir = await self._materialize_images(
+            content_list, multimodal_indices
+        )
+        try:
+            async def _one(i: int) -> dict:
+                item = describe_items[i]
+                type_ = _normalize_item_type(item.get("type"))
+                try:
+                    desc_text = await self._describe_item(
+                        type_, item, content_list, i, doc_id
+                    )
+                except Exception as exc:
+                    logger.warning("describe doc=%s item=%d lỗi: %s", doc_id, i, exc)
+                    desc_text = ""
+                return {"index": i, "type": type_, "description": desc_text}
 
-        descriptions = list(await asyncio.gather(*(_one(i) for i in multimodal_indices)))
+            descriptions = list(
+                await asyncio.gather(*(_one(i) for i in multimodal_indices))
+            )
+        finally:
+            if temp_dir is not None:
+                temp_dir.cleanup()
         self._save_json(
             ArtifactPaths.descriptions_key(self.asset_store, doc_id), descriptions
         )
         self.store.mark_stage(doc_id, STAGE_DESCRIBE)
         return descriptions
 
+    # ------------------------------------------------------------------
+    # Materialize ảnh MinIO -> file tạm cho caption (Gemini / vision)
+    # ------------------------------------------------------------------
+    def _get_caption_semaphore(self) -> asyncio.Semaphore:
+        if self._caption_sem is None:
+            limit = max(
+                1, int(getattr(self.settings, "CAPTION_LLM_MAX_CONCURRENCY", 4))
+            )
+            self._caption_sem = asyncio.Semaphore(limit)
+        return self._caption_sem
+
+    @staticmethod
+    def _image_ext(data: bytes, asset_key: str) -> str:
+        """Ext file ảnh từ magic bytes; fallback suffix asset_key, cuối cùng .png."""
+        if data.startswith(b"\x89PNG"):
+            return ".png"
+        if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+            return ".webp"
+        if data[:3] == b"GIF":
+            return ".gif"
+        if data.startswith(b"\xff\xd8"):
+            return ".jpg"
+        suffix = Path(asset_key or "").suffix
+        return suffix if suffix else ".png"
+
+    async def _materialize_images(
+        self, content_list: list[dict], indices: list[int]
+    ) -> tuple[list[dict], Any]:
+        """Tải ảnh image-item từ MinIO về temp dir, gán ``img_path`` cho describe.
+
+        Trả ``(describe_items, temp_dir)``:
+        - mode none (hoặc không có ảnh/asset_key): ``(content_list, None)``
+          - dùng thẳng bản gốc, không copy, không temp dir.
+        - ngược lại: describe_items là shallow copy từng item; image-item có
+          asset_key được gán img_path = file tạm (item thiếu asset_key giữ
+          img_path gốc). Caller PHẢI ``temp_dir.cleanup()`` sau khi describe xong.
+
+        Fetch song song theo semaphore CAPTION_LLM_MAX_CONCURRENCY; lỗi/bytes
+        rỗng từng ảnh -> bỏ qua ảnh đó (không crash cả stage).
+        """
+        mode = resolve_image_describe_mode(self.settings)
+        if mode not in ("gemini", "vision") or not hasattr(self.asset_store, "get_bytes"):
+            return content_list, None
+
+        image_indices = [
+            i for i in indices if content_list[i].get("type") == "image"
+        ]
+        keys: list[str] = []
+        seen: set[str] = set()
+        for i in image_indices:
+            key = content_list[i].get("asset_key")
+            if key and key not in seen:
+                seen.add(key)
+                keys.append(key)
+        if not keys:
+            return content_list, None
+
+        temp_dir = tempfile.TemporaryDirectory(prefix="ami-rag-img-")
+        sem = self._get_caption_semaphore()
+
+        async def _fetch(key: str) -> tuple[str, str | None]:
+            async with sem:
+                try:
+                    data = await asyncio.to_thread(self.asset_store.get_bytes, key)
+                except Exception as exc:
+                    logger.warning("fetch ảnh %s lỗi (bỏ qua materialize): %s", key, exc)
+                    return key, None
+            if not data:
+                return key, None
+            name = hashlib.sha1(key.encode()).hexdigest()[:12] + self._image_ext(data, key)
+            path = Path(temp_dir.name) / name
+            try:
+                await asyncio.to_thread(path.write_bytes, data)
+            except Exception as exc:
+                logger.warning("ghi ảnh %s ra temp lỗi (bỏ qua): %s", key, exc)
+                return key, None
+            return key, str(path)
+
+        key_to_path: dict[str, str] = {}
+        for key, path in await asyncio.gather(*(_fetch(k) for k in keys)):
+            if path:
+                key_to_path[key] = path
+        if not key_to_path:
+            temp_dir.cleanup()
+            return content_list, None
+
+        describe_items = [dict(it) for it in content_list]
+        for i in image_indices:
+            path = key_to_path.get(content_list[i].get("asset_key"))
+            if path:
+                describe_items[i]["img_path"] = path
+        return describe_items, temp_dir
+
+    # ------------------------------------------------------------------
+    # Describe 1 item
+    # ------------------------------------------------------------------
     async def _describe_item(
         self,
         type_: str,
@@ -455,8 +546,48 @@ class VectorPipeline(PipelineRunner):
         index: int = 0,
         doc_id: str = "",
     ) -> str:
-        if type_ == "image" and resolve_image_describe_mode(self.settings) == "text":
-            return await self._describe_image_text_only(item, content_list, index, doc_id)
+        if type_ == "image":
+            mode = resolve_image_describe_mode(self.settings)
+            if mode == "none":
+                return self._describe_image_raw(item, content_list, index)
+            processor = (
+                self.modal_processors.get("image") or self.modal_processors.get("generic")
+            )
+            if processor is None:
+                return self._describe_image_raw(item, content_list, index)
+            desc = ""
+            try:
+                async with self._get_caption_semaphore():
+                    sections = await processor.generate_chunk_sections(
+                        modal_content=item,
+                        content_type=type_,
+                        item_info={
+                            "page_idx": item.get("page_idx", 0),
+                            "index": index,
+                            "type": type_,
+                        },
+                        entity_name=None,
+                    )
+                desc = str(sections[0]["description"]) if sections else ""
+            except Exception as exc:
+                logger.warning(
+                    "describe ảnh doc=%s item=%d lỗi (%s) -> text thô",
+                    doc_id,
+                    index,
+                    type(exc).__name__,
+                )
+                desc = ""
+            # ImageModalProcessor nuốt lỗi nội bộ và trả str(modal_content)
+            # (dict repr) - phát hiện bằng so khớp để rơi về text thô.
+            if not desc.strip() or desc.strip() == str(item).strip():
+                logger.warning(
+                    "describe ảnh doc=%s item=%d: caption func thất bại/rỗng -> text thô",
+                    doc_id,
+                    index,
+                )
+                return self._describe_image_raw(item, content_list, index)
+            return desc.strip()
+
         processor = self.modal_processors.get(type_) or self.modal_processors.get("generic")
         if processor is None:
             return item.get("text") or item.get("table_body") or str(item)
@@ -475,99 +606,14 @@ class VectorPipeline(PipelineRunner):
         except Exception:
             return item.get("text") or item.get("table_body") or str(item)
 
-    # ------------------------------------------------------------------
-    # Describe ảnh không VLM: OCR chữ trong ảnh (service ngoài) + ngữ cảnh
-    # ------------------------------------------------------------------
-    def _image_ocr_enabled(self, item: dict) -> bool:
-        if not getattr(self.settings, "DESCRIBE_IMAGE_OCR", True):
-            return False
-        if not item.get("asset_key") or not hasattr(self.asset_store, "get_bytes"):
-            return False
-        return not (
-            getattr(self.settings, "DESCRIBE_IMAGE_OCR_SKIP_IF_CAPTION", True)
-            and _join_caption(
-                item.get("image_caption") or item.get("img_caption")
-            ).strip()
-        )
-
-    def _get_ocr_semaphore(self) -> asyncio.Semaphore:
-        if self._ocr_sem is None:
-            limit = max(1, int(getattr(self.settings, "DESCRIBE_IMAGE_OCR_MAX_CONCURRENCY", 3)))
-            self._ocr_sem = asyncio.Semaphore(limit)
-        return self._ocr_sem
-
-    async def _ocr_image_text(self, item: dict, doc_id: str) -> str:
-        """OCR chữ trong ảnh qua service ngoài (bọc PDF -> hierarchy-parse).
-
-        Lỗi/timeout/rỗng -> trả "" (fallback context-only, không crash describe).
-        """
-        if not self._image_ocr_enabled(item):
-            return ""
-        try:
-            data = await asyncio.to_thread(
-                self.asset_store.get_bytes, item.get("asset_key")
-            )
-            if not data:
-                return ""
-
-            async def _call() -> str:
-                async with self._get_ocr_semaphore():
-                    return await self._get_bd_extractor().extract_image_ocr_text(
-                        data, item.get("asset_key") or "image"
-                    )
-
-            timeout = int(getattr(self.settings, "DESCRIBE_IMAGE_OCR_TIMEOUT", 120))
-            return (await asyncio.wait_for(_call(), timeout=timeout)).strip()
-        except asyncio.TimeoutError:
-            logger.warning(
-                "OCR ảnh doc=%s asset=%s timeout - bỏ qua OCR",
-                doc_id,
-                item.get("asset_key"),
-            )
-        except Exception as exc:
-            logger.warning(
-                "OCR ảnh doc=%s asset=%s lỗi - bỏ qua OCR: %s",
-                doc_id,
-                item.get("asset_key"),
-                exc,
-            )
-        return ""
-
-    async def _describe_image_text_only(
-        self, item: dict, content_list: list[dict], index: int, doc_id: str = ""
+    def _describe_image_raw(
+        self, item: dict, content_list: list[dict], index: int
     ) -> str:
-        """Mô tả ảnh không có VLM: OCR chữ trong ảnh + caption + ngữ cảnh xung quanh.
-
-        Trả mô tả text thuần (không JSON). Thiếu llm_func hoặc LLM lỗi -> trả
-        text thô ghép từ caption/OCR/context (không rỗng như trước).
-        """
+        """Mô tả ảnh bằng text thô (không LLM): caption + footnotes + ngữ cảnh."""
         caption = _join_caption(item.get("image_caption") or item.get("img_caption"))
         footnotes = _join_caption(item.get("image_footnote") or item.get("img_footnote"))
-        ocr_text = await self._ocr_image_text(item, doc_id)
         context = self._extract_image_context(content_list, index)
-
-        if self.llm_func is None:
-            return "\n".join(p for p in (caption, ocr_text, context) if p).strip()
-
-        from raganything.prompt import PROMPTS
-
-        prompt = PROMPTS["image_text_only_prompt"].format(
-            entity_name="a descriptive name for this image",
-            caption=caption or "None",
-            footnotes=footnotes or "None",
-            ocr_text=ocr_text or "(không OCR được chữ trong ảnh)",
-            context=context or "(không có ngữ cảnh)",
-        )
-        try:
-            response = await self.llm_func(
-                prompt, system_prompt=PROMPTS["IMAGE_TEXT_ONLY_SYSTEM"]
-            )
-        except Exception as exc:
-            logger.warning("LLM mô tả ảnh lỗi, dùng text thô: %s", exc)
-            return "\n".join(p for p in (caption, ocr_text, context) if p).strip()
-        return _parse_image_description(response) or "\n".join(
-            p for p in (caption, ocr_text, context) if p
-        ).strip()
+        return "\n".join(p for p in (caption, footnotes, context) if p).strip()
 
     def _extract_image_context(
         self, content_list: list[dict], index: int, window: int = 1

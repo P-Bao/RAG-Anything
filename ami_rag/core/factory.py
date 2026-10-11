@@ -100,8 +100,53 @@ def _build_vision_func(settings: Settings) -> Callable:
     return qwen_vision
 
 
-def _build_modal_processors(settings: Settings) -> dict:
-    """Modal processors cho describe stage (lightrag=None tolerant)."""
+def _build_caption_func(settings: Settings) -> Callable | None:
+    """Caption ảnh bằng Gemini (OpenAI-compatible endpoint của Google).
+
+    Trả ``None`` khi chưa đặt CAPTION_LLM_API_KEY (caller tự fallback về vision
+    func của Qwen VLM). Closure nhận cùng chữ ký như vision func:
+    ``(prompt, system_prompt=None, history_messages=None, image_data=<base64>,
+    messages=None, **kwargs)`` - tái dùng _openai_style_messages để dựng data URI.
+    """
+    api_key = getattr(settings, "CAPTION_LLM_API_KEY", "") or ""
+    if not api_key:
+        return None
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI(
+        base_url=getattr(settings, "CAPTION_LLM_BASE_URL", ""),
+        api_key=api_key,
+        timeout=float(getattr(settings, "CAPTION_LLM_TIMEOUT", 120) or 120),
+        max_retries=int(getattr(settings, "CAPTION_LLM_RETRIES", 2) or 0),
+    )
+    model = getattr(settings, "CAPTION_LLM_MODEL", "") or "gemini-2.5-flash-lite"
+
+    async def gemini_caption(
+        prompt,
+        system_prompt=None,
+        history_messages=None,
+        image_data=None,
+        messages=None,
+        **kwargs,
+    ):
+        if messages is None:
+            messages = _openai_style_messages(
+                prompt, system_prompt, history_messages, image_data
+            )
+        resp = await client.chat.completions.create(
+            model=model, messages=messages, **kwargs
+        )
+        return resp.choices[0].message.content
+
+    return gemini_caption
+
+
+def _build_modal_processors(settings: Settings, caption_func: Callable | None = None) -> dict:
+    """Modal processors cho describe stage (lightrag=None tolerant).
+
+    ``caption_func`` (inject cho test) thắng; không có thì Gemini caption
+    (khi đặt CAPTION_LLM_API_KEY), cuối cùng mới là vision func Qwen VLM.
+    """
     from raganything.modalprocessors import (
         EquationModalProcessor,
         GenericModalProcessor,
@@ -111,12 +156,13 @@ def _build_modal_processors(settings: Settings) -> dict:
 
     vision = _build_vision_func(settings)
     llm = _build_llm_func(settings)
+    image_caption = caption_func or _build_caption_func(settings) or vision
     common = {
         "lightrag": None,
         "global_config": {"chunk_token_size": settings.CHUNK_SIZE},
     }
     processors: dict = {
-        "image": ImageModalProcessor(modal_caption_func=vision, **common),
+        "image": ImageModalProcessor(modal_caption_func=image_caption, **common),
         "table": TableModalProcessor(modal_caption_func=llm, **common),
         "equation": EquationModalProcessor(modal_caption_func=llm, **common),
         "generic": GenericModalProcessor(modal_caption_func=llm, **common),
@@ -206,8 +252,13 @@ def build_pipeline(
     docs_repo=None,
     modal_processors=None,
     llm_func=None,
+    caption_func=None,
 ):
-    """Build VectorPipeline wired to AMI infrastructure (test paths can inject deps)."""
+    """Build VectorPipeline wired to AMI infrastructure (test paths can inject deps).
+
+    ``caption_func`` (tuỳ chọn): inject caption func giả cho test; khi bỏ trống,
+    image processor dùng Gemini (CAPTION_LLM_*) hoặc vision func như cũ.
+    """
     from ami_rag.core.vector_pipeline import VectorPipeline
     from ami_rag.core.vector_store import QdrantVectorStore
     from ami_rag.storage.doc_status import DocStatusStore
@@ -238,7 +289,8 @@ def build_pipeline(
             db_name=settings.ORG_DB,
             collection_name=settings.DOC_COLLECTION,
         ),
-        modal_processors=modal_processors or _build_modal_processors(settings),
+        modal_processors=modal_processors
+        or _build_modal_processors(settings, caption_func=caption_func),
         llm_func=llm_func or _build_llm_func(settings),
     )
 

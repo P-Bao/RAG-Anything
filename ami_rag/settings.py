@@ -1,6 +1,9 @@
+import logging
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -17,20 +20,20 @@ class Settings(BaseSettings):
     QWEN_LLM_API_KEY: str = ""
     QWEN_VLM_MODEL: str = ""
 
-    # --- Describe stage: mô tả chunk multimodal (ảnh/bảng/công thức) ---
-    # auto | vision | text. auto: có QWEN_VLM_MODEL -> vision (gửi ảnh cho VLM),
-    # không -> text (Qwen text-only + OCR chữ trong ảnh + ngữ cảnh xung quanh).
-    # vision: luôn gửi ảnh cho VLM. text: không bao giờ gửi ảnh (chỉ OCR + ngữ cảnh).
+    # --- Describe stage: caption ảnh (Gemini 2.5 Flash Lite, OpenAI-compatible) ---
+    # auto | gemini | vision | none.
+    # auto: có CAPTION_LLM_API_KEY -> gemini, elif có QWEN_VLM_MODEL -> vision,
+    # else -> none (mô tả thô: caption + footnotes + ngữ cảnh, không gọi LLM).
+    # Legacy "text" (OCR-ảnh text-only) đã bị xoá -> tự chuyển "none" kèm warning.
     IMAGE_DESCRIBE_MODE: str = "auto"
-    # OCR chữ trong ảnh đơn lẻ qua OCR service (bọc ảnh vào PDF -> hierarchy-parse).
-    # Chỉ dùng ở chế độ text (không VLM). Tốn ~30s/ảnh nên có guard bên dưới.
-    DESCRIBE_IMAGE_OCR: bool = True
-    # Bỏ qua OCR khi ảnh đã có caption (MinerU trích sẵn) - tiết kiệm, caption đủ dùng.
-    DESCRIBE_IMAGE_OCR_SKIP_IF_CAPTION: bool = True
-    # Giới hạn số request OCR đồng thời (OCR service ~30s/ảnh, tránh đè service).
-    DESCRIBE_IMAGE_OCR_MAX_CONCURRENCY: int = 3
-    # Timeout mỗi request OCR ảnh (giây). Quá -> bỏ qua, fallback ngữ cảnh.
-    DESCRIBE_IMAGE_OCR_TIMEOUT: int = 120
+    CAPTION_LLM_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
+    CAPTION_LLM_MODEL: str = "gemini-2.5-flash-lite"
+    # API key CHỈ từ env (.env / biến môi trường) - không commit vào repo
+    CAPTION_LLM_API_KEY: str = ""
+    CAPTION_LLM_TIMEOUT: int = 120
+    # Số request caption song song (vừa fetch ảnh MinIO vừa gọi Gemini)
+    CAPTION_LLM_MAX_CONCURRENCY: int = 4
+    CAPTION_LLM_RETRIES: int = 2
 
     # --- Remote embedding server (máy B) ---
     # backend "custom": qwen-embedding-server (/info + /embed);
@@ -214,20 +217,32 @@ def resolve_rerank_backend(settings) -> str:
 
 
 def resolve_image_describe_mode(settings) -> str:
-    """Resolve IMAGE_DESCRIBE_MODE: "vision" (gửi ảnh cho VLM) | "text" (Qwen
-    text-only + OCR chữ trong ảnh + ngữ cảnh xung quanh).
+    """Resolve IMAGE_DESCRIBE_MODE: "gemini" | "vision" | "none".
 
-    - IMAGE_DESCRIBE_MODE đặt rõ -> dùng luôn (vision | text).
-    - auto: có QWEN_VLM_MODEL -> "vision", không -> "text".
+    - Giá trị rõ (gemini | vision | none) -> dùng luôn.
+    - Legacy "text" (OCR-ảnh text-only, đã bị xoá ở phase caption Gemini) ->
+      log warning + "none" (mô tả thô caption + footnotes + ngữ cảnh).
+    - auto: có CAPTION_LLM_API_KEY -> "gemini"; elif có QWEN_VLM_MODEL ->
+      "vision"; else -> "none".
+    - Giá trị khác -> ValueError (cấu hình sai phải lộ diện lúc khởi động).
     """
     mode = (getattr(settings, "IMAGE_DESCRIBE_MODE", "auto") or "auto").lower()
-    if mode != "auto":
-        if mode not in ("vision", "text"):
-            raise ValueError(
-                f"IMAGE_DESCRIBE_MODE không hợp lệ: {mode} (vision | text | auto)"
-            )
+    if mode == "text":
+        logger.warning(
+            'IMAGE_DESCRIBE_MODE="text" là giá trị legacy đã xoá (path OCR-ảnh text-only). '
+            'Tự chuyển sang "none" (caption + footnotes + ngữ cảnh, không LLM). '
+            'Đặt "gemini" để bật caption ảnh bằng Gemini.'
+        )
+        return "none"
+    if mode in ("gemini", "vision", "none"):
         return mode
-    return "vision" if getattr(settings, "QWEN_VLM_MODEL", "") else "text"
+    if mode != "auto":
+        raise ValueError(
+            f"IMAGE_DESCRIBE_MODE không hợp lệ: {mode} (auto | gemini | vision | none)"
+        )
+    if getattr(settings, "CAPTION_LLM_API_KEY", ""):
+        return "gemini"
+    return "vision" if getattr(settings, "QWEN_VLM_MODEL", "") else "none"
 
 
 def resolve_ocr_fallback_modes(settings) -> frozenset[str]:
