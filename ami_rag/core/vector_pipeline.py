@@ -242,6 +242,7 @@ class VectorPipeline(PipelineRunner):
         parser=None,
         modal_processors=None,
         llm_func=None,
+        image_worker=None,
     ):
         self.settings = settings
         self.embedder = embedder
@@ -254,9 +255,13 @@ class VectorPipeline(PipelineRunner):
         # LLM text-only (table/equation/generic processors); ảnh caption qua
         # Gemini (CAPTION_LLM_*) hoặc vision func ngay trong modal processors.
         self.llm_func = llm_func
+        # CrawlImageWorker: tải ảnh section 'Hình ảnh' của doc crawl về MinIO
+        self.image_worker = image_worker
         self._bd_extractor = None
         # Giới hạn song song cho caption ảnh (fetch MinIO + gọi caption func)
         self._caption_sem: asyncio.Semaphore | None = None
+        # Giới hạn song song tải ảnh crawl (băng thông + MinIO, độc lập caption)
+        self._crawl_dl_sem: asyncio.Semaphore | None = None
         self.collection = collection_name(
             settings.WORKSPACE, settings.EMBED_MODEL, settings.CHUNKER_VERSION
         )
@@ -327,7 +332,7 @@ class VectorPipeline(PipelineRunner):
                 )
         else:
             text = doc.get("content") or ""
-            content_list = [{"type": "text", "text": text, "page_idx": 0}]
+            content_list = await self._crawl_text_content_list(doc_id, text)
             file_path = resolve_file_path(doc) or ""
 
         counts = _count_by_type(content_list)
@@ -357,6 +362,88 @@ class VectorPipeline(PipelineRunner):
         if self._bd_extractor is None:
             self._bd_extractor = create_extractor(self.settings)
         return self._bd_extractor
+
+    # ------------------------------------------------------------------
+    # Crawl text: 1 text item + ảnh section 'Hình ảnh' (tuỳ chọn)
+    # ------------------------------------------------------------------
+    _CRAWL_DOWNLOAD_CONCURRENCY = 4
+
+    def _get_image_worker(self):
+        """CrawlImageWorker khi bật CRAWL_IMAGES_ENABLED; None khi tắt."""
+        if not getattr(self.settings, "CRAWL_IMAGES_ENABLED", False):
+            return None
+        return self.image_worker
+
+    def _get_crawl_dl_semaphore(self) -> asyncio.Semaphore:
+        if self._crawl_dl_sem is None:
+            self._crawl_dl_sem = asyncio.Semaphore(self._CRAWL_DOWNLOAD_CONCURRENCY)
+        return self._crawl_dl_sem
+
+    async def _crawl_text_content_list(self, doc_id: str, text: str) -> list[dict]:
+        """Content_list doc mongo_text (text/crawl): 1 text item + ảnh crawl.
+
+        Khi có image worker: tách section 'Hình ảnh' khỏi text (hàm
+        ``split_image_section``), tải các ảnh về MinIO (asset_key nằm dưới
+        doc prefix) và append item image — ảnh crawl đi tiếp qua
+        describe/chunk/embed như ảnh của doc/pdf.
+
+        - Text mới là text đã strip section; strip rỗng thì bỏ text item.
+        - Lỗi tải từng ảnh bỏ qua (không crash parse); không tải được ảnh
+          nào -> giữ nguyên text gốc (không mất URL khỏi index).
+        - Không có worker/section -> đúng hành vi cũ: 1 text item.
+        """
+        worker = self._get_image_worker()
+        if worker is None:
+            return [{"type": "text", "text": text, "page_idx": 0}]
+        from ami_rag.workers.crawl_images import split_image_section
+
+        urls, stripped = split_image_section(text)
+        if not urls:
+            return [{"type": "text", "text": text, "page_idx": 0}]
+
+        sem = self._get_crawl_dl_semaphore()
+
+        async def _one(url: str) -> tuple[str, str | None]:
+            async with sem:
+                return url, await worker.ensure_in_minio(doc_id, url)
+
+        results = await asyncio.gather(*(_one(u) for u in urls))
+        ok = [(u, key) for u, key in results if key]
+        if not ok:
+            logger.warning(
+                "crawl doc=%s: không tải được ảnh nào (%d URL, giữ text gốc)",
+                doc_id,
+                len(urls),
+            )
+            return [{"type": "text", "text": text, "page_idx": 0}]
+        if len(ok) < len(urls):
+            logger.warning(
+                "crawl doc=%s: tải được %d/%d ảnh, %d URL lỗi bị bỏ qua",
+                doc_id,
+                len(ok),
+                len(urls),
+                len(urls) - len(ok),
+            )
+        content_list: list[dict] = []
+        if stripped.strip():
+            content_list.append({"type": "text", "text": stripped, "page_idx": 0})
+        content_list.extend(
+            {
+                "type": "image",
+                "asset_key": key,
+                "image_caption": [],
+                "image_footnote": [],
+                "page_idx": 0,
+            }
+            for _, key in ok
+        )
+        logger.info(
+            "crawl doc=%s: %d ảnh tải về MinIO (%d text item)",
+            doc_id,
+            len(ok),
+            len(content_list) - len(ok),
+        )
+        return content_list
 
     async def _rebuild_backend_data(
         self, doc_id: str, content_list: list[dict], local: Path
