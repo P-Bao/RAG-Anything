@@ -260,7 +260,7 @@ def build_pipeline(
     ``caption_func`` (tuỳ chọn): inject caption func giả cho test; khi bỏ trống,
     image processor dùng Gemini (CAPTION_LLM_*) hoặc vision func như cũ.
     ``image_worker`` (tuỳ chọn): inject CrawlImageWorker giả cho test; bỏ trống
-    thì pipeline lazy-build từ settings khi CRAWL_IMAGES_ENABLED.
+    thì pipeline lazy-build từ settings.
     """
     from ami_rag.core.vector_pipeline import VectorPipeline
     from ami_rag.core.vector_store import QdrantVectorStore

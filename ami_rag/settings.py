@@ -171,9 +171,6 @@ class Settings(BaseSettings):
     MINIO_BUCKET: str = "ami-data-documents"
     MINIO_SECURE: bool = False
     ASSET_PREFIX: str = "rag-assets"
-    # Tải ảnh section 'Hình ảnh' của doc crawl về MinIO (dưới ASSET_PREFIX,
-    # cùng doc prefix với asset parse) -> item image trong content_list
-    CRAWL_IMAGES_ENABLED: bool = False
     MINIO_PRESIGN_EXPIRES: int = 3600
 
     API_HOST: str = "0.0.0.0"

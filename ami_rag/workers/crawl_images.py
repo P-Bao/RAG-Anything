@@ -140,7 +140,7 @@ class CrawlImageWorker:
     """Download crawl images into MinIO so multimodal (VLM) processing and
     /rag responses can reference durable objects instead of remote URLs.
 
-    Enabled behind CRAWL_IMAGES_ENABLED (P4). Idempotent: an object key is
+    Always on (no env switch). Idempotent: an object key is
     derived from (document_id, sha256(url)) and existing objects are reused.
     """
 

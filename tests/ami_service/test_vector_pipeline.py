@@ -292,7 +292,6 @@ async def test_stage_parse_crawl_images_injected(
     _add_crawl_doc(fake_docs_repo, fake_status_store)
     worker = FakeImageWorker()
     pipeline.image_worker = worker
-    pipeline.settings.CRAWL_IMAGES_ENABLED = True
 
     doc = fake_docs_repo.find_by_id(CRAWL_ID)
     intermediate = await pipeline._stage_parse(CRAWL_ID, doc)
@@ -321,7 +320,6 @@ async def test_stage_parse_crawl_all_downloads_fail_keeps_text(
 ):
     _add_crawl_doc(fake_docs_repo, fake_status_store)
     pipeline.image_worker = FakeImageWorker(fail_urls=set(CRAWL_URLS))
-    pipeline.settings.CRAWL_IMAGES_ENABLED = True
 
     doc = fake_docs_repo.find_by_id(CRAWL_ID)
     intermediate = await pipeline._stage_parse(CRAWL_ID, doc)
@@ -337,7 +335,6 @@ async def test_stage_parse_crawl_partial_failure_skips_failed(
 ):
     _add_crawl_doc(fake_docs_repo, fake_status_store)
     pipeline.image_worker = FakeImageWorker(fail_urls={CRAWL_URLS[0]})
-    pipeline.settings.CRAWL_IMAGES_ENABLED = True
 
     doc = fake_docs_repo.find_by_id(CRAWL_ID)
     intermediate = await pipeline._stage_parse(CRAWL_ID, doc)
@@ -347,20 +344,18 @@ async def test_stage_parse_crawl_partial_failure_skips_failed(
     assert content_list[1]["asset_key"] == f"rag-assets/{CRAWL_ID}/img2.jpg"
 
 
-async def test_stage_parse_crawl_disabled_keeps_old_behavior(
+async def test_stage_parse_text_doc_without_section_single_text_item(
     pipeline, fake_docs_repo, fake_status_store
 ):
-    _add_crawl_doc(fake_docs_repo, fake_status_store)
+    # doc mongo_text không có section 'Hình ảnh' -> 1 text item, không tải ảnh
     worker = FakeImageWorker()
     pipeline.image_worker = worker
-    # CRAWL_IMAGES_ENABLED mặc định False -> worker không được dùng
-    assert pipeline.settings.CRAWL_IMAGES_ENABLED is False
 
-    doc = fake_docs_repo.find_by_id(CRAWL_ID)
-    intermediate = await pipeline._stage_parse(CRAWL_ID, doc)
+    doc = fake_docs_repo.find_by_id(TEXT_ID)
+    intermediate = await pipeline._stage_parse(TEXT_ID, doc)
 
     assert intermediate.content_list == [
-        {"type": "text", "text": CRAWL_CONTENT, "page_idx": 0}
+        {"type": "text", "text": "nội dung text E", "page_idx": 0}
     ]
     assert worker.calls == []
 
@@ -376,11 +371,6 @@ def test_get_image_worker_lazy_builds_from_settings(pipeline, monkeypatch):
 
     monkeypatch.setattr(crawl_images_mod, "CrawlImageWorker", _W)
 
-    # tắt -> None, không build
-    assert pipeline._get_image_worker() is None
-    assert captured == {}
-
-    pipeline.settings.CRAWL_IMAGES_ENABLED = True
     worker = pipeline._get_image_worker()
 
     # lazy-build với prefix = ASSET_PREFIX (asset nằm dưới doc prefix để
@@ -404,7 +394,6 @@ async def test_full_run_crawl_doc_indexes_images(
 ):
     _add_crawl_doc(fake_docs_repo, fake_status_store)
     pipeline.image_worker = FakeImageWorker()
-    pipeline.settings.CRAWL_IMAGES_ENABLED = True
 
     outcome = await pipeline.run(CRAWL_ID)
 

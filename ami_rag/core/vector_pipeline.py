@@ -369,13 +369,11 @@ class VectorPipeline(PipelineRunner):
     _CRAWL_DOWNLOAD_CONCURRENCY = 4
 
     def _get_image_worker(self):
-        """CrawlImageWorker khi bật CRAWL_IMAGES_ENABLED; None khi tắt.
+        """CrawlImageWorker (luôn bật - không có env tắt).
 
         Chưa inject thì lazy-build từ settings. Prefix = ASSET_PREFIX để
         asset_key nằm dưới doc prefix: ``delete_doc_assets`` dọn theo doc.
         """
-        if not getattr(self.settings, "CRAWL_IMAGES_ENABLED", False):
-            return None
         if self.image_worker is None:
             from ami_rag.workers.crawl_images import CrawlImageWorker
 
@@ -397,25 +395,23 @@ class VectorPipeline(PipelineRunner):
     async def _crawl_text_content_list(self, doc_id: str, text: str) -> list[dict]:
         """Content_list doc mongo_text (text/crawl): 1 text item + ảnh crawl.
 
-        Khi có image worker: tách section 'Hình ảnh' khỏi text (hàm
-        ``split_image_section``), tải các ảnh về MinIO (asset_key nằm dưới
-        doc prefix) và append item image — ảnh crawl đi tiếp qua
-        describe/chunk/embed như ảnh của doc/pdf.
+        Tách section 'Hình ảnh' khỏi text (hàm ``split_image_section``),
+        tải các ảnh về MinIO (asset_key nằm dưới doc prefix) và append
+        item image — ảnh crawl đi tiếp qua describe/chunk/embed như ảnh
+        của doc/pdf.
 
         - Text mới là text đã strip section; strip rỗng thì bỏ text item.
+        - Không có section -> đúng hành vi cũ: 1 text item (không dựng
+          worker, không tải gì).
         - Lỗi tải từng ảnh bỏ qua (không crash parse); không tải được ảnh
           nào -> giữ nguyên text gốc (không mất URL khỏi index).
-        - Không có worker/section -> đúng hành vi cũ: 1 text item.
         """
-        worker = self._get_image_worker()
-        if worker is None:
-            return [{"type": "text", "text": text, "page_idx": 0}]
         from ami_rag.workers.crawl_images import split_image_section
 
         urls, stripped = split_image_section(text)
         if not urls:
             return [{"type": "text", "text": text, "page_idx": 0}]
-
+        worker = self._get_image_worker()
         sem = self._get_crawl_dl_semaphore()
 
         async def _one(url: str) -> tuple[str, str | None]:
