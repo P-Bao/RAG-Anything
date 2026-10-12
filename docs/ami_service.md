@@ -11,9 +11,9 @@ ami_data (backend docs: MinIO + MongoDB organization_db.documents)
 Redis Streams  rag:ingest  (consumer group ami-rag)
    ▼
 ami_rag worker  (ami-rag-worker, hoặc nhúng trong API khi WORKER_ENABLED=true)
-   ├─ select_source(doc)
-   │    ├─ mongo_text : text Mongo `content`  →  content_list = [text]
-   │    └─ minio_parse: tải file gốc từ MinIO → MinerU parse → content_list (text/image/table/equation)
+    ├─ select_source(doc)
+    │    ├─ mongo_text : text Mongo `content`  →  content_list = [text] (+ item image crawl khi có section 'Hình ảnh', mục 2)
+    │    └─ minio_parse: tải file gốc từ MinIO → MinerU parse → content_list (text/image/table/equation)
    ├─ upload ảnh/bảng/công thức lên MinIO  rag-assets/{doc_id}/…  (gắn item["asset_key"])
    ├─ lưu content_list.json vào MinIO
     ├─ describe: mô tả modal (LLM, tuỳ chọn) → descriptions.json
@@ -51,7 +51,9 @@ Hệ thống AI ──POST /v2/rag──▶ ami_rag API: embed_query (máy B) �
 - `mongo_text`: sha256 của `content.strip()`.
 - `minio_parse`: sha256 của `"minio|{file_path}"` (key MinIO duy nhất cho mỗi lần upload; `content_hash` Mongo bị bỏ qua có chủ đích).
 
-Doc `minio_parse` không có `file_path` thì lỗi (`ValueError`). Ảnh crawl (tuỳ chọn): `CRAWL_IMAGES_ENABLED=true` thì worker tải ảnh của doc crawl về MinIO prefix `CRAWL_IMAGES_PREFIX` và thêm item `image`.
+Doc `minio_parse` không có `file_path` thì lỗi (`ValueError`).
+
+**Ảnh crawl** (luôn bật, không có env tắt): bài crawl có section cuối dạng `**Hình ảnh:**` + các dòng `- <url ảnh>`. Parse stage tách section này (`ami_rag/workers/crawl_images.py::split_image_section` — chỉ nhận URL có đuôi ảnh, heading biến thể `**Hình ảnh:**`/`## HÌNH ẢNH`/`Hinh anh` đều nhận), tải từng ảnh về MinIO `rag-assets/{doc_id}/…` (idempotent, key = hash URL, timeout 60s/ảnh) rồi append item `image` kèm `asset_key` — ảnh crawl đi tiếp qua describe (caption Gemini/VLM như ảnh pdf/docx, mục 5.3), chunk modality `image`, embed image+text và `/admin` presign như ảnh thường. Block URL bị xoá khỏi text chunk. Ảnh lỗi bỏ qua từng con; không tải được con nào thì giữ nguyên text gốc. Bài không có section → chỉ 1 text item như cũ (không tải gì).
 
 ## 3. Dữ liệu
 
@@ -219,8 +221,7 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | `minioadmin` / rỗng | |
 | | `MINIO_BUCKET` | `ami-data-documents` | |
 | | `MINIO_SECURE` | `false` | |
-| | `ASSET_PREFIX` | `rag-assets` | |
-| | `CRAWL_IMAGES_PREFIX` / `CRAWL_IMAGES_ENABLED` | `crawl-images` / `false` | |
+| | `ASSET_PREFIX` | `rag-assets` | cũng là nơi ảnh crawl được tải về (`{doc_id}/…`) |
 | | `MINIO_PRESIGN_EXPIRES` | `3600` | giây, cho `artifact_url`/`file_url` |
 | API | `API_HOST` / `API_PORT` | `0.0.0.0` / `8009` | |
 | | `RAG_API_KEY` | rỗng | rỗng = không auth |
@@ -307,6 +308,8 @@ Khuyến nghị:
 
 1. **Materialize** (`vector_pipeline._materialize_images`): với mọi image-item có `asset_key`, fetch bytes từ MinIO **song song** theo semaphore `CAPTION_LLM_MAX_CONCURRENCY` → ghi vào `tempfile.TemporaryDirectory()` (tên `sha1(asset_key)[:12]` + ext suy từ magic bytes) → tạo `describe_items` là shallow copy gán `img_path` = file tạm (item thiếu `asset_key` giữ `img_path` gốc). **`content_list` gốc không bị mutate** (chunk + `save_content_list` dùng bản gốc); temp dir được xoá trong `finally` sau khi describe xong.
 2. **Caption** (`factory._build_caption_func`): `AsyncOpenAI(base_url=CAPTION_LLM_BASE_URL, api_key=…)` — closure nhận `(prompt, system_prompt, image_data=<base64>, …)`, tái dùng `_openai_style_messages` dựng data URI (sniff mime png/webp/gif/jpeg). `ImageModalProcessor` vẫn là processor chạy mô tả (đọc file tạm, build prompt vision có caption/footnote/ngữ cảnh, parse JSON `detailed_description` + `entity_info`).
+
+Ảnh crawl (mục 2) cũng chỉ có `asset_key` (không có file local) nên đi qua đúng bước materialize + caption này như ảnh parse từ pdf/docx.
 
 Chế độ (`IMAGE_DESCRIBE_MODE`, xem bảng mục 4): `gemini` (có key) → caption Gemini; `vision` → gửi ảnh cho Qwen VLM (`QWEN_VLM_MODEL`); `none` → **text thô** `_describe_image_raw` = caption + footnotes + ngữ cảnh, không gọi LLM. `auto`: có `CAPTION_LLM_API_KEY` → `gemini`, elif có `QWEN_VLM_MODEL` → `vision`, else → `none`. Legacy `"text"` tự chuyển `"none"` kèm warning (path OCR-ảnh đã xoá).
 
@@ -456,6 +459,12 @@ In workspace, config đang dùng (`embed_model`/`embed_dim`/`chunker_version`), 
   ami-rag reindex --all --from-stage describe --yes       # hoặc --doc <id> để thử vài doc
   ```
   Chi phí: mỗi ảnh đúng **1 call Gemini** (~vài giây, không còn ~30s OCR/ảnh; mode `none` = 0 call LLM); collection Qdrant **không đổi** vì `EMBED_MODEL` giữ nguyên — chỉ chunk ảnh đổi text nên cache embedding miss → re-embed các chunk ảnh (text chunk không đổi vẫn trúng cache).
+- **Doc crawl index trước khi có tính năng ảnh crawl** (mục 2): content_list chỉ có text (không item image). Parse lại từ đầu để tải ảnh + strip section `Hình ảnh` khỏi text:
+  ```bash
+  ami-rag reindex --all --from-stage parse --dry-run   # xem phạm vi trước
+  ami-rag reindex --all --from-stage parse --yes       # hoặc --doc <id> cho từng bài crawl
+  ```
+  Chú ý: `--from-stage parse` parse lại cả PDF/DOCX bằng MinerU (tốn GPU); nếu kho có nhiều file lớn, ưu tiên `--doc <id>` cho riêng doc crawl. Bài crawl sửa nội dung sau này tự chạy đúng luồng mới (ảnh là một phần stage parse, không cần env bật).
 
 Mã thoát: `0` xong, `1` một số doc thất bại, `2` dừng sớm (preflight embed server, lockfile, validation).
 
