@@ -100,7 +100,6 @@ def _ingest_worker(runner, docs_repo, state_repo, queue, asset_store, max_delive
         RAG_CONSUMER_GROUP = "ami-rag"
         EMBED_MODEL = "Qwen/Qwen3-VL-Embedding-2B"
         CHUNKER_VERSION = "v1"
-        CRAWL_IMAGES_ENABLED = False
 
     return IngestWorker(
         runner=runner,

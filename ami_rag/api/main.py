@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI):
         from ami_rag.core.factory import get_pipeline
         from ami_rag.workers.ingest_worker import IngestWorker, _build_default_deps
 
-        docs_repo, state_repo, queue, asset_store, image_worker = _build_default_deps(settings)
+        docs_repo, state_repo, queue, asset_store = _build_default_deps(settings)
         worker = IngestWorker(
             runner=await get_pipeline(),
             docs_repo=docs_repo,
@@ -26,7 +26,6 @@ async def lifespan(app: FastAPI):
             queue=queue,
             asset_store=asset_store,
             settings=settings,
-            image_worker=image_worker,
         )
         worker_task = asyncio.create_task(worker.run_forever())
     yield

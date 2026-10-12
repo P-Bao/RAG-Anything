@@ -365,6 +365,34 @@ async def test_stage_parse_crawl_disabled_keeps_old_behavior(
     assert worker.calls == []
 
 
+def test_get_image_worker_lazy_builds_from_settings(pipeline, monkeypatch):
+    import ami_rag.workers.crawl_images as crawl_images_mod
+
+    captured = {}
+
+    class _W:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(crawl_images_mod, "CrawlImageWorker", _W)
+
+    # tắt -> None, không build
+    assert pipeline._get_image_worker() is None
+    assert captured == {}
+
+    pipeline.settings.CRAWL_IMAGES_ENABLED = True
+    worker = pipeline._get_image_worker()
+
+    # lazy-build với prefix = ASSET_PREFIX (asset nằm dưới doc prefix để
+    # delete_doc_assets dọn theo doc)
+    assert isinstance(worker, _W)
+    assert captured["prefix"] == "rag-assets"
+    assert captured["bucket"] == "ami-data-documents"
+    assert captured["endpoint"] == "localhost:9000"
+    # cached: lần sau trả lại chính worker đó
+    assert pipeline._get_image_worker() is worker
+
+
 async def test_full_run_crawl_doc_indexes_images(
     pipeline,
     fake_docs_repo,

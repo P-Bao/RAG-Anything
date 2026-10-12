@@ -47,7 +47,6 @@ class IngestWorker:
         queue: RagStreamQueue,
         asset_store,
         settings: Settings | None = None,
-        image_worker=None,
         logger_=None,
     ):
         self.runner = runner
@@ -56,7 +55,6 @@ class IngestWorker:
         self.queue = queue
         self.asset_store = asset_store
         self.settings = settings or get_settings()
-        self.image_worker = image_worker
         self.log = logger_ or logger
         self._seen_statuses: set[str] = set()
 
@@ -229,7 +227,7 @@ class IngestWorker:
 
 
 def _build_default_deps(settings: Settings):
-    """Returns (docs_repo, state_repo, queue, asset_store, image_worker)."""
+    """Returns (docs_repo, state_repo, queue, asset_store)."""
     from ami_rag.core.factory import get_asset_store
     from ami_rag.queue.streams import RagStreamQueue
     from ami_rag.storage.mongo_docs import MongoDocumentRepo
@@ -245,18 +243,6 @@ def _build_default_deps(settings: Settings):
         db_name=settings.RAG_DB,
         collection_name=settings.RAG_DOCUMENTS_COLLECTION,
     )
-    image_worker = None
-    if settings.CRAWL_IMAGES_ENABLED:
-        from ami_rag.workers.crawl_images import CrawlImageWorker
-
-        image_worker = CrawlImageWorker(
-            endpoint=settings.MINIO_ENDPOINT,
-            access_key=settings.MINIO_ACCESS_KEY,
-            secret_key=settings.MINIO_SECRET_KEY,
-            bucket=settings.MINIO_BUCKET,
-            prefix=settings.CRAWL_IMAGES_PREFIX,
-            secure=settings.MINIO_SECURE,
-        )
     # XREADGROUP BLOCK holds the connection for WORKER_POLL_BLOCK_MS; redis-py>=8 defaults
     # socket_timeout to 5s, which would fire first on an idle stream.
     redis_client = aioredis_from_url(
@@ -271,7 +257,7 @@ def _build_default_deps(settings: Settings):
         consumer=consumer,
         retry_idle_ms=settings.WORKER_RETRY_IDLE_MS,
     )
-    return docs_repo, state_repo, queue, get_asset_store(), image_worker
+    return docs_repo, state_repo, queue, get_asset_store()
 
 
 def aioredis_from_url(url: str, **kwargs):
@@ -288,7 +274,7 @@ async def run_worker(settings: Settings | None = None) -> None:
     start_http_server(settings.WORKER_METRICS_PORT)
     from ami_rag.core.factory import build_pipeline
 
-    docs_repo, state_repo, queue, asset_store, image_worker = _build_default_deps(settings)
+    docs_repo, state_repo, queue, asset_store = _build_default_deps(settings)
     worker = IngestWorker(
         runner=build_pipeline(settings, docs_repo=docs_repo),
         docs_repo=docs_repo,
@@ -296,7 +282,6 @@ async def run_worker(settings: Settings | None = None) -> None:
         queue=queue,
         asset_store=asset_store,
         settings=settings,
-        image_worker=image_worker,
     )
     try:
         await worker.run_forever()

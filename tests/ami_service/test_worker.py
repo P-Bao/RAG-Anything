@@ -48,7 +48,6 @@ def _worker(runner, fake_docs_repo, fake_status_store, fake_queue, asset_store, 
         RAG_CONSUMER_GROUP = "ami-rag"
         EMBED_MODEL = "Qwen/Qwen3-VL-Embedding-2B"
         CHUNKER_VERSION = "v1"
-        CRAWL_IMAGES_ENABLED = False
 
     return IngestWorker(
         runner=runner,

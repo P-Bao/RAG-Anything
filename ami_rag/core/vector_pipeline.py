@@ -369,9 +369,24 @@ class VectorPipeline(PipelineRunner):
     _CRAWL_DOWNLOAD_CONCURRENCY = 4
 
     def _get_image_worker(self):
-        """CrawlImageWorker khi bật CRAWL_IMAGES_ENABLED; None khi tắt."""
+        """CrawlImageWorker khi bật CRAWL_IMAGES_ENABLED; None khi tắt.
+
+        Chưa inject thì lazy-build từ settings. Prefix = ASSET_PREFIX để
+        asset_key nằm dưới doc prefix: ``delete_doc_assets`` dọn theo doc.
+        """
         if not getattr(self.settings, "CRAWL_IMAGES_ENABLED", False):
             return None
+        if self.image_worker is None:
+            from ami_rag.workers.crawl_images import CrawlImageWorker
+
+            self.image_worker = CrawlImageWorker(
+                endpoint=self.settings.MINIO_ENDPOINT,
+                access_key=self.settings.MINIO_ACCESS_KEY,
+                secret_key=self.settings.MINIO_SECRET_KEY,
+                bucket=self.settings.MINIO_BUCKET,
+                prefix=self.settings.ASSET_PREFIX,
+                secure=self.settings.MINIO_SECURE,
+            )
         return self.image_worker
 
     def _get_crawl_dl_semaphore(self) -> asyncio.Semaphore:
