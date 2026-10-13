@@ -52,15 +52,15 @@ def _build_params():
 
 
 def _check_hit(case: dict, documents: list[dict]) -> tuple[bool, int]:
+    """Hit khi top-k chứa tài liệu mong đợi (`expected_doc_id`), mọi modality.
+
+    Không so khớp `expected_chunk_id`: chunk_id là hash MD5 nên đổi sau mỗi lần
+    reindex / đổi caption, làm test báo MISS giả dù nội dung vẫn truy xuất đúng.
+    """
     for rank, doc in enumerate(documents, start=1):
-        if case["modality"] == "text":
-            doc_id = (doc.get("doc") or {}).get("document_id")
-            if doc_id == case["expected_doc_id"]:
-                return True, rank
-        else:
-            ref_id = doc.get("reference_id")
-            if ref_id == case["expected_chunk_id"]:
-                return True, rank
+        doc_id = (doc.get("doc") or {}).get("document_id")
+        if doc_id == case["expected_doc_id"]:
+            return True, rank
     return False, -1
 
 
@@ -125,11 +125,7 @@ def test_retrieval_top5_recall(case: dict):
         for idx, d in enumerate(documents)
     ]
 
-    expected_target = (
-        f"doc_id={case['expected_doc_id']}"
-        if case["modality"] == "text"
-        else f"chunk_id={case['expected_chunk_id']}"
-    )
+    expected_target = f"doc_id={case['expected_doc_id']}"
 
     assert result["status"] != "error", f"API error: {result['detail']}"
     assert len(documents) <= 5, f"Expected at most 5 documents, got {len(documents)}"
@@ -142,44 +138,90 @@ def test_retrieval_top5_recall(case: dict):
     )
 
 
+@pytest.mark.parametrize("case", _build_params())
+def test_retrieval_top20_recall(case: dict):
+    result = run_case(case, top_k=20)
+    documents = result["documents"]
+    expected_target = f"doc_id={case['expected_doc_id']}"
+
+    assert result["status"] != "error", f"API error: {result['detail']}"
+    assert len(documents) <= 20, f"Expected at most 20 documents, got {len(documents)}"
+    assert result["hit"], (
+        f"Case '{case['id']}' ({case['modality']}) MISS in top 20.\n"
+        f"Query: {case['query']}\n"
+        f"Expected: {expected_target}"
+    )
+
+
+@pytest.mark.parametrize("case", _build_params())
+def test_retrieval_top40_recall(case: dict):
+    result = run_case(case, top_k=40)
+    documents = result["documents"]
+    expected_target = f"doc_id={case['expected_doc_id']}"
+
+    assert result["status"] != "error", f"API error: {result['detail']}"
+    assert len(documents) <= 40, f"Expected at most 40 documents, got {len(documents)}"
+    assert result["hit"], (
+        f"Case '{case['id']}' ({case['modality']}) MISS in top 40.\n"
+        f"Query: {case['query']}\n"
+        f"Expected: {expected_target}"
+    )
+
+
 def test_retrieval_summary_report():
-    """Summary test collecting Hit@5 and MRR stats across all modalities."""
+    """Summary test collecting Hit@5, Hit@20, Hit@40 and MRR stats across all modalities."""
     cases = _load_cases()
+    ks = [5, 20, 40]
     results = {
-        "text": {"hit": 0, "total": 0, "rr_sum": 0.0},
-        "table": {"hit": 0, "total": 0, "rr_sum": 0.0},
-        "image": {"hit": 0, "total": 0, "rr_sum": 0.0},
+        k: {
+            "text": {"hit": 0, "total": 0, "rr_sum": 0.0},
+            "table": {"hit": 0, "total": 0, "rr_sum": 0.0},
+            "image": {"hit": 0, "total": 0, "rr_sum": 0.0},
+        }
+        for k in ks
     }
 
     for case in cases:
         modality = case["modality"]
-        results[modality]["total"] += 1
-        result = run_case(case, top_k=5)
-        if result["hit"]:
-            results[modality]["hit"] += 1
-            results[modality]["rr_sum"] += 1.0 / result["rank"]
+        # Query top_k=40 once, then compute hits across 5, 20, 40
+        res = run_case(case, top_k=40)
+        rank = res["rank"] if res["hit"] else -1
+        for k in ks:
+            results[k][modality]["total"] += 1
+            if 1 <= rank <= k:
+                results[k][modality]["hit"] += 1
+                results[k][modality]["rr_sum"] += 1.0 / rank
 
-    total_hits = sum(s["hit"] for s in results.values())
-    total_cases = sum(s["total"] for s in results.values())
-    total_rr = sum(s["rr_sum"] for s in results.values())
+    print("\n" + "=" * 75)
+    print("           RETRIEVAL RECALL (HIT@5, HIT@20, HIT@40) & MRR SUMMARY REPORT")
+    print("=" * 75)
+    print(f"{'K':<5} | {'MODALITY':<8} | {'HIT / TOTAL':<12} | {'HIT RATE':<10} | {'MRR':<8}")
+    print("-" * 75)
+    for k in ks:
+        k_res = results[k]
+        total_hits = sum(s["hit"] for s in k_res.values())
+        total_cases = sum(s["total"] for s in k_res.values())
+        total_rr = sum(s["rr_sum"] for s in k_res.values())
+        for modality, stats in k_res.items():
+            hit = stats["hit"]
+            tot = stats["total"]
+            pct = (hit / tot * 100) if tot > 0 else 0.0
+            mrr = (stats["rr_sum"] / tot) if tot > 0 else 0.0
+            print(f"@{k:<4} | {modality.upper():<8} | {hit}/{tot:<10} | {pct:6.1f}%    | {mrr:.4f}")
+        overall_pct = (total_hits / total_cases * 100) if total_cases > 0 else 0.0
+        overall_mrr = (total_rr / total_cases) if total_cases > 0 else 0.0
+        print(f"@{k:<4} | {'OVERALL':<8} | {total_hits}/{total_cases:<10} | {overall_pct:6.1f}%    | {overall_mrr:.4f}")
+        print("-" * 75)
+    print("=" * 75 + "\n")
 
-    print("\n" + "=" * 65)
-    print("           RETRIEVAL RECALL@5 & MRR SUMMARY REPORT")
-    print("=" * 65)
-    print(f"{'MODALITY':<10} | {'HIT@5':<12} | {'HIT RATE':<10} | {'MRR':<8}")
-    print("-" * 65)
-    for modality, stats in results.items():
-        hit = stats["hit"]
-        total = stats["total"]
-        pct = (hit / total * 100) if total > 0 else 0.0
-        mrr = (stats["rr_sum"] / total) if total > 0 else 0.0
-        print(f"{modality.upper():<10} | {hit}/{total:<10} | {pct:6.1f}%    | {mrr:.4f}")
-    print("-" * 65)
-    overall_pct = (total_hits / total_cases * 100) if total_cases > 0 else 0.0
-    overall_mrr = (total_rr / total_cases) if total_cases > 0 else 0.0
-    print(f"{'OVERALL':<10} | {total_hits}/{total_cases:<10} | {overall_pct:6.1f}%    | {overall_mrr:.4f}")
-    print("=" * 65 + "\n")
+    # Assertions for Hit@5 baseline
+    assert results[5]["text"]["hit"] >= 8, "Text retrieval should hit at least 8/10 at top 5"
+    assert results[5]["table"]["hit"] >= 3, "Table retrieval should hit at least 3/9 at top 5"
+    assert results[5]["image"]["hit"] >= 1, "Image retrieval should hit at least 1/9 at top 5"
 
-    assert results["text"]["hit"] >= 8, "Text retrieval should hit at least 8/10"
-    assert results["table"]["hit"] >= 3, "Table retrieval should hit at least 3/9"
-    assert results["image"]["hit"] >= 1, "Image retrieval should hit at least 1/9 (baseline raw)"
+    # Assertions for Hit@20 expansion
+    assert results[20]["table"]["hit"] >= 5, "Table retrieval should hit at least 5/9 at top 20"
+
+    # Assertions for Hit@40 expansion
+    assert results[40]["table"]["hit"] >= 7, "Table retrieval should hit at least 7/9 at top 40"
+    assert results[40]["text"]["hit"] == 10, "Text retrieval should achieve 10/10 at top 40"
