@@ -5,6 +5,21 @@ import pytest
 from ami_rag.queue.events import RagEvent
 
 
+@pytest.fixture(autouse=True)
+def _isolate_dotenv_settings(monkeypatch):
+    """`.env` của dev (vd. RERANK_FUSION=rrf) không được làm lệch default mà test giả định.
+
+    Biến môi trường thắng dotenv trong pydantic-settings, nên ghim các giá trị
+    test phụ thuộc; `get_settings` là lru_cache nên reset trước/sau mỗi test.
+    """
+    from ami_rag.settings import get_settings
+
+    monkeypatch.setenv("RERANK_FUSION", "raw")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
 class FakeDocsRepo:
     def __init__(self, docs=None):
         self.docs = docs or {}

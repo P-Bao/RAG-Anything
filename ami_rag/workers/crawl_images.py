@@ -1,10 +1,14 @@
 import asyncio
 import hashlib
+import logging
 import re
 import unicodedata
+from io import BytesIO
 from urllib.parse import urlparse
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 _IMAGE_MARKDOWN_RE = re.compile(r"!\[[^\]]*\]\((https?://[^)\s]+)\)")
 _IMAGE_BULLET_RE = re.compile(r"^\s*[-*]\s*(https?://\S+)\s*$", re.MULTILINE)
@@ -213,7 +217,7 @@ class CrawlImageWorker:
         client.put_object(
             self._bucket,
             object_name,
-            data=iter([data]),
+            data=BytesIO(data),
             length=len(data),
             content_type=content_type or "application/octet-stream",
         )
@@ -237,5 +241,6 @@ class CrawlImageWorker:
             data, content_type = await asyncio.to_thread(self._download, url)
             await asyncio.to_thread(self._upload, object_name, data, content_type)
             return object_name
-        except Exception:
+        except Exception as exc:
+            logger.warning("crawl image %s (doc=%s) lỗi: %r", url, doc_id, exc)
             return None
