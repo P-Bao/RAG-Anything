@@ -1,5 +1,7 @@
 """Test split_image_section + CrawlImageWorker.collect_image_urls (không mạng)."""
 
+from unittest.mock import MagicMock, patch
+
 from ami_rag.workers.crawl_images import (
     CrawlImageWorker,
     split_image_section,
@@ -145,3 +147,72 @@ def test_collect_image_urls_metadata_markdown_and_bullets():
         "https://x.com/inline.png",
         "https://x.com/bullet.jpg",
     ]
+
+
+def _make_resp():
+    r = MagicMock()
+    r.status_code = 200
+    r.content = b"fake-image"
+    r.headers = {"content-type": "image/jpeg"}
+    r.raise_for_status.return_value = None
+    return r
+
+
+def test_download_ptit_disables_ssl():
+    worker = CrawlImageWorker(
+        endpoint="localhost:9000",
+        access_key="a",
+        secret_key="s",
+        bucket="b",
+        prefix="rag-assets",
+    )
+    with patch("ami_rag.workers.crawl_images.httpx.Client") as client_cls:
+        ctx = client_cls.return_value.__enter__.return_value
+        ctx.get.return_value = _make_resp()
+        worker._download("https://ptit.edu.vn/wp-content/uploads/x.jpg")
+        assert client_cls.call_args.kwargs["verify"] is False
+
+
+def test_download_unknown_keeps_ssl():
+    worker = CrawlImageWorker(
+        endpoint="localhost:9000",
+        access_key="a",
+        secret_key="s",
+        bucket="b",
+        prefix="rag-assets",
+    )
+    with patch("ami_rag.workers.crawl_images.httpx.Client") as client_cls:
+        ctx = client_cls.return_value.__enter__.return_value
+        ctx.get.return_value = _make_resp()
+        worker._download("https://example.com/x.jpg")
+        assert client_cls.call_args.kwargs["verify"] is True
+
+
+def test_download_ptithcm_disables_ssl():
+    worker = CrawlImageWorker(
+        endpoint="localhost:9000",
+        access_key="a",
+        secret_key="s",
+        bucket="b",
+        prefix="rag-assets",
+    )
+    with patch("ami_rag.workers.crawl_images.httpx.Client") as client_cls:
+        ctx = client_cls.return_value.__enter__.return_value
+        ctx.get.return_value = _make_resp()
+        worker._download("https://ptithcm.edu.vn/x.jpg")
+        assert client_cls.call_args.kwargs["verify"] is False
+
+
+def test_trusted_subdomain_disables_ssl():
+    from ami_rag.workers.crawl_images import _is_trusted_no_ssl_host
+
+    assert _is_trusted_no_ssl_host("cdn.ptit.edu.vn") is True
+    assert _is_trusted_no_ssl_host("images.ptithcm.edu.vn") is True
+
+
+def test_untrusted_lookalike_keeps_ssl():
+    from ami_rag.workers.crawl_images import _is_trusted_no_ssl_host
+
+    assert _is_trusted_no_ssl_host("ptit.edu.vn.evil.com") is False
+    assert _is_trusted_no_ssl_host("notptit.edu.vn") is False
+    assert _is_trusted_no_ssl_host("evil-ptit.edu.vn") is False

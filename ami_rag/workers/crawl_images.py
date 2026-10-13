@@ -30,6 +30,11 @@ _IMAGE_EXTS = (
 
 _MINIO_POOL_MAXSIZE = 16
 
+_TRUSTED_NO_SSL_VERIFY_DOMAINS = (
+    "ptit.edu.vn",
+    "ptithcm.edu.vn",
+)
+
 
 def _fold(line: str) -> str:
     """Lowercase + bỏ dấu tiếng Việt ('Hình ảnh' -> 'hinh anh')."""
@@ -140,6 +145,17 @@ def _ext_from_url(url: str, content_type: str | None) -> str:
     return "bin"
 
 
+def _is_trusted_no_ssl_host(host: str | None) -> bool:
+    """ptit.edu.vn / ptithcm.edu.vn (và subdomain) được tin cậy -> bỏ verify SSL."""
+    if not host:
+        return False
+    host = host.lower()
+    return any(
+        host == domain or host.endswith("." + domain)
+        for domain in _TRUSTED_NO_SSL_VERIFY_DOMAINS
+    )
+
+
 class CrawlImageWorker:
     """Download crawl images into MinIO so multimodal (VLM) processing and
     /rag responses can reference durable objects instead of remote URLs.
@@ -205,10 +221,31 @@ class CrawlImageWorker:
         return unique
 
     def _download(self, url: str) -> tuple[bytes, str | None]:
-        with httpx.Client(timeout=self._timeout, follow_redirects=True) as client:
-            resp = client.get(url)
+        from urllib.parse import urljoin, urlparse
+
+        current_url = url
+        for _ in range(10):
+            parsed = urlparse(current_url)
+            trusted = (
+                parsed.scheme == "https"
+                and _is_trusted_no_ssl_host(parsed.hostname)
+            )
+            with httpx.Client(
+                timeout=self._timeout,
+                follow_redirects=False,
+                verify=not trusted,
+            ) as client:
+                resp = client.get(current_url)
+            status = getattr(resp, "status_code", 0)
+            if isinstance(status, int) and status in (301, 302, 303, 307, 308):
+                location = resp.headers.get("location")
+                if not location:
+                    resp.raise_for_status()
+                current_url = urljoin(current_url, location)
+                continue
             resp.raise_for_status()
             return resp.content, resp.headers.get("content-type")
+        raise httpx.TooManyRedirects("exceeded redirect limit", request=None)
 
     def _upload(self, object_name: str, data: bytes, content_type: str | None) -> None:
         client = self._get_client()
