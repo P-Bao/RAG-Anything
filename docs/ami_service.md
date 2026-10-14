@@ -611,9 +611,10 @@ Metric worker (`:9109/metrics` của `ami-rag-worker`; khi `WORKER_ENABLED=true`
 | `in_flight` | Gauge | |
 | `duration_seconds` | Histogram | `source` (minio_parse/mongo_text/none) |
 | `stage_duration_seconds` | Histogram | `stage` (đường delete của worker; các stage pipeline tính trong `multimodal_rag_retrieval_*` và log) |
-| `parse_failures_total` | Counter | `document_type` |
-| `asset_upload_failures_total`, `pages_total` | Counter | |
-| `items_total` | Counter | `modality` |
+| `parse_failures_total` | Counter | `document_type` (tăng trong `VectorPipeline.run` khi stage parse lỗi) |
+| `crawl_image_failures_total` | Counter | `reason` = `http` / `redirect` / `connect` / `ssl` / `minio` / `other` (tăng trong `CrawlImageWorker.ensure_in_minio`) |
+| `pages_total` | Counter | (tăng theo `_page_count` ở `_stage_parse`) |
+| `items_total` | Counter | `modality` (tăng theo `_count_by_type` ở `_stage_parse`) |
 | `stream_pending`, `stream_lag` | Gauge | |
 | `documents` | Gauge | `status` (đọc từ `multimodal_rag_documents`) |
 

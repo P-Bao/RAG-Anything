@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
+import httpx
+
 from ami_rag.workers.crawl_images import (
     CrawlImageWorker,
     split_image_section,
@@ -216,3 +218,65 @@ def test_untrusted_lookalike_keeps_ssl():
     assert _is_trusted_no_ssl_host("ptit.edu.vn.evil.com") is False
     assert _is_trusted_no_ssl_host("notptit.edu.vn") is False
     assert _is_trusted_no_ssl_host("evil-ptit.edu.vn") is False
+
+
+def _crawl_fail_val(reason: str) -> float:
+    from prometheus_client import REGISTRY
+
+    return (
+        REGISTRY.get_sample_value(
+            "multimodal_rag_ingest_crawl_image_failures_total", {"reason": reason}
+        )
+        or 0.0
+    )
+
+
+def _make_worker() -> CrawlImageWorker:
+    return CrawlImageWorker(
+        endpoint="localhost:9000",
+        access_key="a",
+        secret_key="s",
+        bucket="b",
+        prefix="rag-assets",
+    )
+
+
+async def test_ensure_in_minio_failure_increments_counter_connect():
+    worker = _make_worker()
+    before = _crawl_fail_val("connect")
+    with (
+        patch.object(worker, "_exists", return_value=False),
+        patch.object(worker, "_download", side_effect=httpx.ConnectError("refused")),
+    ):
+        assert await worker.ensure_in_minio("doc1", "https://x.com/a.jpg") is None
+    assert _crawl_fail_val("connect") == before + 1
+
+
+async def test_ensure_in_minio_failure_increments_counter_redirect():
+    worker = _make_worker()
+    before = _crawl_fail_val("redirect")
+    boom = httpx.TooManyRedirects("exceeded", request=None)
+    with (
+        patch.object(worker, "_exists", return_value=False),
+        patch.object(worker, "_download", side_effect=boom),
+    ):
+        assert await worker.ensure_in_minio("doc1", "https://x.com/a.jpg") is None
+    assert _crawl_fail_val("redirect") == before + 1
+
+
+def test_classify_crawl_error_reasons():
+    import ssl
+
+    from minio.error import S3Error
+
+    from ami_rag.workers.crawl_images import _classify_crawl_error
+
+    request = httpx.Request("GET", "https://x.com/a.jpg")
+    response = httpx.Response(404, request=request)
+    assert _classify_crawl_error(httpx.HTTPStatusError("404", request=request, response=response)) == "http"
+    assert _classify_crawl_error(httpx.TooManyRedirects("loop", request=None)) == "redirect"
+    assert _classify_crawl_error(httpx.ConnectError("refused")) == "connect"
+    assert _classify_crawl_error(httpx.ConnectTimeout("timed out")) == "connect"
+    assert _classify_crawl_error(ssl.SSLError("cert")) == "ssl"
+    assert _classify_crawl_error(S3Error.__new__(S3Error)) == "minio"
+    assert _classify_crawl_error(ValueError("other")) == "other"

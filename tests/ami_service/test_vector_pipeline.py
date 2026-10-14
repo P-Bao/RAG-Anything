@@ -233,6 +233,68 @@ async def test_parse_without_doc_raises_clear_error(
     assert row["error_stage"] == "parse"
 
 
+def _ingest_val(name: str, **labels) -> float:
+    from prometheus_client import REGISTRY
+
+    return REGISTRY.get_sample_value(name, labels or None) or 0.0
+
+
+async def test_stage_parse_counts_items_and_pages_metrics(pipeline):
+    """_stage_parse phải tăng items_total{modality} + pages_total (metric revive)."""
+    before = {
+        "text": _ingest_val("multimodal_rag_ingest_items_total", modality="text"),
+        "image": _ingest_val("multimodal_rag_ingest_items_total", modality="image"),
+        "table": _ingest_val("multimodal_rag_ingest_items_total", modality="table"),
+        "pages": _ingest_val("multimodal_rag_ingest_pages_total"),
+    }
+    await pipeline.run(PDF_ID)
+    assert (
+        _ingest_val("multimodal_rag_ingest_items_total", modality="text")
+        == before["text"] + 1
+    )
+    assert (
+        _ingest_val("multimodal_rag_ingest_items_total", modality="image")
+        == before["image"] + 1
+    )
+    assert (
+        _ingest_val("multimodal_rag_ingest_items_total", modality="table")
+        == before["table"] + 1
+    )
+    # FakeParser: text/image/table ở page_idx 0/1/2 -> 3 trang
+    assert _ingest_val("multimodal_rag_ingest_pages_total") == before["pages"] + 3
+
+
+async def test_parse_failure_increments_parse_failures_metric(
+    fake_asset_store, fake_status_store
+):
+    """Parse lỗi phải tăng parse_failures_total{document_type} (revive alert)."""
+    settings = Settings(
+        _env_file=None,
+        WORKSPACE="test",
+        EMBED_MODEL="Qwen/Qwen3-VL-Embedding-2B",
+        CHUNKER_VERSION="v1",
+        PARSER="mineru",
+    )
+    pipeline = VectorPipeline(
+        settings,
+        embedder=FakeEmbedder(),
+        vector_store=FakeVectorStore(),
+        asset_store=fake_asset_store,
+        store=fake_status_store,
+        docs_repo=None,  # không có docs_repo -> parse raise
+        parser=FakeParser(),
+    )
+    fake_status_store.ensure_pending(TEXT_ID)
+    before = _ingest_val(
+        "multimodal_rag_ingest_parse_failures_total", document_type="unknown"
+    )
+    outcome = await pipeline.run(TEXT_ID, from_stage="parse")
+    assert not outcome.ok
+    assert _ingest_val(
+        "multimodal_rag_ingest_parse_failures_total", document_type="unknown"
+    ) == before + 1
+
+
 async def test_vector_store_error_marks_failed(
     pipeline, fake_status_store, fake_vector_store
 ):

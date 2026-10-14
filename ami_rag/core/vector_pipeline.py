@@ -36,6 +36,11 @@ from typing import Any
 from ami_rag.core.embedder import collection_name
 from ami_rag.core.pipeline import PipelineRunner, StageOutcome
 from ami_rag.core.vector_store import ChunkRecord, VectorStore, VectorStoreError
+from ami_rag.observability import (
+    INGEST_ITEMS_TOTAL,
+    INGEST_PAGES_TOTAL,
+    INGEST_PARSE_FAILURES_TOTAL,
+)
 from ami_rag.settings import parser_kwargs, resolve_image_describe_mode
 from ami_rag.sources import (
     SOURCE_MINIO_PARSE,
@@ -337,6 +342,9 @@ class VectorPipeline(PipelineRunner):
 
         counts = _count_by_type(content_list)
         page_count = _page_count(content_list)
+        for item_type, n in counts.items():
+            INGEST_ITEMS_TOTAL.labels(modality=_normalize_item_type(item_type)).inc(n)
+        INGEST_PAGES_TOTAL.inc(page_count)
         await asyncio.to_thread(self.asset_store.save_content_list, doc_id, content_list)
         self.store.mark_stage(
             doc_id,
@@ -962,7 +970,12 @@ class VectorPipeline(PipelineRunner):
             chunks: list[Chunk] | None = None
 
             if start_idx <= 0:
-                intermediate = await self._stage_parse(doc_id, doc)
+                try:
+                    intermediate = await self._stage_parse(doc_id, doc)
+                except Exception:
+                    document_type = (doc or {}).get("document_type") or "unknown"
+                    INGEST_PARSE_FAILURES_TOTAL.labels(document_type=document_type).inc()
+                    raise
                 content_list = intermediate.content_list
                 source_path = intermediate.file_path or doc_id
 

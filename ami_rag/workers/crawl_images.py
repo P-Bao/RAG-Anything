@@ -156,6 +156,25 @@ def _is_trusted_no_ssl_host(host: str | None) -> bool:
     )
 
 
+def _classify_crawl_error(exc: Exception) -> str:
+    """Nhóm lỗi tải ảnh crawl cho metric ``crawl_image_failures_total{reason}``."""
+    import ssl
+
+    from minio.error import S3Error
+
+    if isinstance(exc, ssl.SSLError) or isinstance(getattr(exc, "__cause__", None), ssl.SSLError):
+        return "ssl"
+    if isinstance(exc, httpx.TooManyRedirects):
+        return "redirect"
+    if isinstance(exc, httpx.HTTPStatusError):
+        return "http"
+    if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout)):
+        return "connect"
+    if isinstance(exc, S3Error):
+        return "minio"
+    return "other"
+
+
 class CrawlImageWorker:
     """Download crawl images into MinIO so multimodal (VLM) processing and
     /rag responses can reference durable objects instead of remote URLs.
@@ -279,5 +298,10 @@ class CrawlImageWorker:
             await asyncio.to_thread(self._upload, object_name, data, content_type)
             return object_name
         except Exception as exc:
+            from ami_rag.observability import INGEST_CRAWL_IMAGE_FAILURES_TOTAL
+
+            INGEST_CRAWL_IMAGE_FAILURES_TOTAL.labels(
+                reason=_classify_crawl_error(exc)
+            ).inc()
             logger.warning("crawl image %s (doc=%s) lỗi: %r", url, doc_id, exc)
             return None

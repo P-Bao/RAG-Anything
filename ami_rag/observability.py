@@ -136,9 +136,10 @@ INGEST_PARSE_FAILURES_TOTAL = Counter(
     "Document parse failures.",
     ["document_type"],
 )
-INGEST_ASSET_UPLOAD_FAILURES_TOTAL = Counter(
-    "multimodal_rag_ingest_asset_upload_failures_total",
-    "Failures uploading parsed assets to MinIO.",
+INGEST_CRAWL_IMAGE_FAILURES_TOTAL = Counter(
+    "multimodal_rag_ingest_crawl_image_failures_total",
+    "Crawl ('Hình ảnh' section) image download/upload failures (reason: http | redirect | connect | ssl | minio | other).",
+    ["reason"],
 )
 INGEST_ITEMS_TOTAL = Counter(
     "multimodal_rag_ingest_items_total",

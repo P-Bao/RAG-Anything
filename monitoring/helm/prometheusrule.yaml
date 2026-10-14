@@ -34,6 +34,13 @@ spec:
           annotations:
             summary: "MinerU parse loi"
             description: "{{ $value }} lan parse that bai trong 30 phut (file hong, thieu GPU/model, LibreOffice)."
+        - alert: RagCrawlImageFailures
+          expr: sum(increase(multimodal_rag_ingest_crawl_image_failures_total[30m])) > 20
+          labels:
+            severity: warning
+          annotations:
+            summary: "Tai anh crawl loi lien tuc"
+            description: "{{ $value }} URL anh (section 'Hinh anh') loi trong 30 phut - anh mat khoi index; kiem tra log worker va SSL allowlist PTIT."
         - alert: RagIngestWorkerDown
           expr: absent(up{job=~".*multimodal-rag-retrieval.*", endpoint="worker-metrics"} == 1)
           for: 5m

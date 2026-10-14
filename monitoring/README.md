@@ -33,7 +33,7 @@ Khi API chạy worker nhúng (`WORKER_ENABLED=true`) thì metric ingest nằm ch
 ## Dashboard
 
 Timezone cố định `Asia/Ho_Chi_Minh` — khớp label `day`/`hod` trong code; không đổi sang `browser`.
-Rows: Tổng quan · Requests theo ngày/giờ · Latency & Errors · Pipeline stages · Docs & Chunks · Danh sách trace · **Multimodal retrieval** (docs theo modality, presign failures) · **Ingest pipeline** (stream pending/lag, ingest in-flight, events theo kết quả, duration P50/P95, stage time, documents theo status, parse failures, items theo modality).
+Rows: Tổng quan · Requests theo ngày/giờ · Latency & Errors · Pipeline stages · Docs & Chunks · Danh sách trace · **Multimodal retrieval** (docs theo modality, presign failures) · **Ingest pipeline** (stream pending/lag, ingest in-flight, events theo kết quả, duration P50/P95, stage time, documents theo status, parse failures, items theo modality, crawl image failures).
 
 Yêu cầu:
 - Prometheus datasource uid `prometheus`.
@@ -51,9 +51,9 @@ Mỗi lần đổi metric trong `ami_rag/observability.py` cần cập nhật da
 | `multimodal_rag_ingest_in_flight` | Gauge | |
 | `multimodal_rag_ingest_duration_seconds` | Histogram | `source` (minio_parse/mongo_text/none) |
 | `multimodal_rag_ingest_stage_duration_seconds` | Histogram | `stage` (delete; timing parse→describe→chunk→embed nằm trong DocStatusStore, không có metric Prometheus) |
-| `multimodal_rag_ingest_parse_failures_total` | Counter | `document_type` |
-| `multimodal_rag_ingest_asset_upload_failures_total` | Counter | |
-| `multimodal_rag_ingest_items_total` | Counter | `modality` |
+| `multimodal_rag_ingest_parse_failures_total` | Counter | `document_type` (tăng trong `VectorPipeline.run` khi stage parse lỗi) |
+| `multimodal_rag_ingest_crawl_image_failures_total` | Counter | `reason` (http/redirect/connect/ssl/minio/other; tăng trong `CrawlImageWorker.ensure_in_minio`) |
+| `multimodal_rag_ingest_items_total` | Counter | `modality` (tăng theo `_count_by_type` ở `_stage_parse`) |
 | `multimodal_rag_ingest_pages_total` | Counter | |
 | `multimodal_rag_ingest_stream_pending` / `_stream_lag` | Gauge | |
 | `multimodal_rag_ingest_documents` | Gauge | `status` |
@@ -67,6 +67,7 @@ Metric API mới so với bản cũ: `multimodal_rag_retrieval_docs_by_modality_
 | `RagIngestBacklogHigh` | pending + lag > 50 trong 15 phút | warning |
 | `RagIngestFailures` | > 5 event `failed` / 30 phút | warning |
 | `RagIngestParseFailures` | > 3 parse lỗi / 30 phút | warning |
+| `RagCrawlImageFailures` | > 20 URL ảnh crawl lỗi / 30 phút | warning |
 | `RagIngestWorkerDown` | target `worker-metrics` không UP 5 phút | critical |
 | `RagRetrievalErrorRate` | error ratio > 5% trong 10 phút | warning |
 | `RagRerankFallback` | fallback > 20% trong 10 phút | warning |
