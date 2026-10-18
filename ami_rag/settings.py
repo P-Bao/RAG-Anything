@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     # Số request caption song song (vừa fetch ảnh MinIO vừa gọi Gemini)
     CAPTION_LLM_MAX_CONCURRENCY: int = 4
     CAPTION_LLM_RETRIES: int = 2
+    # Ngôn ngữ mô tả ảnh. Corpus và truy vấn là tiếng Việt nhưng caption mặc
+    # định sinh tiếng Anh -> vector ảnh lệch xa truy vấn (đo thực tế: cos với
+    # query "sân bóng đá cơ sở Hà Đông" là 0.34 với caption EN, 0.48 với caption
+    # VI đầy đủ). Để rỗng = không thêm chỉ dẫn ngôn ngữ (prompt gốc).
+    CAPTION_LLM_LANGUAGE: str = "vi"
 
     # --- Remote embedding server (máy B) ---
     # backend "custom": qwen-embedding-server (/info + /embed);

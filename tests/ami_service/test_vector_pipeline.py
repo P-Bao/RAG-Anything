@@ -927,6 +927,61 @@ async def test_describe_image_via_real_image_processor(
     assert "asset_key" in content_list[1]
 
 
+async def test_describe_image_prompt_includes_language_and_doc_title(
+    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
+):
+    """Prompt caption phải có chỉ dẫn ngôn ngữ + tiêu đề doc (mô tả khớp corpus)."""
+    caption = _FakeCaptionFunc()
+    pipeline = _make_pipeline(
+        fake_embedder, fake_vector_store, fake_asset_store, fake_status_store,
+        IMAGE_DESCRIBE_MODE="gemini", CAPTION_LLM_LANGUAGE="vi",
+    )
+    pipeline.modal_processors = {"image": _real_image_processor(caption)}
+
+    await pipeline._stage_describe("docX", _image_content_list(), "Sổ tay sinh viên 2026")
+
+    prompt = caption.calls[0][0]
+    assert "Write the whole response in vi." in prompt
+    # yêu cầu giữ nguyên văn chữ trong ảnh, không bỏ sót phần tử
+    flat = " ".join(prompt.split())
+    assert "EXACTLY as it is written in the image" in flat
+    assert "never translate" in flat
+    assert "omitting none" in flat
+    assert "Sổ tay sinh viên 2026" in prompt
+
+
+async def test_describe_image_prompt_without_language_when_blank(
+    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
+):
+    """CAPTION_LLM_LANGUAGE rỗng -> prompt giữ nguyên, không chèn chỉ dẫn."""
+    caption = _FakeCaptionFunc()
+    pipeline = _make_pipeline(
+        fake_embedder, fake_vector_store, fake_asset_store, fake_status_store,
+        IMAGE_DESCRIBE_MODE="gemini", CAPTION_LLM_LANGUAGE="",
+    )
+    pipeline.modal_processors = {"image": _real_image_processor(caption)}
+
+    await pipeline._stage_describe("docX", _image_content_list())
+
+    prompt = caption.calls[0][0]
+    assert "Output language:" not in prompt
+    assert "Document title" not in prompt
+
+
+def test_format_image_chunk_drops_empty_summary_line(pipeline):
+    """"Tóm tắt: Không có" là nhiễu -> bỏ hẳn khi không có caption."""
+    from ami_rag.core.vector_pipeline import _format_modal_chunk
+
+    item = {"type": "image", "image_caption": [], "image_footnote": []}
+    assert _format_modal_chunk("image", item, "Mô tả sơ đồ") == (
+        "[Image Content]\nMô tả sơ đồ"
+    )
+    item2 = {"type": "image", "image_caption": ["Sơ đồ tổ chức"], "image_footnote": ["Ghi chú"]}
+    assert _format_modal_chunk("image", item2, "Mô tả") == (
+        "[Image Content]\nMô tả\nTóm tắt: Sơ đồ tổ chức\nGhi chú"
+    )
+
+
 async def test_describe_image_temp_dir_cleaned_after_stage(
     fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
 ):

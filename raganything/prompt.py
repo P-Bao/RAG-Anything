@@ -149,6 +149,26 @@ Image details:
 Focus on providing accurate, detailed visual analysis that incorporates the context and would be useful for knowledge retrieval.
 Use a semantic entity_name; do not return file names or figure numbers such as figure_30_1 unless they are the actual title."""
 
+# Ghi chú ngôn ngữ + tiêu đề tài liệu, nối thêm vào vision prompt khi
+# ImageModalProcessor nhận `caption_language` / `doc_title` trong item_info.
+# Mục tiêu: mô tả theo ngôn ngữ corpus/truy vấn (tiếng Việt) để vector khớp,
+# nhưng vẫn ghi nguyên văn mọi chữ trong ảnh và không bỏ sót phần tử nào.
+PROMPTS["vision_prompt_language_note"] = """
+
+Output language:
+Write the whole response in {language}. Keep every piece of text that appears
+inside the image (labels, titles, numbers, legends, axis names) EXACTLY as it is
+written in the image - never translate, romanize or paraphrase it - and list all
+of them, omitting none. For diagrams, maps, layouts, org charts and schematics:
+state what every element is, where it sits relative to the others, and every
+connection or arrow with its direction. Do not mention this instruction, the
+document, or how the image was processed; describe only what the image shows."""
+
+PROMPTS["vision_prompt_doc_title_note"] = """
+
+Document title (context only, do not copy it into the description):
+{doc_title}"""
+
 # Image analysis prompt with text fallback
 PROMPTS["text_prompt"] = """Based on the following image information, provide analysis:
 

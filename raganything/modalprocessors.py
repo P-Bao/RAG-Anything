@@ -819,6 +819,20 @@ class ImageModalProcessor(BaseModalProcessor):
                     footnotes=footnotes if footnotes else "None",
                 )
 
+            # Ngôn ngữ mô tả + tiêu đề tài liệu (tuỳ chọn, do ami_rag truyền qua
+            # item_info): mô tả theo ngôn ngữ corpus/truy vấn để vector khớp, vẫn
+            # ghi nguyên văn mọi chữ trong ảnh. Thiếu key -> prompt giữ nguyên cũ.
+            caption_language = (item_info or {}).get("caption_language")
+            if caption_language:
+                vision_prompt += PROMPTS["vision_prompt_language_note"].format(
+                    language=caption_language
+                )
+            doc_title = (item_info or {}).get("doc_title")
+            if doc_title:
+                vision_prompt += PROMPTS["vision_prompt_doc_title_note"].format(
+                    doc_title=doc_title
+                )
+
             # Encode image to base64
             image_base64 = self._encode_image_to_base64(image_path)
             if not image_base64:

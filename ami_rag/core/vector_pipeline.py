@@ -169,10 +169,14 @@ def _format_modal_chunk(type_: str, item: dict, description: str) -> str:
     if type_ == "image":
         captions = _join_caption(item.get("image_caption") or item.get("img_caption"))
         footnotes = _join_caption(item.get("image_footnote") or item.get("img_footnote"))
-        return (
-            f"[Image Content]\n{description}\n"
-            f"Tóm tắt: {captions or 'Không có'}\n{footnotes or ''}".strip()
-        )
+        parts = [f"[Image Content]\n{description}"]
+        # Không ghi "Tóm tắt: Không có" - ảnh crawl không có caption nên dòng này
+        # chỉ là nhiễu cho mọi chunk ảnh.
+        if captions:
+            parts.append(f"Tóm tắt: {captions}")
+        if footnotes:
+            parts.append(footnotes)
+        return "\n".join(parts).strip()
     if type_ == "table":
         caption = _join_caption(item.get("table_caption"))
         body = item.get("table_body") or item.get("text") or str(item)
@@ -608,7 +612,7 @@ class VectorPipeline(PipelineRunner):
     # Stage: describe (LLM – duy nhất chỗ mô tả modal)
     # ------------------------------------------------------------------
     async def _stage_describe(
-        self, doc_id: str, content_list: list[dict]
+        self, doc_id: str, content_list: list[dict], doc_title: str = ""
     ) -> list[dict]:
         multimodal_indices = [
             i
@@ -640,7 +644,7 @@ class VectorPipeline(PipelineRunner):
                 type_ = _normalize_item_type(item.get("type"))
                 try:
                     desc_text = await self._describe_item(
-                        type_, item, content_list, i, doc_id
+                        type_, item, content_list, i, doc_id, doc_title
                     )
                 except Exception as exc:
                     logger.warning("describe doc=%s item=%d lỗi: %s", doc_id, i, exc)
@@ -755,6 +759,27 @@ class VectorPipeline(PipelineRunner):
     # ------------------------------------------------------------------
     # Describe 1 item
     # ------------------------------------------------------------------
+    def _describe_item_info(
+        self, item: dict, index: int, type_: str, doc_title: str = ""
+    ) -> dict:
+        """``item_info`` cho modal processor.
+
+        ``caption_language`` + ``doc_title`` là tùy chọn (thiếu thì processor bỏ
+        qua): buộc mô tả ảnh theo ngôn ngữ corpus/truy vấn và có tiêu đề tài
+        liệu làm ngữ cảnh, đồng thời nhắc ghi nguyên văn mọi chữ trong ảnh.
+        """
+        info = {
+            "page_idx": item.get("page_idx", 0),
+            "index": index,
+            "type": type_,
+        }
+        language = (getattr(self.settings, "CAPTION_LLM_LANGUAGE", "") or "").strip()
+        if language:
+            info["caption_language"] = language
+        if doc_title:
+            info["doc_title"] = doc_title
+        return info
+
     async def _describe_item(
         self,
         type_: str,
@@ -762,6 +787,7 @@ class VectorPipeline(PipelineRunner):
         content_list: list[dict],
         index: int = 0,
         doc_id: str = "",
+        doc_title: str = "",
     ) -> str:
         if type_ == "image":
             mode = resolve_image_describe_mode(self.settings)
@@ -778,11 +804,7 @@ class VectorPipeline(PipelineRunner):
                     sections = await processor.generate_chunk_sections(
                         modal_content=item,
                         content_type=type_,
-                        item_info={
-                            "page_idx": item.get("page_idx", 0),
-                            "index": index,
-                            "type": type_,
-                        },
+                        item_info=self._describe_item_info(item, index, type_, doc_title),
                         entity_name=None,
                     )
                 desc = str(sections[0]["description"]) if sections else ""
@@ -812,11 +834,7 @@ class VectorPipeline(PipelineRunner):
             sections = await processor.generate_chunk_sections(
                 modal_content=item,
                 content_type=type_,
-                item_info={
-                    "page_idx": item.get("page_idx", 0),
-                    "index": index,
-                    "type": type_,
-                },
+                item_info=self._describe_item_info(item, index, type_, doc_title),
                 entity_name=None,
             )
             return sections[0]["description"] if sections else ""
@@ -1151,7 +1169,7 @@ class VectorPipeline(PipelineRunner):
                     raise FileNotFoundError(
                         f"doc {doc_id}: thiếu content_list trong MinIO - cần parse lại"
                     )
-                descriptions = await self._stage_describe(doc_id, content_list)
+                descriptions = await self._stage_describe(doc_id, content_list, doc_title)
 
             if start_idx <= 2:
                 if content_list is None:
