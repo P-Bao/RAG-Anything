@@ -2,11 +2,12 @@ import asyncio
 import hashlib
 import logging
 import re
-import unicodedata
 from io import BytesIO
 from urllib.parse import urlparse
 
 import httpx
+
+from ami_rag.textnorm import fold_text
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +39,7 @@ _TRUSTED_NO_SSL_VERIFY_DOMAINS = (
 
 def _fold(line: str) -> str:
     """Lowercase + bỏ dấu tiếng Việt ('Hình ảnh' -> 'hinh anh')."""
-    normalized = unicodedata.normalize("NFD", line)
-    return "".join(c for c in normalized if not unicodedata.combining(c)).lower()
+    return fold_text(line)
 
 
 def _is_image_heading(line: str) -> bool:

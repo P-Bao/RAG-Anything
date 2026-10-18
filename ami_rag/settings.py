@@ -118,6 +118,10 @@ class Settings(BaseSettings):
 
     CHUNK_SIZE: int = 1200
     CHUNK_OVERLAP: int = 100
+    # Chunk ngắn hơn ngưỡng này bị gộp vào chunk kề (doc crawl mỗi trường một
+    # dòng, backend_data tách PDF theo dòng -> dễ sinh chunk mồ côi kiểu
+    # "- Địa chỉ: Tầng 1 nhà A1" khớp query địa chỉ nhưng vô nghĩa). 0 = tắt.
+    CHUNK_MIN_CHARS: int = 200
 
     REDIS_URL: str = "redis://localhost:6379/0"
     RAG_STREAM: str = "rag:ingest"

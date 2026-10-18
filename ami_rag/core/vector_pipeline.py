@@ -26,6 +26,7 @@ Data giữa các stage nằm trong MinIO: `{doc_id}/content_list.json`,
 import asyncio
 import base64
 import hashlib
+import itertools
 import logging
 import re
 import tempfile
@@ -56,6 +57,7 @@ from ami_rag.storage.doc_status import (
     STAGE_PARSE,
     DocStatusStore,
 )
+from ami_rag.textnorm import with_title
 
 logger = logging.getLogger(__name__)
 
@@ -196,30 +198,139 @@ def _join_caption(value) -> str:
     return str(value)
 
 
-def chunk_text(text: str, max_tokens: int = 1200, overlap_tokens: int = 100) -> list[str]:
-    """Plain paragraph splitter xấp xỉ token budget (fallback ~4 chars/token)."""
+# Chunk ngắn hơn ngưỡng này bị gộp vào chunk kề. Doc crawl viết mỗi trường một
+# dòng ("- Địa chỉ: Tầng 1 nhà A1, ...") và backend_data tách PDF theo từng
+# dòng, nên trước đây xuất hiện nhiều chunk mồ côi đúng một dòng: khớp mọi query
+# "địa chỉ / cơ sở Hà Đông" nhưng không rõ thuộc đơn vị nào.
+MIN_CHUNK_CHARS = 200
+
+# Overlap chỉ gắn khi còn đủ chỗ cho phần thân chunk (>= ngưỡng này), tránh cắt
+# nội dung chỉ để nhồi overlap.
+_MIN_OVERLAP_ROOM = 200
+
+
+def _split_units(text: str, max_chars: int) -> list[tuple[str, str]]:
+    """Tách text thành các đơn vị <= max_chars.
+
+    Trả ``[(nội dung, sep_giữa_với_đơn_vị_trước), ...]`` với ``sep`` là
+    ``"\\n\\n"`` (hết đoạn) hoặc ``"\\n"`` (vẫn trong đoạn) để giữ nguyên ranh giới
+    đoạn khi gom lại.
+
+    - Đoạn (tách bằng dòng trống) vừa budget thì giữ nguyên làm một đơn vị.
+    - Đoạn quá dài thì gom NHIỀU dòng kế tiếp tới budget (bản cũ cắt từng dòng
+      một — nguyên nhân gốc của chunk mồ côi).
+    - Chỉ dòng đơn dài hơn cả budget mới bị cắt cứng.
+    """
+    units: list[tuple[str, str]] = []
+
+    def _add(content: str, sep: str) -> None:
+        units.append((content, sep if units else ""))
+
+    for block in re.split(r"\n{2,}", text):
+        block = block.strip()
+        if not block:
+            continue
+        if len(block) <= max_chars:
+            _add(block, "\n\n")
+            continue
+        current: list[str] = []
+        size = 0
+
+        def _flush_lines() -> None:
+            nonlocal current, size
+            if current:
+                _add("\n".join(current), "\n")
+                current, size = [], 0
+
+        for line in (ln.strip() for ln in block.splitlines()):
+            if not line:
+                continue
+            if len(line) > max_chars:
+                _flush_lines()
+                for i in range(0, len(line), max_chars):
+                    _add(line[i : i + max_chars], "\n")
+                continue
+            if size + len(line) + 1 > max_chars and current:
+                _flush_lines()
+            current.append(line)
+            size += len(line) + 1
+        _flush_lines()
+    return units
+
+
+def _pack_units(units: list[tuple[str, str]], max_chars: int) -> list[str]:
+    """Gom các đơn vị vào chunk tới budget (đơn vị không bị cắt đôi)."""
+    chunks: list[str] = []
+    current: list[str] = []
+    size = 0
+    for content, sep in units:
+        if current and size + len(content) + len(sep) > max_chars:
+            chunks.append("".join(current))
+            current, size = [], 0
+            sep = "\n\n" if not sep else sep
+        current.append(sep + content)
+        size += len(sep) + len(content)
+    if current:
+        chunks.append("".join(current))
+    return chunks
+
+
+def _apply_overlap(chunks: list[str], max_chars: int, overlap_chars: int) -> list[str]:
+    """Chèn đuôi chunk trước vào đầu chunk sau (rồi cắt phần thân cho vừa budget)."""
+    if overlap_chars <= 0 or len(chunks) < 2:
+        return chunks
+    out = [chunks[0]]
+    for prev, cur in itertools.pairwise(chunks):
+        tail = prev[-overlap_chars:].lstrip()
+        room = max_chars - len(tail) - 1
+        if not tail or room < _MIN_OVERLAP_ROOM:
+            out.append(cur)
+            continue
+        body = cur if len(cur) <= room else cur[:room]
+        out.append((tail + "\n" + body).strip())
+    return out
+
+
+def _merge_small(chunks: list[str], max_chars: int, min_chars: int) -> list[str]:
+    """Gộp chunk ngắn (< min_chars) vào chunk trước khi vẫn còn chỗ."""
+    if min_chars <= 0 or min_chars >= max_chars or len(chunks) < 2:
+        return chunks
+    out: list[str] = []
+    pending: str | None = None
+    for cur in chunks:
+        if pending is None:
+            pending = cur
+            continue
+        if len(pending) < min_chars and len(pending) + 1 + len(cur) <= max_chars:
+            pending = f"{pending}\n{cur}"
+            continue
+        out.append(pending)
+        pending = cur
+    if pending is not None:
+        out.append(pending)
+    return out
+
+
+def chunk_text(
+    text: str,
+    max_tokens: int = 1200,
+    overlap_tokens: int = 100,
+    min_chars: int = MIN_CHUNK_CHARS,
+) -> list[str]:
+    """Chia text thành chunk theo ngân sách token xấp xỉ (~4 chars/token).
+
+    V1 (nay): tách theo DÒNG trống, đoạn quá dài gom nhiều dòng, và mọi chunk
+    ngắn hơn ``min_chars`` được gộp vào chunk kề — để không sinh chunk mồ côi
+    kiểu "- Địa chỉ: Tầng 1 nhà A1" (khớp query địa chỉ nhưng vô nghĩa).
+    """
     max_chars = max(512, max_tokens * 4)
     overlap_chars = overlap_tokens * 4
-    paras = [p.strip() for p in re.split(r"\n{2,}|\n", text) if p.strip()]
-    chunks: list[str] = []
-    current = ""
-    for para in paras:
-        if len(para) > max_chars:
-            if current:
-                chunks.append(current)
-                current = ""
-            for i in range(0, len(para), max_chars - overlap_chars):
-                chunks.append(para[i : i + max_chars])
-            continue
-        if len(current) + len(para) + 1 > max_chars and current:
-            chunks.append(current)
-            # overlap: giữ đuôi của chunk trước
-            tail = current[-overlap_chars:] if overlap_chars else ""
-            current = (tail + "\n" + para).strip() if tail else para
-        else:
-            current = (current + "\n" + para).strip() if current else para
-    if current:
-        chunks.append(current)
+    if not text or not text.strip():
+        return [text]
+    chunks = _apply_overlap(
+        _pack_units(_split_units(text, max_chars), max_chars), max_chars, overlap_chars
+    )
+    chunks = _merge_small(chunks, max_chars, min_chars)
     return chunks or [text]
 
 
@@ -758,58 +869,102 @@ class VectorPipeline(PipelineRunner):
         descriptions: list[dict] | None,
         *,
         source_path: str = "",
+        doc_title: str = "",
     ) -> list[Chunk]:
+        """Ghép content_list thành chunk (text gom theo dải liên tiếp).
+
+        Với `PARSE_TEXT_SOURCE=backend_data`, content_list của PDF chứa **mỗi
+        dòng một item** (``backend_data_extract.build_pdf_content_blocks``), và
+        doc crawl viết mỗi trường một dòng. Bản cũ chunk từng item riêng nên mỗi
+        dòng thành một chunk mồ côi không rõ thuộc đơn vị nào; nay gom các item
+        text liên tiếp (nối bằng "\\n") rồi mới chia theo ngân sách. Buffer chỉ
+        flush khi gặp item modal (image/table/...) để ảnh vẫn nằm cạnh text của nó.
+
+        ``doc_title`` được prefix vào content chunk (trừ khi chunk đã bắt đầu bằng
+        tiêu đề) — chunk kiểu "- Địa chỉ: Tầng 1 nhà A1" trở nên tự mô tả được.
+        """
         desc_by_index = {}
         for d in descriptions or []:
             if d.get("description"):
                 desc_by_index.setdefault(d["index"], []).append(d["description"])
 
+        title = (doc_title or "").strip()
         chunks: list[Chunk] = []
         chunk_idx = 0
-        for i, item in enumerate(content_list):
-            t = item.get("type") or "text"
-            if t == "text":
-                text = item.get("text", "")
-                for piece in chunk_text(
-                    text,
-                    max_tokens=self.settings.CHUNK_SIZE,
-                    overlap_tokens=self.settings.CHUNK_OVERLAP,
-                ):
-                    chunks.append(
-                        Chunk(
-                            id=_chunk_id(doc_id, piece, chunk_idx),
-                            content=piece,
-                            modality="text",
-                            page_idx=item.get("page_idx", 0),
-                            is_multimodal=False,
-                            source_path=source_path,
-                        )
-                    )
-                    chunk_idx += 1
-            else:
-                # multimodal: description from describe stage if present, else raw caption
-                descs = desc_by_index.get(i) or []
-                description = descs[0] if descs else _join_caption(
-                    item.get("image_caption")
-                    or item.get("table_caption")
-                    or item.get("latex")
-                    or item.get("text")
-                )
-                content = _format_modal_chunk(t, item, description)
+        buf: list[str] = []
+        buf_page: Any = None
+        buf_last_page: Any = None
+
+        def _page(value: Any) -> Any:
+            return 0 if value is None else value
+
+        def _flush() -> None:
+            nonlocal chunk_idx, buf, buf_page, buf_last_page
+            if not buf:
+                return
+            text = "\n".join(buf)
+            page = _page(buf_page)
+            extra: dict = {"title": title} if title else {}
+            if buf_last_page is not None and _page(buf_last_page) != page:
+                extra["page_end"] = _page(buf_last_page)
+            for piece in chunk_text(
+                text,
+                max_tokens=self.settings.CHUNK_SIZE,
+                overlap_tokens=self.settings.CHUNK_OVERLAP,
+                min_chars=getattr(self.settings, "CHUNK_MIN_CHARS", MIN_CHUNK_CHARS),
+            ):
                 chunks.append(
                     Chunk(
-                        id=_chunk_id(doc_id, content, chunk_idx),
-                        content=content,
-                        modality=_normalize_item_type(t),
-                        page_idx=item.get("page_idx", 0),
-                        is_multimodal=True,
+                        id=_chunk_id(doc_id, piece, chunk_idx),
+                        content=with_title(piece, title),
+                        modality="text",
+                        page_idx=page,
+                        is_multimodal=False,
                         source_path=source_path,
-                        asset_key=item.get("asset_key"),
-                        table_body=item.get("table_body"),
-                        caption=_join_caption(item.get("image_caption") or item.get("table_caption")) or None,
+                        extra=dict(extra),
                     )
                 )
                 chunk_idx += 1
+            buf, buf_page, buf_last_page = [], None, None
+
+        for i, item in enumerate(content_list):
+            t = item.get("type") or "text"
+            if t == "text":
+                text = (item.get("text") or "").strip()
+                if not text:
+                    continue
+                if not buf:
+                    buf_page = item.get("page_idx", 0)
+                buf.append(text)
+                buf_last_page = item.get("page_idx", 0)
+                continue
+
+            _flush()
+            # multimodal: description from describe stage if present, else raw caption
+            descs = desc_by_index.get(i) or []
+            description = descs[0] if descs else _join_caption(
+                item.get("image_caption")
+                or item.get("table_caption")
+                or item.get("latex")
+                or item.get("text")
+            )
+            content = _format_modal_chunk(t, item, description)
+            chunks.append(
+                Chunk(
+                    id=_chunk_id(doc_id, content, chunk_idx),
+                    content=with_title(content, title),
+                    modality=_normalize_item_type(t),
+                    page_idx=item.get("page_idx", 0),
+                    is_multimodal=True,
+                    source_path=source_path,
+                    asset_key=item.get("asset_key"),
+                    table_body=item.get("table_body"),
+                    caption=_join_caption(item.get("image_caption") or item.get("table_caption")) or None,
+                    extra={"title": title} if title else {},
+                )
+            )
+            chunk_idx += 1
+        _flush()
         return chunks
 
     async def _stage_chunk(
@@ -819,8 +974,11 @@ class VectorPipeline(PipelineRunner):
         descriptions: list[dict] | None,
         *,
         source_path: str = "",
+        doc_title: str = "",
     ) -> list[Chunk]:
-        chunks = self._build_chunks(doc_id, content_list, descriptions, source_path=source_path)
+        chunks = self._build_chunks(
+            doc_id, content_list, descriptions, source_path=source_path, doc_title=doc_title
+        )
         self._save_json(
             ArtifactPaths.chunks_key(self.asset_store, doc_id),
             [c.to_json(doc_id) for c in chunks],
@@ -836,6 +994,7 @@ class VectorPipeline(PipelineRunner):
         content_list: list[dict] | None,
         descriptions: list[dict] | None,
         source_path: str,
+        doc_title: str = "",
     ) -> list[Chunk]:
         """Resume từ stage embed: chunks.json nếu có, else build lại từ MinIO."""
         stored = await asyncio.to_thread(
@@ -851,7 +1010,9 @@ class VectorPipeline(PipelineRunner):
             )
         if descriptions is None:
             descriptions = await asyncio.to_thread(self._load_descriptions, doc_id)
-        return self._build_chunks(doc_id, content_list, descriptions, source_path=source_path)
+        return self._build_chunks(
+            doc_id, content_list, descriptions, source_path=source_path, doc_title=doc_title
+        )
 
     # ------------------------------------------------------------------
     async def _prepare_embed_items(
@@ -965,6 +1126,8 @@ class VectorPipeline(PipelineRunner):
 
             doc = await asyncio.to_thread(self._load_doc, doc_id)
             source_path = row.get("source_path") or ""
+            # Tiêu đề doc prefix vào mỗi chunk (trừ khi chunk đã có tiêu đề ở dòng đầu)
+            doc_title = (doc or {}).get("title") or row.get("title") or ""
             content_list: list[dict] | None = None
             descriptions: list[dict] | None = None
             chunks: list[Chunk] | None = None
@@ -1002,13 +1165,17 @@ class VectorPipeline(PipelineRunner):
                 if descriptions is None:
                     descriptions = await asyncio.to_thread(self._load_descriptions, doc_id)
                 chunks = await self._stage_chunk(
-                    doc_id, content_list, descriptions, source_path=source_path
+                    doc_id,
+                    content_list,
+                    descriptions,
+                    source_path=source_path,
+                    doc_title=doc_title,
                 )
 
             if start_idx <= 3:
                 if chunks is None:
                     chunks = await self._load_or_build_chunks(
-                        doc_id, content_list, descriptions, source_path
+                        doc_id, content_list, descriptions, source_path, doc_title
                     )
                 await self._stage_embed(doc_id, chunks, source_path=source_path)
                 # Refresh row: parse/describe/chunk đã ghi meta (counts, assets, ...)
@@ -1060,7 +1227,14 @@ class VectorPipeline(PipelineRunner):
         if isinstance(stored, list) and stored:
             chunks = [Chunk.from_json(c) for c in stored]
         elif content_list is not None:
-            chunks = self._build_chunks(doc_id, content_list, descriptions, source_path=source_path)
+            doc = await asyncio.to_thread(self._load_doc, doc_id)
+            chunks = self._build_chunks(
+                doc_id,
+                content_list,
+                descriptions,
+                source_path=source_path,
+                doc_title=(doc or {}).get("title") or row.get("title") or "",
+            )
         else:
             logger.info("doc %s: không có trung gian (content_list/chunks), dry_run trả 0", doc_id)
             chunks = []

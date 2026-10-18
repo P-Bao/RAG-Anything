@@ -333,6 +333,43 @@ def test_chunk_text_budget_and_overlap():
     assert all(len(c) <= 512 for c in chunks)  # max_chars = max(512, 64*4)
 
 
+def test_chunk_text_packs_many_lines_not_one_line_per_chunk():
+    """1 đoạn dài nhiều dòng -> gom nhiều dòng/chunk, không tách từng dòng."""
+    line = "dòng nội dung của đoạn văn bản " * 4  # ~130 chars
+    text = "\n".join(f"{i}: {line}" for i in range(40))
+    chunks = chunk_text(text, max_tokens=1200, overlap_tokens=0, min_chars=0)
+    assert len(chunks) < 5, "phải gom nhiều dòng, không cắt từng dòng một"
+    assert sum(c.count("\n") + 1 for c in chunks) >= 40
+
+
+def test_chunk_text_no_orphan_chunk_below_min_chars():
+    """Chunk 'Địa chỉ: ...' trơ trọi bị gộp vào chunk kề."""
+    head = "A" * 4000
+    text = f"{head}\n\n- Địa chỉ: Tầng 1 nhà A1, Cơ sở đào tạo Hà Đông"
+    chunks = chunk_text(text, max_tokens=1200, overlap_tokens=0, min_chars=200)
+    assert all(len(c) >= 200 for c in chunks), [len(c) for c in chunks]
+    assert any("Địa chỉ: Tầng 1 nhà A1" in c for c in chunks)
+
+
+def test_chunk_text_min_chars_keeps_small_document_intact():
+    """Văn bản nhỏ hơn ngưỡng thì giữ nguyên 1 chunk (không gộp bừa)."""
+    chunks = chunk_text("Địa chỉ: nhà A1", max_tokens=1200, overlap_tokens=0)
+    assert chunks == ["Địa chỉ: nhà A1"]
+
+
+def test_chunk_text_blank_line_still_separates_paragraphs():
+    a = "Đoạn một " * 30
+    b = "Đoạn hai " * 30
+    chunks = chunk_text(f"{a}\n\n{b}", max_tokens=1200, overlap_tokens=0)
+    assert len(chunks) == 1
+    assert "\n\n" in chunks[0]
+
+
+def test_chunk_text_empty_returns_original():
+    assert chunk_text("") == [""]
+    assert chunk_text("   ") == ["   "]
+
+
 async def test_mark_stage_meta_preserved_through_mark_indexed(
     pipeline, fake_status_store
 ):
@@ -551,16 +588,73 @@ async def test_qdrant_upsert_single_oversized_point_sent_alone():
 
 
 def test_build_chunks_with_duplicate_content_assigns_unique_ids(pipeline):
+    # 2 text item giống nhau nhưng CÁCH NHAU bởi 1 ảnh -> vẫn 2 chunk text riêng
+    # (text liên tiếp được gộp, nên trùng lặp phải nằm giữa 2 ranh giới flush).
     content_list = [
         {"type": "text", "text": "Đại học Bách Khoa", "page_idx": 1},
-        {"type": "text", "text": "Đại học Bách Khoa", "page_idx": 2},
-        {"type": "image", "img_path": "img1.png", "page_idx": 3},
-        {"type": "image", "img_path": "img2.png", "page_idx": 4},
+        {"type": "image", "img_path": "img1.png", "page_idx": 2},
+        {"type": "text", "text": "Đại học Bách Khoa", "page_idx": 3},
     ]
     chunks = pipeline._build_chunks("doc_test", content_list, descriptions=[])
-    assert len(chunks) == 4
+    assert len(chunks) == 3
     ids = [c.id for c in chunks]
-    assert len(set(ids)) == 4
+    assert len(set(ids)) == 3
+
+
+def test_build_chunks_merges_consecutive_text_items(pipeline):
+    """Text item liên tiếp gộp 1 chunk (backend_data tách PDF theo từng dòng)."""
+    content_list = [
+        {"type": "text", "text": "Dòng 1", "page_idx": 0},
+        {"type": "text", "text": "Dòng 2", "page_idx": 0},
+        {"type": "text", "text": "Dòng 3", "page_idx": 1},
+    ]
+    chunks = pipeline._build_chunks("doc_test", content_list, descriptions=[])
+    assert len(chunks) == 1
+    assert chunks[0].content == "Dòng 1\nDòng 2\nDòng 3"
+    assert chunks[0].page_idx == 0
+    # trang cuối lưu ở extra để citation biết chunk trải nhiều trang
+    assert chunks[0].extra["page_end"] == 1
+
+
+def test_build_chunks_flushes_around_image_keeps_order(pipeline):
+    """Ảnh nằm giữa 2 dải text: thứ tự đọc giữ nguyên (text - ảnh - text)."""
+    content_list = [
+        {"type": "text", "text": "Dòng 1", "page_idx": 0},
+        {"type": "image", "img_path": "img1.png", "page_idx": 0},
+        {"type": "text", "text": "Dòng 2", "page_idx": 1},
+    ]
+    chunks = pipeline._build_chunks("doc_test", content_list, descriptions=[])
+    assert [c.modality for c in chunks] == ["text", "image", "text"]
+    assert chunks[0].content == "Dòng 1"
+    assert chunks[2].content == "Dòng 2"
+
+
+def test_build_chunks_prefix_doc_title(pipeline):
+    content_list = [{"type": "text", "text": "- Địa chỉ: Tầng 1 nhà A1", "page_idx": 0}]
+    chunks = pipeline._build_chunks(
+        "doc_test", content_list, descriptions=[], doc_title="PHÒNG CHÍNH TRỊ VÀ CÔNG TÁC SINH VIÊN"
+    )
+    assert chunks[0].content == (
+        "PHÒNG CHÍNH TRỊ VÀ CÔNG TÁC SINH VIÊN\n- Địa chỉ: Tầng 1 nhà A1"
+    )
+    assert chunks[0].extra["title"] == "PHÒNG CHÍNH TRỊ VÀ CÔNG TÁC SINH VIÊN"
+
+
+def test_build_chunks_no_title_prefix_when_chunk_already_starts_with_title(pipeline):
+    content_list = [{"type": "text", "text": "# Sơ đồ cơ cấu tổ chức\nNội dung", "page_idx": 0}]
+    chunks = pipeline._build_chunks(
+        "doc_test", content_list, descriptions=[], doc_title="Sơ đồ cơ cấu tổ chức"
+    )
+    assert chunks[0].content == "# Sơ đồ cơ cấu tổ chức\nNội dung"
+
+
+def test_build_chunks_prefix_title_on_image_chunk(pipeline):
+    content_list = [{"type": "image", "img_path": "img.png", "page_idx": 3}]
+    chunks = pipeline._build_chunks(
+        "doc_test", content_list, descriptions=[], doc_title="Sơ đồ khuôn viên Hà Đông"
+    )
+    assert chunks[0].modality == "image"
+    assert chunks[0].content.startswith("Sơ đồ khuôn viên Hà Đông\n[Image Content]")
 
 
 async def test_stage_parse_backend_data_rebuild(
