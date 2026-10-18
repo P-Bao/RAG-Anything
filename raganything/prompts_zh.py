@@ -90,6 +90,22 @@ PROMPTS_ZH[
 请专注于提供融合上下文的准确、详细的视觉分析，以便于知识检索。
 请生成语义化的 entity_name；不要返回文件名或图号（例如 figure_30_1），除非它们就是正式标题。"""
 
+# 图像描述的输出语言 + 文档标题（ImageModalProcessor 在 item_info 带有
+# caption_language / doc_title 时追加到 vision prompt 后面）
+PROMPTS_ZH["vision_prompt_language_note"] = """
+
+输出语言：
+请用{language}书写整个回答。图片中出现的所有文字（标注、标题、数字、图例、轴标签）
+必须按图片中的原样照抄——绝不翻译、音译或改写——并全部列出，不得遗漏。
+对于示意图、地图、布局图、组织结构图和电路图：请说明每个元素是什么、相对其他元素
+位于何处，以及每一条连线或箭头及其方向。不要提及本指令、该文档或图像是如何处理的；
+只描述图像中呈现的内容。"""
+
+PROMPTS_ZH["vision_prompt_doc_title_note"] = """
+
+文档标题（仅作上下文，不要照抄进描述）：
+{doc_title}"""
+
 # Image analysis prompt with text fallback
 PROMPTS_ZH["text_prompt"] = """根据以下图片信息提供分析：
 
