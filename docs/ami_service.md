@@ -18,7 +18,7 @@ ami_rag worker  (ami-rag-worker, hoặc nhúng trong API khi WORKER_ENABLED=true
    ├─ lưu content_list.json vào MinIO
     ├─ describe: mô tả modal (LLM, tuỳ chọn) → descriptions.json
     │    └─ ảnh: caption theo IMAGE_DESCRIBE_MODE — Gemini (có CAPTION_LLM_API_KEY) / VLM / text thô (mục 5.3)
-   ├─ chunk: cắt chunk theo token (CHUNK_SIZE/CHUNK_OVERLAP) → chunks.json
+   ├─ chunk: gom item text liên tiếp + cắt theo ngân sách (CHUNK_SIZE/CHUNK_OVERLAP/CHUNK_MIN_CHARS), prefix tiêu đề doc → chunks.json
    ├─ embed: RemoteEmbedder (HTTP máy B) → upsert Qdrant (delete_by_doc trước, idempotent)
    └─ mark_indexed: ghi trạng thái vào DocStatusStore
         ▼
@@ -150,6 +150,7 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `CAPTION_LLM_TIMEOUT` | `120` | giây/request caption (mỗi ảnh 1 request) |
 | | `CAPTION_LLM_MAX_CONCURRENCY` | `4` | số request caption song song (vừa fetch ảnh MinIO vừa gọi Gemini) |
 | | `CAPTION_LLM_RETRIES` | `2` | retry do client OpenAI tự xử lý |
+| | `CAPTION_LLM_LANGUAGE` | `vi` | ngôn ngữ mô tả ảnh (chữ trong ảnh vẫn ghi nguyên văn); rỗng = dùng prompt gốc. Xem mục 5.3 |
 | OCR service (backend_data) | `PARSE_TEXT_SOURCE` | `backend_data` | nguồn text/table khi parse PDF/DOCX: `backend_data` (pdfplumber/fitz + OCR service) / `mineru` (giữ MinerU). Ảnh vẫn từ MinerU |
 | | `OCR_SERVICE_URL` | `http://171.226.10.153:12006` | service chính: text hierarchy-parse + bảng Qwen |
 | | `OCR_SERVICE_TIMEOUT` | `300` | giây |
@@ -190,6 +191,7 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `MINERU_SOURCE` | rỗng | nguồn model: `huggingface` / `modelscope` / `local`; rỗng = mặc định |
 | | `MINERU_TIMEOUT` | `1800` | giây/tài liệu; `0` = không giới hạn |
 | Chunking | `CHUNK_SIZE` / `CHUNK_OVERLAP` | `1200` / `100` | token |
+| | `CHUNK_MIN_CHARS` | `200` | chunk ngắn hơn ngưỡng này bị gộp vào chunk kề (0 = tắt). Xem mục 5.5 |
 | Queue | `REDIS_URL` | `redis://localhost:6379/0` | |
 | | `RAG_STREAM` | `rag:ingest` | |
 | | `RAG_CONSUMER_GROUP` | `ami-rag` | |
@@ -215,7 +217,7 @@ File mẫu: `.env.ami.example` (copy thành `.env`). Nguồn sự thật: `ami_r
 | | `RERANK_TEXT_FLOOR` | `0.05` | như trên cho nhóm không-image (text/table/equation) |
 | Retrieval | `RETRIEVAL_CHUNK_TOP_K` | `40` | số chunk tối thiểu lấy từ Qdrant trước khi rerank |
 | | `RETRIEVAL_OVERFETCH` | `4` | hệ số nhân lấy ứng viên: `max(RETRIEVAL_CHUNK_TOP_K, top_k * RETRIEVAL_OVERFETCH)` để sau khi rerank vẫn đủ `top_k` kết quả |
-| Pipeline/CLI | `CHUNKER_VERSION` | `v1` | gắn vào collection + registry để kiểm tra tương thích lúc reindex |
+| Pipeline/CLI | `CHUNKER_VERSION` | `v2` | gắn vào collection + registry để kiểm tra tương thích lúc reindex; đổi giá trị ⇒ collection mới + reindex (mục 5.5) |
 | | `CLI_STUCK_PROCESSING_MINUTES` | `60` | doc `processing` quá lâu bị `status` báo là treo |
 | MinIO | `MINIO_ENDPOINT` | `localhost:9000` | |
 | | `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | `minioadmin` / rỗng | |
@@ -313,6 +315,8 @@ Khuyến nghị:
 
 Chế độ (`IMAGE_DESCRIBE_MODE`, xem bảng mục 4): `gemini` (có key) → caption Gemini; `vision` → gửi ảnh cho Qwen VLM (`QWEN_VLM_MODEL`); `none` → **text thô** `_describe_image_raw` = caption + footnotes + ngữ cảnh, không gọi LLM. `auto`: có `CAPTION_LLM_API_KEY` → `gemini`, elif có `QWEN_VLM_MODEL` → `vision`, else → `none`. Legacy `"text"` tự chuyển `"none"` kèm warning (path OCR-ảnh đã xoá).
 
+**Ngôn ngữ mô tả (`CAPTION_LLM_LANGUAGE`, mặc định `vi`; để rỗng = prompt gốc, mô tả tiếng Anh).** Corpus và truy vấn là tiếng Việt nhưng prompt gốc ("comprehensive and detailed") sinh mô tả tiếng Anh dài dòng, làm vector ảnh lệch xa truy vấn. Đo thực tế trên index (cosine giữa vector truy vấn "sân bóng đá cơ sở Hà Đông" và vector chunk ảnh sơ đồ mặt bằng): **caption EN = 0.337, caption VI đầy đủ = 0.484**. Cơ chế: `ImageModalProcessor` nối thêm `vision_prompt_language_note` khi `item_info` có `caption_language`/`doc_title` (do `_stage_describe` truyền vào, lấy từ `CAPTION_LLM_LANGUAGE` và tiêu đề doc) — yêu cầu viết mô tả bằng ngôn ngữ đó, **ghi nguyên văn mọi chữ trong ảnh** (không dịch, không diễn giải) và liệt kê đầy đủ không bỏ sót; với sơ đồ/tổ chức/schematic phải nêu rõ từng phần tử nằm ở đâu so với nhau và mọi mũi tên theo hướng nào; đồng thời cấm bình luận kiểu "matching the context mentioned in the text" vốn làm nhèu nội dung. Đổi biến này cần `ami-rag reindex --all --from-stage describe` (chỉ gọi lại Gemini cho ảnh; chunk text giữ nguyên nên embed trúng cache).
+
 An toàn + chi phí:
 - Mỗi ảnh đúng **1 call Gemini** (không còn ~30s OCR/ảnh); `CAPTION_LLM_MAX_CONCURRENCY` giới hạn số request song song (vừa fetch MinIO vừa gọi Gemini).
 - Gemini lỗi (raise/trả rỗng/quota), ảnh thiếu `asset_key`, ảnh không có gì để nói → **không crash**: rơi về `_describe_image_raw` (text thô caption + footnotes + ngữ cảnh), log warning, `descriptions.json` vẫn ghi. `ImageModalProcessor` nuốt lỗi nội bộ trả dict-repr của item — pipeline phát hiện bằng so khớp để không lưu rác vào chunk.
@@ -335,6 +339,20 @@ Chi tiết hành vi:
 - `extract_tables`: cả hai lỗi → trả `[]` (caller log rồi dùng html pdfplumber — lưới an toàn thứ hai của bảng).
 - Retry chỉ 429/5xx/transport (backoff `0.5×2ⁿ` + jitter), 4xx raise ngay; connect timeout tách riêng `min(10s, timeout)` để fail-fast; message phân biệt `ReadTimeout` (service treo) / `ConnectError` (unreachable) / `ConnectTimeout` (SYN drop).
 - Tắt: `OCR_FALLBACK_ENABLED=false` (toàn bộ), hoặc `OCR_FALLBACK_MODES=table` / `text` / `""` (tắt riêng từng loại / tắt hết). Chất lượng OCR bảng của Vintern-1B trên tài liệu tiếng Việt thật **chưa đo** — xem README repo `vintern-vllm` mục rủi ro.
+
+### 5.5 Chunk (v2): gom dòng + prefix tiêu đề doc
+
+Trước `CHUNKER_VERSION=v2`, mỗi **content_list item** bị chunk riêng. Với `PARSE_TEXT_SOURCE=backend_data` điều đó rất tệ: `raganything/backend_data_extract.py` gom word theo tọa độ `top` nên **mỗi dòng của PDF thành một item** (`build_pdf_content_blocks`), còn doc crawl viết mỗi trường một dòng. Doc `Sổ tay sinh viên 2026` (265 trang, 3372 item) thành **3378 chunk**, phần lớn là một dòng trơ trọi kiểu `- Địa chỉ: Tầng 1 nhà A1, Cơ sở đào tạo Hà Đông` — khớp mọi query "địa chỉ / cơ sở Hà Đông" nhưng không rõ thuộc đơn vị nào, và làm 40 ứng viên rerank gần như trùng lặp.
+
+Ba thay đổi ở `ami_rag/core/vector_pipeline.py`:
+
+1. **Gom item text liên tiếp** trong `_build_chunks` (nối bằng `\n`) rồi mới chia theo ngân sách; buffer chỉ flush khi gặp item modal (image/table/equation) nên ảnh vẫn nằm cạnh text của nó. Chunk lấy `page` của dòng đầu, thêm `page_end` trong payload khi trải nhiều trang. Doc nêu trên: **3378 → 825 chunk**.
+2. **`chunk_text` v2**: tách đoạn theo dòng trống (giữ ranh giới đoạn khi gom lại), đoạn quá dài thì gom **nhiều dòng** tới ngân sách — chỉ dòng đơn dài hơn cả ngân sách mới bị cắt cứng. Chunk ngắn hơn `CHUNK_MIN_CHARS` (mặc định 200, `0` = tắt) được gộp vào chunk kề → hết chunk mồ côi.
+3. **Prefix tiêu đề doc** vào `content` (bỏ qua nếu chunk đã bắt đầu bằng tiêu đề, hay gặp ở bài crawl): `- Địa chỉ: Tầng 1 nhà A1` → `Sổ tay sinh viên 2026 / VIII. PHÒNG KẾ HOẠCH ĐẦU TƯ - Địa chỉ: Nhà B14, ...`. Áp dụng cho **cả chunk ảnh** (ảnh không còn trạng thái "không rõ của doc nào"); tiêu đề cũng nằm trong payload để client hiển thị.
+
+Đổi `CHUNKER_VERSION` ⇒ ra collection Qdrant mới ⇒ phải reindex (xem mục `reindex`): `ami-rag reindex --all --from-stage chunk` (đọc `content_list.json` + `descriptions.json` trong MinIO, **không gọi LLM/Gemini**; chunk ảnh không đổi nên embed trúng cache).
+
+> Chunking không tự kéo ảnh lên top-k. Đo trên index thật (query "sân bóng đá cơ sở Hà Đông", `scripts/diagnose_query.py`): sau chunk v2, chunk ảnh sơ đồ vẫn xếp hạng 246/1123 ở tầng vector, và **không** phải vì rerank — khi ảnh đã có trong ứng viên thì `raw` fusion xếp nó hạng 1 (0.0158 > 0.0129 của text đầu). Thủ phạm là caption tiếng Anh: xem mục 5.3.
 
 ## 6. API
 
@@ -379,6 +397,17 @@ Response (rút gọn; mỗi document có đủ các field, giá trị không áp
 ```
 
 Luồng: `embed_query` (máy B) → vector search Qdrant (`max(RETRIEVAL_CHUNK_TOP_K, top_k * RETRIEVAL_OVERFETCH)` ứng viên) → rerank service (`RERANK_FUSION=rrf` thì xin full scores + fuse 2 nhóm modality, xem mục Rerank) → trả `top_k` document đầu.
+
+**Chẩn đoán 1 query** khi kết quả không như mong đợi (ảnh không lên top-k, chunk trả về vô nghĩa…): `scripts/diagnose_query.py` in ra hạng + điểm vector của từng ứng viên, điểm rerank raw, và kết luận rõ ảnh rơi ở tầng nào.
+
+```bash
+python scripts/diagnose_query.py --query "sân bóng đá cơ sở Hà Đông" --top-k 5
+python scripts/diagnose_query.py --query "..." --output diag.json   # lưu lại để đối chiếu
+```
+
+- **Không có ảnh trong ứng viên vector** → vấn đề embed: kiểm tra caption (mục 5.3, ngôn ngữ), chunk (mục 5.5), hoặc index chưa có chunk ảnh.
+- **Có ảnh trong ứng viên nhưng bị rerank cắt** → vấn đề fusion/weight (`RERANK_FUSION`, `RERANK_VISUAL_WEIGHT`, mục Rerank).
+- Chỉ đọc Qdrant + embed/rerank server (máy B), không ghi gì, **không gọi LLM/Gemini**. Ngoài máy Docker cần trỏ `QDRANT_URL`/`MINIO_ENDPOINT` vào IP container tương ứng (tên service không resolve được từ host).
 
 - `top_k` (1..200) là số document trả về cuối cùng (mặc định `RERANK_TOP_K` khi không gửi).
 - `modality`: `text` | `image` | `table` | `equation` (từ `original_type` của chunk multimodal).
@@ -465,6 +494,13 @@ In workspace, config đang dùng (`embed_model`/`embed_dim`/`chunker_version`), 
   ami-rag reindex --all --from-stage parse --yes       # hoặc --doc <id> cho từng bài crawl
   ```
   Chú ý: `--from-stage parse` parse lại cả PDF/DOCX bằng MinerU (tốn GPU); nếu kho có nhiều file lớn, ưu tiên `--doc <id>` cho riêng doc crawl. Bài crawl sửa nội dung sau này tự chạy đúng luồng mới (ảnh là một phần stage parse, không cần env bật).
+- **Sau khi nâng `CHUNKER_VERSION` (mục 5.5)**: collection đích đổi nên phải reindex lại toàn bộ; stage `chunk` **không gọi LLM/Gemini** (đọc `content_list.json` + `descriptions.json` trong MinIO):
+  ```bash
+  ami-rag reindex --all --from-stage chunk --dry-run   # xem phạm vi + số chunk trúng cache
+  ami-rag reindex --all --from-stage chunk --yes
+  ```
+  Xoá collection cũ sau khi kiểm tra index mới: `ami-rag cleanup --stale-models`.
+- **Sau khi đổi `CAPTION_LLM_LANGUAGE` (mục 5.3)**: `--from-stage describe` để sinh lại mô tả ảnh bằng ngôn ngữ mới (chỉ tốn call Gemini cho ảnh).
 
 Mã thoát: `0` xong, `1` một số doc thất bại, `2` dừng sớm (preflight embed server, lockfile, validation).
 
@@ -634,6 +670,8 @@ uv run pytest tests/ami_service                    # test của ami_rag (hoặc:
 ```
 
 Toàn bộ test dùng fake (không cần dịch vụ ngoài, không cần lightrag — đã gỡ). Suite `tests/ami_service` gồm: API/worker/CLI/pipeline (`test_api.py`, `test_worker.py`, `test_cli.py`, `test_vector_pipeline.py`, `test_doc_status_store.py`) với fake embedder/vector store/parser; observability và stream tests. Test gốc (`tests/*.py`) kiểm tra parser, modal processors, prompt, batch_parser của thư viện.
+
+Ngoài ra có test **live** (`tests/test_retrieval_recall_live.py`, bộ case `tests/retrieval_cases.json`): tự skip nếu API `/readyz` không trả 200, chạy `Hit@5` / `Hit@20` / `Hit@40` + MRR theo modality. Khi muốn đo trước/sau một thay đổi chunk/caption thì chạy bộ này (index phải đã reindex) hoặc `scripts/diagnose_query.py` cho từng query.
 
 ## 11. Phiên bản
 

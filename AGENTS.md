@@ -42,7 +42,42 @@ This project is indexed by GitNexus as **RAG-Anything** (5180 symbols, 9720 rela
 
 <!-- gitnexus:end -->
 
-# Task hiện hành — Crawl images: tải ảnh section 'Hình ảnh' về MinIO (12/10/2026)
+# Task hiện hành — Chunk v2 + caption tiếng Việt: ảnh không lên top-k (18/10/2026)
+
+Trạng thái: **code xong, chưa reindex** (4 commit `9bd1b76`..`5e58db3`). Triệu chứng: query "sân bóng đá cơ sở Hà Đông" trả về toàn chunk `- Địa chỉ: Tầng N, nhà A1, ...` và **không** trả ảnh sơ đồ mặt bằng.
+
+## Chẩn đoán (đo trên index thật, `scripts/diagnose_query.py`)
+1. **0 ảnh trong 400 ứng viên vector.** Chunk ảnh sơ đồ (doc `6a8ee761694f1f325e516aa9` trang 13) xếp hạng **246/1123**, điểm 0.2698; chunk text tốt nhất 0.3945.
+2. **Nguyên nhân 1 — chunk v1 quá mảnh.** `backend_data` tách **mỗi dòng PDF** thành 1 content_list item ⇒ doc 265 trang ra 3378 chunk, ~90% là dòng địa chỉ trùng nội dung.
+3. **Nguyên nhân 2 — caption tiếng Anh.** cos(query, chunk ảnh): caption EN hiện tại **0.337** vs caption VI đầy đủ **0.484**.
+4. **KHÔNG phải lỗi rerank/fusion.** Khi ảnh đã có trong ứng viên, `RERANK_FUSION=raw` xếp ảnh **hạng 1** (0.0158 > 0.0129 của text đầu) ⇒ không cần đụng `RERANK_*` (user đã chốt hoãn, và đo thực tế xác nhận hoãn là đúng).
+
+## Nội dung
+1. `9bd1b76` — `scripts/diagnose_query.py`: in hạng/điểm vector từng ứng viên + điểm rerank raw + kết luận ảnh rơi ở tầng nào. Không gọi LLM/Gemini.
+2. `ec3c6bf` — chunk v2: `_build_chunks` gom item text liên tiếp (flush khi gặp item modal) + `chunk_text` mới (tách đoạn theo dòng trống, gom nhiều dòng, gộp chunk < `CHUNK_MIN_CHARS`) + prefix tiêu đề doc vào `content` (kể cả chunk ảnh); `ami_rag/textnorm.py` (`fold_text`/`with_title`, `crawl_images._fold` dùng chung). `CHUNKER_VERSION` v1→v2.
+3. `5e58db3` — `CAPTION_LLM_LANGUAGE=vi`: `ImageModalProcessor` nối `vision_prompt_language_note` khi `item_info` có `caption_language`/`doc_title`; yêu cầu mô tả tiếng Việt nhưng **ghi nguyên văn chữ trong ảnh, liệt kê đầy đủ không bỏ sót** (đúng yêu cầu user cho ảnh sơ đồ); bỏ dòng `Tóm tắt: Không có`.
+4. commit này — docs (`docs/ami_service.md` §5.5 mới, §5.3, §4 env, §6 diagnose, §7 reindex, §10; `.env.ami.example`; AGENTS.md).
+
+## Verify đã chạy
+- Offline: `pytest tests/ami_service` 183 pass; `ruff check ami_rag tests/ami_service` sạch.
+- Đo thật (không Gemini): doc `Sổ tay sinh viên 2026` 3378 → **825 chunk**; top-40 sau chunk v2 là chunk có chủ đề (`Sổ tay sinh viên 2026 VIII. PHÒNG KẾ HOẠCH ĐẦU TƯ - Địa chỉ: Nhà B14, ...`) thay vì dòng địa chỉ trần.
+- Live test `tests/test_retrieval_recall_live.py` **chạy được** ở máy dev (API :8009, Qdrant `172.23.0.9:6333`, MinIO `172.23.0.12:9000`, embed/rerank `10.170.100.220:8080`).
+
+## Deploy (máy A)
+```bash
+# .env: CHUNKER_VERSION=v2 (+ CHUNK_MIN_CHARS=200 tu dong theo mac dinh)
+ami-rag reindex --all --from-stage chunk --dry-run    # doc cua chay lai chunk, KHONG goi Gemini
+ami-rag reindex --all --from-stage chunk --yes
+# sau khi kiem tra index moi OK:
+ami-rag cleanup --stale-models
+# doi CAPTION_LLM_LANGUAGE=vi (mac dinh) -> sinh lai mo ta anh:
+ami-rag reindex --all --from-stage describe --yes
+```
+Text trong `content_list.json` của doc crawl/PDF đã **mất dấu một phần** (`chỉ`→`chi`, `Tầng`→`Tng`, `vị`→`v`, nhưng `Hà Đông`/`Cơ`/`Phòng` còn dấu) — không phải do repo này, khớp mẫu mất dấu của **OCR service** (`.153:12006`) chứ không phải backend crawl. Cần xử lý upstream; không khôi phục được sau khi đã mất.
+
+---
+
+# Task trước — Crawl images: tải ảnh section 'Hình ảnh' về MinIO (12/10/2026)
 
 Trạng thái: **HOÀN TẤT** (5 commit `c361475`..docs). Quyết định user: **luôn bật, không env tắt** (đã xoá `CRAWL_IMAGES_ENABLED`/`CRAWL_IMAGES_PREFIX`); timeout tải 60s/ảnh; ảnh crawl lưu dưới `ASSET_PREFIX` (`rag-assets/{doc_id}/…`) nên `delete_doc_assets` dọn theo doc.
 
@@ -92,6 +127,8 @@ Chi tiết lịch sử: `git log` (`7221759`..`4c813ca`), `docs/ami_service.md`,
 - Embed client: handshake + probe xác minh model/dim, batch `EMBED_BATCH_SIZE` + `EMBED_MAX_CONCURRENCY`, cache SQLite (`model|dim|instruction_ns|sha256`), retry CHỈ transient (timeout/5xx/429/connect — không bao giờ 4xx), circuit breaker 5 fail liên tiếp → `EmbedCircuitOpen`.
 - OCR service `.153:12006` đã treo toàn cục (accept TCP nhưng ReadTimeout mọi endpoint) → đã có fallback Vinter (`OCR_FALLBACK_*`, `docs/ami_service.md` §5.4): primary lỗi/timeout/rỗng → `VinterOcrClient` :8090, cả hai lỗi → text dùng PyMuPDF local / bảng dùng html pdfplumber. Log warning `chuyển sang fallback Vinter` cho biết service chính đang chết.
 - Caption ảnh (`docs/ami_service.md` §5.3): `IMAGE_DESCRIBE_MODE` `auto|gemini|vision|none`; ảnh được materialize từ MinIO sang temp dir (`img_path`) trước khi gọi processor — đã fix bug vision đọc temp dir đã xoá. Deploy máy A cần `CAPTION_LLM_API_KEY` (env) để bật Gemini; mô tả ảnh đổi → `ami-rag reindex --all --from-stage describe`.
+- Chunk (docs §5.5): `chunk_text` v2 + `_build_chunks` gom item text liên tiếp + prefix tiêu đề doc; `CHUNK_MIN_CHARS` (200) gộp chunk mồ côi. `CHUNKER_VERSION` là **tên collection** — đổi ⇒ phải `reindex --all --from-stage chunk` (không gọi LLM) rồi `cleanup --stale-models`.
+- Chẩn đoán retrieval: `python scripts/diagnose_query.py --query "..."` (chỉ đọc Qdrant + embed/rerank, không Gemini). Ngoài máy Docker phải override `QDRANT_URL=http://172.23.0.9:6333` (pl_data_qdrant) và `MINIO_ENDPOINT=172.23.0.12:9000` — tên service `qdrant`/`minio` không resolve từ host.
 
 ## Bẫy đã biết (bắt buộc nhớ)
 - **`tests/__init__.py` phải tồn tại**: site-packages có package `tests` shadow local dir → `tests.ami_service` import lỗi nếu thiếu.
