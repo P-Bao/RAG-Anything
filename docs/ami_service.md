@@ -317,6 +317,16 @@ Chế độ (`IMAGE_DESCRIBE_MODE`, xem bảng mục 4): `gemini` (có key) → 
 
 **Ngôn ngữ mô tả (`CAPTION_LLM_LANGUAGE`, mặc định `vi`; để rỗng = prompt gốc, mô tả tiếng Anh).** Corpus và truy vấn là tiếng Việt nhưng prompt gốc ("comprehensive and detailed") sinh mô tả tiếng Anh dài dòng, làm vector ảnh lệch xa truy vấn. Đo thực tế trên index (cosine giữa vector truy vấn "sân bóng đá cơ sở Hà Đông" và vector chunk ảnh sơ đồ mặt bằng): **caption EN = 0.337, caption VI đầy đủ = 0.484**. Cơ chế: `ImageModalProcessor` nối thêm `vision_prompt_language_note` khi `item_info` có `caption_language`/`doc_title` (do `_stage_describe` truyền vào, lấy từ `CAPTION_LLM_LANGUAGE` và tiêu đề doc) — yêu cầu viết mô tả bằng ngôn ngữ đó, **ghi nguyên văn mọi chữ trong ảnh** (không dịch, không diễn giải) và liệt kê đầy đủ không bỏ sót; với sơ đồ/tổ chức/schematic phải nêu rõ từng phần tử nằm ở đâu so với nhau và mọi mũi tên theo hướng nào; đồng thời cấm bình luận kiểu "matching the context mentioned in the text" vốn làm nhèu nội dung. Đổi biến này cần `ami-rag reindex --all --from-stage describe` (chỉ gọi lại Gemini cho ảnh; chunk text giữ nguyên nên embed trúng cache).
 
+**Kiểm chứng caption trước khi reindex cả doc**: `scripts/recaption_image.py` đi đúng đường caption của pipeline (cùng processor, prompt, ngữ cảnh, ngôn ngữ) nhưng **dừng trước khi ghi `descriptions.json`/chunk/embed** — thử vài ảnh với chi phí đúng bằng số ảnh đó:
+
+```bash
+python scripts/recaption_image.py --doc <doc_id> --list                    # 0 call: liệt kê ảnh
+python scripts/recaption_image.py --doc <doc_id> --page 13 --prompt-only   # 0 call: in prompt
+python scripts/recaption_image.py --doc <doc_id> --page 13                 # 1 call Gemini mỗi ảnh
+```
+
+Lệnh cuối in ra `description` sinh được và `content` chunk sẽ ghi vào Qdrant. Khi ưng thì áp dụng cho doc: `ami-rag reindex --doc <doc_id> --from-stage describe --yes` (lưu ý: stage describe **ghi đè** `descriptions.json` không có điều kiện — nếu caption lỗi/hết quota thì rơi về text thô, nên xem log trước khi dọn collection cũ).
+
 An toàn + chi phí:
 - Mỗi ảnh đúng **1 call Gemini** (không còn ~30s OCR/ảnh); `CAPTION_LLM_MAX_CONCURRENCY` giới hạn số request song song (vừa fetch MinIO vừa gọi Gemini).
 - Gemini lỗi (raise/trả rỗng/quota), ảnh thiếu `asset_key`, ảnh không có gì để nói → **không crash**: rơi về `_describe_image_raw` (text thô caption + footnotes + ngữ cảnh), log warning, `descriptions.json` vẫn ghi. `ImageModalProcessor` nuốt lỗi nội bộ trả dict-repr của item — pipeline phát hiện bằng so khớp để không lưu rác vào chunk.
