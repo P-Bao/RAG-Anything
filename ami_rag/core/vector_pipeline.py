@@ -164,6 +164,17 @@ def _chunk_id(doc_id: str, content: str, index: int | None = None) -> str:
     return f"chunk-{hashlib.md5(seed.encode()).hexdigest()[:24]}"
 
 
+def _modal_text(item: dict, type_: str) -> str:
+    """Text dùng được của item modal (bảng/công thức) — rỗng nghĩa là không index."""
+    if type_ == "table":
+        return _join_caption(
+            item.get("table_body") or item.get("text") or item.get("table_caption") or ""
+        ).strip()
+    if type_ == "equation":
+        return _join_caption(item.get("text") or item.get("latex") or "").strip()
+    return ""
+
+
 def _format_modal_chunk(type_: str, item: dict, description: str) -> str:
     """Template chunk cho item multimodal (không ghi entity, không gọi LLM)."""
     if type_ == "image":
@@ -179,14 +190,22 @@ def _format_modal_chunk(type_: str, item: dict, description: str) -> str:
         return "\n".join(parts).strip()
     if type_ == "table":
         caption = _join_caption(item.get("table_caption"))
-        body = item.get("table_body") or item.get("text") or str(item)
-        return (
-            f"[Table Content]\nCaption: {caption or 'Không có'}\n"
-            f"Mô tả: {description}\n{body}"
-        ).strip()
+        # Không rơi về str(item): item MinerU thiếu table_body sẽ in thẳng dict-repr
+        # (kèm bbox/path tạm) vào chunk. Chunk không có body thì bị bỏ ở
+        # `_build_chunks` (xem `_modal_text`).
+        body = _join_caption(item.get("table_body") or item.get("text") or "")
+        parts = ["[Table Content]", f"Caption: {caption or 'Không có'}"]
+        # Mô tả rỗng (LLM không với được) thì bỏ hẳn dòng, không để "Mô tả:" trơ trọng.
+        if description.strip():
+            parts.append(f"Mô tả: {description}")
+        parts.append(body)
+        return "\n".join(parts).strip()
     if type_ == "equation":
-        text = item.get("text") or str(item.get("latex", ""))
-        return f"[Equation]\nMô tả: {description}\nCông thức: {text}"
+        text = _join_caption(item.get("text") or item.get("latex") or "")
+        head = "[Equation]"
+        if description.strip():
+            head += f"\nMô tả: {description}"
+        return f"{head}\nCông thức: {text}".strip()
     if type_ == "audio":
         return f"[Audio Content]\n{description}"
     if type_ == "video":
@@ -829,7 +848,7 @@ class VectorPipeline(PipelineRunner):
 
         processor = self.modal_processors.get(type_) or self.modal_processors.get("generic")
         if processor is None:
-            return item.get("text") or item.get("table_body") or str(item)
+            return _join_caption(item.get("text") or item.get("table_body") or "")
         try:
             sections = await processor.generate_chunk_sections(
                 modal_content=item,
@@ -837,9 +856,28 @@ class VectorPipeline(PipelineRunner):
                 item_info=self._describe_item_info(item, index, type_, doc_title),
                 entity_name=None,
             )
-            return sections[0]["description"] if sections else ""
-        except Exception:
-            return item.get("text") or item.get("table_body") or str(item)
+            desc = str(sections[0]["description"]) if sections else ""
+        except Exception as exc:
+            logger.warning(
+                "describe %s doc=%s item=%d lỗi (%s) -> text thô",
+                type_,
+                doc_id,
+                index,
+                type(exc).__name__,
+            )
+            return _join_caption(item.get("text") or item.get("table_body") or "")
+        # Processor nuốt lỗi nội bộ rồi trả str(modal_content) (dict-repr của item)
+        # khi caption func chết (LLM không với được) — nhận ra qua so khớp, không
+        # ghi dict-repr vào descriptions.json (lộ path tạm, rác cho vector).
+        if desc.strip() == str(item).strip():
+            logger.warning(
+                "describe %s doc=%s item=%d: caption func thất bại/rỗng -> text thô",
+                type_,
+                doc_id,
+                index,
+            )
+            return _join_caption(item.get("text") or item.get("table_body") or "")
+        return desc.strip()
 
     def _describe_image_raw(
         self, item: dict, content_list: list[dict], index: int
@@ -960,13 +998,30 @@ class VectorPipeline(PipelineRunner):
             _flush()
             # multimodal: description from describe stage if present, else raw caption
             descs = desc_by_index.get(i) or []
-            description = descs[0] if descs else _join_caption(
-                item.get("image_caption")
-                or item.get("table_caption")
-                or item.get("latex")
-                or item.get("text")
-            )
+            description = descs[0] if descs else ""
+            if not description.strip() or description.strip() == str(item).strip():
+                # Processor nuốt lỗi nội bộ và trả str(modal_content) (dict-repr của
+                # item) khi caption func chết — không được để dict-repr lọt vào
+                # chunk (lộ path tạm /tmp/... và làm loãng text embed). Rơi về
+                # caption/text thô; `table_body` vẫn do _format_modal_chunk ghi.
+                description = _join_caption(
+                    item.get("image_caption")
+                    or item.get("table_caption")
+                    or item.get("latex")
+                    or item.get("text")
+                    or ""
+                )
             content = _format_modal_chunk(t, item, description)
+            # Item modal không có text nào dùng được (vd bảng MinerU thiếu
+            # table_body) thì chunk chỉ còn tiêu đề + nhãn template -> bỏ hẳn,
+            # tránh rác trong ứng viên rerank.
+            if t in ("table", "equation") and not _modal_text(item, t) and not description.strip():
+                logger.info(
+                    "chunk: bỏ item %s không có nội dung text (page=%s)",
+                    t,
+                    item.get("page_idx"),
+                )
+                continue
             chunks.append(
                 Chunk(
                     id=_chunk_id(doc_id, content, chunk_idx),

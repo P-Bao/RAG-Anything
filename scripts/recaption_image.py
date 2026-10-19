@@ -93,6 +93,7 @@ async def run(args: argparse.Namespace) -> None:
               "hoặc QWEN_VLM_MODEL")
         return
 
+    saved: list[str] = []
     caption_func = _build_caption_func(settings) or _build_vision_func(settings)
     processors = _build_modal_processors(settings, caption_func=caption_func)
     proc = processors.get("image") or processors["generic"]
@@ -170,6 +171,9 @@ async def run(args: argparse.Namespace) -> None:
             print(desc[:PREVIEW] + ("…" if len(desc) > PREVIEW else ""))
             print(f"--- chunk content sẽ ghi vào Qdrant ({len(chunk_text)} ký tự) ---")
             print(chunk_text[: PREVIEW + 100] + ("…" if len(chunk_text) > PREVIEW + 100 else ""))
+            saved.append(chunk_text)
+
+    args._saved = "\n\n---\n\n".join(saved)
 
 
 def main() -> None:
@@ -179,10 +183,14 @@ def main() -> None:
     parser.add_argument("--index", type=int, help="chỉ ảnh ở index content_list này")
     parser.add_argument("--list", action="store_true", help="liệt kê ảnh của doc, không gọi LLM")
     parser.add_argument("--prompt-only", action="store_true", help="in prompt, không gọi API")
+    parser.add_argument("--out", help="ghi description sinh được ra file (để so sánh/đo lại)")
     args = parser.parse_args()
     if args.page is None and args.index is None and not args.list and not args.prompt_only:
         parser.error("cần --list, --page, --index hoặc --prompt-only")
     asyncio.run(run(args))
+    if args.out and getattr(args, "_saved", None):
+        Path(args.out).write_text(args._saved, encoding="utf-8")
+        print(f"\nđã ghi description vào {args.out}")
 
 
 if __name__ == "__main__":

@@ -982,6 +982,70 @@ def test_format_image_chunk_drops_empty_summary_line(pipeline):
     )
 
 
+def test_format_table_chunk_without_description_has_no_empty_line():
+    """LLM chết -> mô tả rỗng: bỏ dòng "Mô tả:" thay vì để trơ trọng."""
+    from ami_rag.core.vector_pipeline import _format_modal_chunk
+
+    item = {"type": "table", "table_body": "<table><tr><td>TT</td></tr></table>"}
+    out = _format_modal_chunk("table", item, "")
+    assert "Mô tả:" not in out
+    assert out == "[Table Content]\nCaption: Không có\n<table><tr><td>TT</td></tr></table>"
+
+
+def test_build_chunks_drops_dict_repr_description(pipeline):
+    """Processor chết trả str(modal_content) -> không được để dict-repr lọt vào chunk.
+
+    Đây là lỗi thật đã gặp: Qwen LLM không với được, TableModalProcessor nuốt lỗi
+    và trả dict-repr của item (lộ path /tmp/... của MinerU) làm "mô tả" bảng.
+    """
+    item = {
+        "type": "table",
+        "table_body": "<table><tr><td>TT</td></tr></table>",
+        "img_path": "/tmp/abc123/auto/images/deadbeef.jpg",
+        "page_idx": 7,
+    }
+    descriptions = [{"index": 0, "type": "table", "description": str(item)}]
+    chunks = pipeline._build_chunks("doc_test", [item], descriptions)
+    content = chunks[0].content
+    assert "'type': 'table'" not in content
+    assert "/tmp/abc123" not in content
+    assert "Mô tả:" not in content
+    assert "<table>" in content
+
+
+def test_build_chunks_skips_modal_item_without_any_text(pipeline):
+    """Item MinerU thiếu table_body và không caption/mô tả -> bỏ chunk rác."""
+    content_list = [
+        {"type": "text", "text": "Nội dung trang", "page_idx": 0},
+        {"type": "table", "table_type": "simple_table", "page_idx": 17, "bbox": {"top": 1}},
+    ]
+    chunks = pipeline._build_chunks("doc_test", content_list, descriptions=[])
+    assert [c.modality for c in chunks] == ["text"]
+
+
+async def test_describe_item_table_dict_repr_falls_back_to_body(
+    fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
+):
+    """_describe_item (table) cũng phải nhận ra dict-repr -> trả text thô."""
+
+    class _DictReprProc:
+        def set_content_source(self, content_source, content_format="auto"):
+            pass
+
+        async def generate_chunk_sections(self, modal_content, content_type, item_info=None, entity_name=None):
+            return [{"description": str(modal_content), "entity_info": {}}]
+
+    pipeline = _make_pipeline(
+        fake_embedder, fake_vector_store, fake_asset_store, fake_status_store,
+        IMAGE_DESCRIBE_MODE="gemini",
+    )
+    pipeline.modal_processors = {"table": _DictReprProc()}
+    item = {"type": "table", "table_body": "<table><tr><td>TT</td></tr></table>", "page_idx": 7}
+
+    out = await pipeline._describe_item("table", item, [item], 0, "docX")
+    assert out == "<table><tr><td>TT</td></tr></table>"
+
+
 async def test_describe_image_temp_dir_cleaned_after_stage(
     fake_embedder, fake_vector_store, fake_asset_store, fake_status_store
 ):

@@ -325,7 +325,9 @@ python scripts/recaption_image.py --doc <doc_id> --page 13 --prompt-only   # 0 c
 python scripts/recaption_image.py --doc <doc_id> --page 13                 # 1 call Gemini mỗi ảnh
 ```
 
-Lệnh cuối in ra `description` sinh được và `content` chunk sẽ ghi vào Qdrant. Khi ưng thì áp dụng cho doc: `ami-rag reindex --doc <doc_id> --from-stage describe --yes` (lưu ý: stage describe **ghi đè** `descriptions.json` không có điều kiện — nếu caption lỗi/hết quota thì rơi về text thô, nên xem log trước khi dọn collection cũ).
+Lệnh cuối in ra `description` sinh được và `content` chunk sẽ ghi vào Qdrant.
+
+> **Bảng không có mô tả LLM khi Qwen không với được**: bảng/công thức/generic dùng `QWEN_LLM_BASE_URL` (mặc định `http://vllm:8000/v1`). Nếu host đó chết thì processor nuốt lỗi và trả `str(modal_content)` — dict-repr của item. Pipeline nay nhận ra (so khớp với `str(item)`) ở **cả** `_describe_item` lẫn `_build_chunks` nên dict-repr không còn lọt vào `descriptions.json`/chunk; thay bằng caption/text thô (bảng vẫn giữ nguyên `table_body`). Item bảng không có `table_body` lẫn caption thì bị bỏ khỏi index. Vì việc dọn nằm ở **lúc dựng chunk**, chạy `ami-rag reindex --all --from-stage chunk` là sạch được mà **không tốn call Gemini nào**. Khi ưng thì áp dụng cho doc: `ami-rag reindex --doc <doc_id> --from-stage describe --yes` (lưu ý: stage describe **ghi đè** `descriptions.json` không có điều kiện — nếu caption lỗi/hết quota thì rơi về text thô, nên xem log trước khi dọn collection cũ).
 
 An toàn + chi phí:
 - Mỗi ảnh đúng **1 call Gemini** (không còn ~30s OCR/ảnh); `CAPTION_LLM_MAX_CONCURRENCY` giới hạn số request song song (vừa fetch MinIO vừa gọi Gemini).
