@@ -167,9 +167,7 @@
     "query": "Chi tiết về chương trình đào tạo sinh viên xem tại website daotao ptit edu vn",
     "expected_doc_id": "6a8ee761694f1f325e516aa9",
     "expected_chunk_id": "chunk-ee55531b83ef6e4bb3c9dabd",
-    "source_page": 35,
-    "xfail": true,
-    "xfail_reason": "Low initial semantic alignment or non-discriminating caption in source index"
+    "source_page": 35
   },
   {
     "id": "image_02_nam_hoc_3_4",
@@ -177,9 +175,7 @@
     "query": "NĂM HỌC THỨ BA NĂM HỌC THỨ TƯ",
     "expected_doc_id": "6a8ee761694f1f325e516aa9",
     "expected_chunk_id": "chunk-5dc9c117e5053e98f8575276",
-    "source_page": 53,
-    "xfail": true,
-    "xfail_reason": "Low initial semantic alignment or non-discriminating caption in source index"
+    "source_page": 53
   },
   {
     "id": "image_03_hoc_phan_tu_chon",
@@ -187,66 +183,62 @@
     "query": "Các học phần tự chọn TỔNG CỘNG sơ đồ",
     "expected_doc_id": "6a8ee761694f1f325e516aa9",
     "expected_chunk_id": "chunk-7ceff1503c6c77b94cba2e79",
-    "source_page": 97,
-    "xfail": true,
-    "xfail_reason": "Low initial semantic alignment or non-discriminating caption in source index"
+    "source_page": 97
+  },
+  {
+    "id": "image_loc_01_toa_a2",
+    "modality": "image",
+    "query": "vị trí tòa A2 ở đâu",
+    "expected_doc_id": "6a8ee761694f1f325e516aa9",
+    "expected_chunk_id": "chunk-1c67611cb57e52aac6085fd8",
+    "source_page": 13
+  },
+  {
+    "id": "image_loc_02_bai_xe_may",
+    "modality": "image",
+    "query": "bãi gửi xe máy sinh viên ở đâu",
+    "expected_doc_id": "6a8ee761694f1f325e516aa9",
+    "expected_chunk_id": "chunk-1c67611cb57e52aac6085fd8",
+    "source_page": 13
+  },
+  {
+    "id": "image_loc_03_san_bong_da",
+    "modality": "image",
+    "query": "sân bóng đá của trường ở đâu",
+    "expected_doc_id": "6a8ee761694f1f325e516aa9",
+    "expected_chunk_id": "chunk-1c67611cb57e52aac6085fd8",
+    "source_page": 13
+  },
+  {
+    "id": "image_loc_04_nha_an",
+    "modality": "image",
+    "query": "nhà ăn sinh viên nằm ở chỗ nào",
+    "expected_doc_id": "6a8ee761694f1f325e516aa9",
+    "expected_chunk_id": "chunk-1c67611cb57e52aac6085fd8",
+    "source_page": 13
   },
   {
     "id": "image_map_01_so_do_truong",
     "modality": "image",
-    "query": "Sơ đồ trường Học viện Công nghệ Bưu chính Viễn thông",
+    "query": "cho mình xem sơ đồ mặt bằng trường PTIT",
     "expected_doc_id": "6a8ee761694f1f325e516aa9",
-    "expected_chunk_id": "chunk-93995145b2ff4e7b87f2480d",
-    "source_page": 14,
-    "xfail": true,
-    "xfail_reason": "Low initial semantic alignment or non-discriminating caption in source index"
+    "expected_chunk_id": "chunk-1c67611cb57e52aac6085fd8",
+    "source_page": 13
   },
   {
-    "id": "image_map_02_mat_bang_ha_dong",
+    "id": "image_map_02_chi_dan_toa_nha",
     "modality": "image",
-    "query": "Bản đồ mặt bằng khuôn viên cơ sở đào tạo Hà Đông PTIT",
+    "query": "sơ đồ chỉ dẫn các tòa nhà trong trường",
     "expected_doc_id": "6a8ee761694f1f325e516aa9",
-    "expected_chunk_id": "chunk-93995145b2ff4e7b87f2480d",
-    "source_page": 14,
-    "xfail": true,
-    "xfail_reason": "Low initial semantic alignment or non-discriminating caption in source index"
+    "expected_chunk_id": "chunk-1c67611cb57e52aac6085fd8",
+    "source_page": 13
   },
   {
-    "id": "image_map_03_toa_nha_a1_a2_a3",
+    "id": "image_map_03_khuon_vien_ha_dong",
     "modality": "image",
-    "query": "Sơ đồ chỉ dẫn các tòa nhà nhà A1 A2 A3 trong trường Học viện",
+    "query": "ảnh sơ đồ khuôn viên cơ sở Hà Đông",
     "expected_doc_id": "6a8ee761694f1f325e516aa9",
-    "expected_chunk_id": "chunk-93995145b2ff4e7b87f2480d",
-    "source_page": 14
-  },
-  {
-    "id": "image_org_01_co_cau_to_chuc",
-    "modality": "image",
-    "query": "Sơ đồ cơ cấu tổ chức của Học viện Công nghệ Bưu chính Viễn thông",
-    "expected_doc_id": "6a8ee761694f1f325e516aa9",
-    "expected_chunk_id": "chunk-bbfbaf6cd1d8388a9018be35",
-    "source_page": 10,
-    "xfail": true,
-    "xfail_reason": "Low initial semantic alignment or non-discriminating caption in source index"
-  },
-  {
-    "id": "image_overview_01_tong_quan",
-    "modality": "image",
-    "query": "Hình ảnh tổng quan về Học viện Công nghệ Bưu chính Viễn thông",
-    "expected_doc_id": "6a8ee761694f1f325e516aa9",
-    "expected_chunk_id": "chunk-a7002bf74b528efb35c82526",
-    "source_page": 4,
-    "xfail": true,
-    "xfail_reason": "Low initial semantic alignment or non-discriminating caption in source index"
-  },
-  {
-    "id": "image_units_01_don_vi_ha_noi",
-    "modality": "image",
-    "query": "Sơ đồ các đơn vị trong Học viện và cơ sở đào tạo Hà Nội",
-    "expected_doc_id": "6a8ee761694f1f325e516aa9",
-    "expected_chunk_id": "chunk-a41def57c7e34c8f63e70017",
-    "source_page": 11,
-    "xfail": true,
-    "xfail_reason": "Low initial semantic alignment or non-discriminating caption in source index"
+    "expected_chunk_id": "chunk-1c67611cb57e52aac6085fd8",
+    "source_page": 13
   }
 ]
