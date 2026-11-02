@@ -15,6 +15,8 @@ import asyncio
 import sys
 import types
 
+import pytest
+
 
 class FakeLogger:
     def info(self, *args, **kwargs):
@@ -81,7 +83,25 @@ def _install_fake_shared_storage():
     sys.modules["lightrag.kg.shared_storage"] = fake
 
 
-_install_fake_shared_storage()
+_REAL_KG_MODULE = sys.modules.get("lightrag.kg")
+_REAL_SHARED_MODULE = sys.modules.get("lightrag.kg.shared_storage")
+
+
+@pytest.fixture(autouse=True)
+def _fake_shared_storage():
+    """Install the fake only for this module's tests, then restore the real
+    modules: a global sys.modules swap here would poison any later test that
+    initializes real LightRAG (e.g. kg_factory wiring tests)."""
+    _install_fake_shared_storage()
+    yield
+    for name, real in (
+        ("lightrag.kg", _REAL_KG_MODULE),
+        ("lightrag.kg.shared_storage", _REAL_SHARED_MODULE),
+    ):
+        if real is not None:
+            sys.modules[name] = real
+        else:
+            sys.modules.pop(name, None)
 
 
 class FakeDocStatus:

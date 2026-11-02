@@ -75,6 +75,13 @@ class RAGAnything(QueryMixin, ProcessorMixin, BatchMixin):
     vision_model_func: Optional[Callable] = field(default=None)
     """Vision model function for image analysis."""
 
+    modal_caption_func: Optional[Callable] = field(default=None)
+    """Caption func for image processors; wins over vision_model_func.
+
+    Set this (not vision_model_func) to inject a dedicated caption LLM:
+    vision_model_func also gates VLM-enhanced query, so passing a caption
+    func there would silently enable it."""
+
     embedding_func: Optional[Callable] = field(default=None)
     """Embedding function for text vectorization."""
 
@@ -230,7 +237,9 @@ class RAGAnything(QueryMixin, ProcessorMixin, BatchMixin):
         if self.config.enable_image_processing:
             self.modal_processors["image"] = ImageModalProcessor(
                 lightrag=self.lightrag,
-                modal_caption_func=self.vision_model_func or self.llm_model_func,
+                modal_caption_func=self.modal_caption_func
+                or self.vision_model_func
+                or self.llm_model_func,
                 context_extractor=self.context_extractor,
             )
 
@@ -274,7 +283,9 @@ class RAGAnything(QueryMixin, ProcessorMixin, BatchMixin):
 
                 self.modal_processors["video"] = VideoModalProcessor(
                     lightrag=self.lightrag,
-                    modal_caption_func=self.vision_model_func or self.llm_model_func,
+                    modal_caption_func=self.modal_caption_func
+                    or self.vision_model_func
+                    or self.llm_model_func,
                     context_extractor=self.context_extractor,
                     min_scene_duration=get_env_value(
                         "VIDEO_MIN_SCENE_DURATION", 5.0, float
