@@ -17,6 +17,7 @@ DEFAULT_ENDPOINT = "localhost:9000"
 DEFAULT_BUCKET = "ami-data-documents"
 DEFAULT_PREFIX = "rag-assets"
 CONTENT_LIST_NAME = "content_list.json"
+DESCRIPTIONS_NAME = "descriptions.json"
 
 
 def _env(name: str, default: str = "") -> str:
@@ -50,6 +51,22 @@ def extract_captions(content_list: list[dict]) -> dict[str, str]:
         if caption:
             captions[key] = caption
     return captions
+
+
+def extract_descriptions(descriptions: list[dict]) -> dict[int, str]:
+    """Map item index -> LLM description from their descriptions.json artifact.
+
+    Their describe stage persists ``{"index", "type", "description"}`` there
+    (content_list.json keeps the original MinerU caption fields untouched).
+    """
+    out: dict[int, str] = {}
+    for entry in descriptions or []:
+        if not isinstance(entry, dict):
+            continue
+        desc = str(entry.get("description") or "").strip()
+        if desc and isinstance(entry.get("index"), int):
+            out[entry["index"]] = desc
+    return out
 
 
 class CaptionReuseStore:
@@ -97,3 +114,21 @@ class CaptionReuseStore:
         if content_list is None:
             return {}
         return extract_captions(content_list)
+
+    def load_descriptions(self, doc_id: str) -> list[dict] | None:
+        """Their describe-stage artifact (LLM captions), None when absent."""
+        response = self._client.get_object(
+            self.bucket, f"{self.prefix}/{doc_id}/{DESCRIPTIONS_NAME}"
+        )
+        try:
+            return json.loads(response.read().decode("utf-8"))
+        finally:
+            response.close()
+            response.release_conn()
+
+    def get_descriptions(self, doc_id: str) -> dict[int, str]:
+        """``item index`` -> LLM description (empty dict when absent)."""
+        descriptions = self.load_descriptions(doc_id)
+        if descriptions is None:
+            return {}
+        return extract_descriptions(descriptions)
