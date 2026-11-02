@@ -1,0 +1,13 @@
+.venv
+.git
+.gitignore
+logs
+rag_storage
+.pytest_cache
+.ruff_cache
+tests
+docs
+monitoring
+Makefile
+*.md
+.env

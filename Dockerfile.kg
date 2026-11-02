@@ -1,0 +1,14 @@
+# KG index runner: batch PDF indexing/query via scripts/kg_index_pdfs.py
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY pyproject.toml setup.py requirements.txt MANIFEST.in README.md LICENSE ./
+COPY raganything ./raganything
+COPY scripts ./scripts
+
+RUN pip install --no-cache-dir .
+
+ENV PYTHONIOENCODING=utf-8 KG_WORKING_DIR=/app/rag_storage
+
+CMD ["python", "scripts/kg_index_pdfs.py", "--help"]

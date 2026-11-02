@@ -56,6 +56,27 @@ Nhánh chỉ tồn tại local (chưa push) — clone xong phải có nhánh
 9. Index thêm: `make index-pdf BG=1 ARGS="--limit 10"` rồi
    `tail -f logs/index-pdf-*.log`.
 
+### Docker (one-shot runner)
+
+Image cài đủ deps pyproject (kể cả `mineru[core]` — nặng nhưng bắt buộc vì
+`RAGAnything` init kiểm tra `MineruParser.check_installation()`, dù script
+không parse). Storage nằm trong volume `rag-storage` — **không chạy 2 index
+song song**.
+
+```bash
+cp .env.example .env            # host = tên container trên ami-network khi chạy kèm hạ tầng
+make docker-build
+make docker-index-pdf ARGS="--limit 2 --dry-run"
+make docker-index-pdf ARGS="--limit 2"
+make docker-index-status
+make docker-query Q="chương trình AI-RAG do ai phụ trách?"
+make docker-clean               # xóa container + volume + image local
+```
+
+Yêu cầu: network `ami-network` tồn tại (`docker network create ami-network`)
+và `.env` có trước khi `run` (env_file). Local `make index-pdf` và docker
+dùng chung quy ước `ARGS`/`Q`/`MODE`/`BG`-không-có — BG chỉ cho local.
+
 ## Environment variables
 
 | Var | Mặc định | Vai trò |

@@ -1,0 +1,24 @@
+# KG branch runner: one-shot container for kg_index_pdfs.py (index/status/query).
+# No long-running service. .env supplies QWEN/NEMOTRON/MINIO/RERANK hosts
+# (container names on the external network when deployed beside them).
+services:
+  kg-rag:
+    build:
+      context: .
+      dockerfile: Dockerfile.kg
+    container_name: kg-rag
+    env_file: .env
+    environment:
+      KG_WORKING_DIR: /app/rag_storage
+    volumes:
+      - rag-storage:/app/rag_storage
+      - ./logs:/app/logs
+    networks:
+      - ami-network
+
+volumes:
+  rag-storage
+
+networks:
+  ami-network:
+    external: true
