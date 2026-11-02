@@ -18,6 +18,7 @@ help:
 	@echo "  make index-pdf    - Index PDF da parse tu MinIO (ami-multimodal-retrieval)"
 	@echo "                      ARGS='--doc <id>' | ARGS='--limit 2 --dry-run' | BG=1 de chay nen"
 	@echo "  make index-status - Dem entity/relation/chunk trong KG local"
+	@echo "  make query        - Query KG: make query Q='cau hoi' [MODE=mix]"
 	@echo "  make clean        - Xoa cache pytest/rag_storage tam"
 
 setup:
@@ -49,6 +50,12 @@ endif
 
 index-status:
 	uv run python scripts/kg_index_pdfs.py status
+
+# Query KG (mode mix: KG + vector, thinking ON qua role config).
+#   make query Q="chuong trinh AI-RAG do ai phu track?"
+query:
+	@test -n "$(Q)" || { echo "usage: make query Q='<question>' [MODE=hybrid]"; exit 2; }
+	uv run python scripts/kg_index_pdfs.py query "$(Q)" $(if $(MODE),--mode $(MODE))
 
 clean:
 	rm -rf .pytest_cache

@@ -8,6 +8,7 @@ document and inserts it into LightRAG: chunking + Qwen3.5 entity extraction
 Subcommands:
   index   --doc ID [--doc ID ...] | --limit N [--dry-run]
   status                     - entity/relation/chunk counts of the local KG
+  query   QUERY [QUERY ...]  - aquery (mode mix, thinking ON via role config)
 """
 
 from __future__ import annotations
@@ -178,6 +179,21 @@ async def cmd_status(_args: argparse.Namespace) -> int:
     return 0
 
 
+async def cmd_query(args: argparse.Namespace) -> int:
+    rag = build_kg_raganything(
+        lightrag_kwargs={"working_dir": _env("KG_WORKING_DIR", "./rag_storage")}
+    )
+    init = await rag._ensure_lightrag_initialized()
+    if not init.get("success"):
+        print(f"LightRAG init failed: {init.get('error')}")
+        return 1
+    for query in args.query:
+        print(f"Q: {query}")
+        print(await rag.aquery(query, mode=args.mode))
+        print()
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -190,6 +206,11 @@ def main() -> int:
 
     p_status = sub.add_parser("status", help="show KG counts")
     p_status.set_defaults(func=cmd_status)
+
+    p_query = sub.add_parser("query", help="query the KG")
+    p_query.add_argument("query", nargs="+", help="question(s)")
+    p_query.add_argument("--mode", default="mix", help="local|global|hybrid|naive|mix")
+    p_query.set_defaults(func=cmd_query)
 
     args = parser.parse_args()
     return asyncio.run(args.func(args))

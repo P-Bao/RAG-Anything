@@ -28,6 +28,32 @@ make setup        # uv sync --extra text (lightrag-hku>=1.5.7,<2, minio, mineru)
 make test         # pytest (tests/ami_service là của nhánh vector, bỏ qua)
 ```
 
+### Từ lúc clone xong
+
+Nhánh chỉ tồn tại local (chưa push) — clone xong phải có nhánh
+`feature/kg-qwen35-nemotron` (push trước hoặc làm việc trực tiếp trên máy này).
+
+1. **Yêu cầu hạ tầng sống** (kiểm tra trước khi chạy):
+   - Qwen3.5 vLLM OpenAI-compatible (`QWEN_LLM_BASE_URL`, mặc định `:8000/v1`)
+   - Gateway nemotron (`NEMOTRON_EMBED_URL`, mặc định `:8080`)
+   - MinIO của ami-multimodal-retrieval (`MINIO_ENDPOINT`, mặc định `:9000`,
+     bucket `ami-data-documents`, prefix `rag-assets`) — chỉ đọc
+2. `git switch feature/kg-qwen35-nemotron && make setup`
+3. Export env (xem bảng dưới): tối thiểu `QWEN_LLM_BASE_URL`,
+   `NEMOTRON_EMBED_URL`, `MINIO_ENDPOINT`, `MINIO_SECRET_KEY`;
+   `CAPTION_LLM_API_KEY` chỉ cần khi muốn fallback caption Gemini.
+4. `make test` — sanity 450 tests, không cần hạ tầng.
+5. **Dry-run** (không gọi LLM, chỉ xem text assemble + caption reuse):
+   `make index-pdf ARGS="--limit 2 --dry-run"`
+6. **Index thử**: `make index-pdf ARGS="--limit 2"` → dòng
+   `KG totals: entities=N ... in Ns` phải có N > 0 (chặn silent-zero).
+   KHÔNG chạy 2 tiến trình index song song (xem cảnh báo ở dưới).
+7. **Kiểm tra KG**: `make index-status`
+8. **Query smoke**: `uv run python scripts/kg_index_pdfs.py query "câu hỏi"`
+   (mode mặc định `mix`, thinking ON) — xác nhận answer non-null, không rỗng.
+9. Index thêm: `make index-pdf BG=1 ARGS="--limit 10"` rồi
+   `tail -f logs/index-pdf-*.log`.
+
 ## Environment variables
 
 | Var | Mặc định | Vai trò |
