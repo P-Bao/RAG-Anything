@@ -16,7 +16,9 @@ MinIO (ami-multimodal-retrieval, read-only)
                  ├─ gleaning: cùng cấu hình
                  └─ embedding: nemotron-embed-vl-1b-v2 qua gateway :8080
 Storage: file-based (NanoVectorDB + NetworkX graphml) trong KG_WORKING_DIR
-Query: LightRAG mode "mix" (KG + vector, không cần rerank), thinking ON
+Query: LightRAG mode "mix" (KG + vector) + BGE rerank :8010 (query-time
+chunk ordering; service chết → LightRAG warning + giữ thứ tự gốc),
+thinking ON
 VLM-enhanced query: TẮT HẲN (vision_model_func không bao giờ được set —
 xem raganything/kg_factory.py)
 ```
@@ -65,6 +67,9 @@ Nhánh chỉ tồn tại local (chưa push) — clone xong phải có nhánh
 | `NEMOTRON_EMBED_MODEL` | `nvidia/llama-nemotron-embed-vl-1b-v2` | dim 2048 |
 | `NEMOTRON_EMBED_BATCH_SIZE` | `16` | |
 | `NEMOTRON_EMBED_MAX_CONCURRENCY` | `4` | |
+| `RERANK_BASE_URL` | `http://localhost:8010` | BGE rerank service; **rỗng** = tắt rerank |
+| `RERANK_TOP_K` | `5` | fallback khi LightRAG không truyền top_n |
+| `RERANK_TIMEOUT` | `60` | giây |
 | `MINIO_ENDPOINT` | `localhost:9000` | MinIO của ami-multimodal-retrieval (read-only) |
 | `MINIO_BUCKET` | `ami-data-documents` | |
 | `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | `minioadmin` / rỗng | |
@@ -113,6 +118,7 @@ make index-status
 | Entity/relation extraction + gleaning (LightRAG `extract`) | Qwen3.5 | **OFF** | 0.9 | 4000 | ✅ test thật (tuple format sạch, reasoning_content=null) |
 | Keyword extraction query time (`keyword`) | Qwen3.5 | **OFF** | 0.9 | 4000 | ⚠️ cùng wrapper — verify khi chạy smoke query |
 | Query answer (`query`) | Qwen3.5 | **ON** | 0.6 | 4000 | ⚠️ verify khi smoke (content phải non-null cả 2 mode) |
+| Rerank (`rerank_model_func`, query-time chunk ordering) | BGE `bge-reranker-v2-m3` :8010 | n/a | n/a | n/a | ⚠️ verify khi smoke (LightRAG fallback chunks gốc nếu service chết — warning, không fatal) |
 | Embedding (chunk/entity/relation/query) | nemotron vl 1b v2 | n/a | n/a | n/a | ⚠️ verify gateway khi smoke (`/health` + dim 2048) |
 | Caption ảnh (chỉ khi doc chưa có artifact + có key) | Gemini 3.5 flash lite | n/a | server default | server default | ⚠️ port từ ami-multimodal-retrieval — verify 1 call |
 | VLM-enhanced query, audio/video processors | — | — | — | — | ⛔ TẮT: không cấu hình, không đường gọi |
@@ -144,7 +150,7 @@ dashboard JSON) — đừng viết lại từ đầu.
 | Retrieval | LightRAG mix (KG + vector), graphml/NanoVectorDB file-based | Qdrant thuần + rerank |
 | LLM | Qwen3.5-35B-A3B GPTQ-Int4 (localhost) | Qwen self-host cho describe/answer |
 | Embed | nemotron gateway :8080 | nemotron gateway :8080 (giống) |
-| Rerank | Không (KG tự ranking theo graph) | BGE :8010 / nemotron :8080 |
+| Rerank | BGE `bge-reranker-v2-m3` :8010 | BGE :8010 / nemotron :8080 |
 | Caption | Tái sử dụng MinIO artifacts, fallback Gemini | Qwen VLM describe |
 | Ingest | script + Makefile | API + worker + Mongo registry |
 
