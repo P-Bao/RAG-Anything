@@ -44,7 +44,9 @@ def test_factory_wires_bindings_and_disables_vlm_query():
         # Text-only modal processors use the Qwen llm func.
         assert rag.modal_processors["table"].modal_caption_func is rag.llm_model_func
         # Role config reached LightRAG: thinking ON for query only.
-        assert rag.lightrag.role_llm_configs == {"query": {"kwargs": {"thinking": True}}}
+        assert rag.lightrag.role_llm_configs == {
+            "query": {"kwargs": {"thinking": True, "temperature": 0.6}}
+        }
 
 
 def test_factory_caption_none_without_key(monkeypatch):

@@ -10,7 +10,7 @@ from raganything.caption_binding import (
     image_mime,
     openai_style_messages,
 )
-from raganything.caption_reuse import CaptionReuseStore, extract_captions, join_caption
+from raganything.caption_reuse import CaptionReuseStore, join_caption
 
 
 class FakeCompletions:
@@ -67,18 +67,6 @@ def test_caption_func_none_without_api_key(monkeypatch):
     assert build_caption_func() is None
 
 
-def test_extract_captions_maps_asset_keys():
-    content_list = [
-        {"type": "image", "asset_key": "img1", "image_caption": ["a", "b"]},
-        {"type": "image", "asset_key": "img2", "img_caption": "c"},
-        {"type": "table", "asset_key": "tab1", "table_caption": "tbl"},
-        {"type": "image", "asset_key": "img3"},  # no caption
-        {"type": "image", "image_caption": "x"},  # no asset_key
-    ]
-    caps = extract_captions(content_list)
-    assert caps == {"img1": "a b", "img2": "c", "tab1": "tbl"}
-
-
 def test_join_caption_variants():
     assert join_caption(None) == ""
     assert join_caption(["a", None, "b"]) == "a b"
@@ -109,8 +97,11 @@ class FakeMinio:
         if key not in self.store:
             from minio.error import S3Error
 
-            raise S3Error(code="NoSuchKey", message="nope", resource=key, request_id="r",
-                          host_id="h", bucket_name=bucket, object_name=key)
+            raise S3Error(
+                response=SimpleNamespace(status=404, headers={}, read=lambda: b""),
+                code="NoSuchKey", message="nope", resource=key, request_id="r",
+                host_id="h", bucket_name=bucket, object_name=key,
+            )
         return FakeMinioObject(self.store[key])
 
 
@@ -127,6 +118,17 @@ def test_caption_reuse_store_reads_artifact():
         prefix="rag-assets", client=client,
     )
     assert store.content_list_key("doc1") == "rag-assets/doc1/content_list.json"
-    caps = store.get_captions("doc1")
-    assert caps == {"k1": "hello"}
+    assert store.load_content_list("doc1") == [
+        {"type": "image", "asset_key": "k1", "image_caption": "hello"}
+    ]
     assert client.requested == [("ami-data-documents", "rag-assets/doc1/content_list.json")]
+
+
+def test_missing_artifacts_return_none_not_raise():
+    client = FakeMinio({})
+    store = CaptionReuseStore(
+        endpoint="e", access_key="a", secret_key="s", client=client,
+    )
+    assert store.load_content_list("gone") is None
+    assert store.load_descriptions("gone") is None
+    assert store.get_descriptions("gone") == {}

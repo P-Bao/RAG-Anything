@@ -60,8 +60,16 @@ def build_llm_model_func(
         history_messages: list[dict] | None = None,
         hashing_kv: Any = None,
         thinking: bool = False,
+        temperature: float | None = None,
         **kwargs: Any,
     ) -> str:
+        if kwargs.get("image_data"):
+            # Text-only contract: a silently ignored image would produce a
+            # hallucinated description (modalprocessors.py passes image_data).
+            raise RuntimeError(
+                "text-only Qwen binding received image_data; set "
+                "CAPTION_LLM_API_KEY or rely on MinIO caption reuse"
+            )
         messages: list[dict] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -70,7 +78,7 @@ def build_llm_model_func(
         response = await client.chat.completions.create(
             model=model_name,
             messages=messages,
-            temperature=temp,
+            temperature=temperature if temperature is not None else temp,
             max_tokens=max_tok,
             extra_body={"thinking": thinking},
         )
@@ -88,7 +96,8 @@ def build_llm_model_func(
 def role_llm_configs(query_thinking: bool = True) -> dict[str, dict[str, Any]]:
     """Per-role kwargs for ``LightRAG(role_llm_configs=...)``.
 
-    Only the query role overrides defaults, so extract/keyword roles inherit
-    the func default (thinking OFF) and query runs with thinking ON.
+    Only the query role overrides defaults: thinking ON (recommended by the
+    model card) and a lower temperature for grounded answers (extraction
+    keeps 0.9, the LightRAG guidance against greedy decode loops).
     """
-    return {"query": {"kwargs": {"thinking": query_thinking}}}
+    return {"query": {"kwargs": {"thinking": query_thinking, "temperature": 0.6}}}

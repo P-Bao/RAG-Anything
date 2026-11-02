@@ -29,11 +29,18 @@ def _env(name: str, default: str = "") -> str:
 
 
 def format_item(item: dict, description: str) -> str:
-    """Port of their _format_modal_chunk templates (KG branch, text-only)."""
+    """Port of their _format_modal_chunk templates (KG branch, text-only).
+
+    Returns "" when an item carries no usable content: a bare ``[Hình ảnh]``
+    or ``[Bảng]/Chú thích: Không có`` line is noise that would be embedded
+    and entity-extracted as a junk chunk (their _build_chunks dropped those).
+    """
     type_ = str(item.get("type") or "text").lower()
     if type_ == "image":
         captions = join_caption(item.get("image_caption") or item.get("img_caption"))
         footnotes = join_caption(item.get("image_footnote") or item.get("img_footnote"))
+        if not (description or captions or footnotes):
+            return ""
         parts = ["[Hình ảnh]"]
         if description:
             parts.append(description)
@@ -45,6 +52,8 @@ def format_item(item: dict, description: str) -> str:
     if type_ == "table":
         caption = join_caption(item.get("table_caption"))
         body = join_caption(item.get("table_body") or item.get("text") or "")
+        if not (body or caption or description):
+            return ""
         parts = ["[Bảng]", f"Chú thích: {caption or 'Không có'}"]
         if description.strip():
             parts.append(f"Mô tả: {description}")
@@ -79,16 +88,17 @@ def assemble_document_text(
 
 
 async def list_candidate_docs(store: CaptionReuseStore, limit: int) -> list[str]:
-    """Doc ids with a content_list artifact, newest prefix first."""
+    """Doc ids with a content_list artifact, most recently modified first."""
     objects = store._client.list_objects(
         store.bucket, prefix=f"{store.prefix}/", recursive=True
     )
-    docs = []
+    docs: list[tuple[object, str]] = []
     for obj in objects:
         rest = obj.object_name[len(store.prefix) + 1 :]
         if rest.endswith("content_list.json"):
-            docs.append(rest.split("/")[0])
-    return sorted(set(docs), reverse=True)[:limit]
+            docs.append((obj.last_modified, rest.split("/")[0]))
+    docs.sort(key=lambda pair: pair[0], reverse=True)
+    return [doc_id for _, doc_id in docs[:limit]]
 
 
 async def cmd_index(args: argparse.Namespace) -> int:
@@ -129,7 +139,7 @@ async def cmd_index(args: argparse.Namespace) -> int:
                 f"{reused} reused captions, items {counts}"
             )
             continue
-        await rag.ainsert(text)
+        await rag.lightrag.ainsert(text)
         total += 1
         print(
             f"indexed {doc_id}: {reused} reused captions, items {counts}, "

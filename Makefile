@@ -33,11 +33,11 @@ test:
 	PYTHONIOENCODING=utf-8 uv run pytest -q tests --ignore=tests/ami_service
 
 # Index theo MinIO artifacts cua ami-multimodal-retrieval (read-only).
+# KHONG chay 2 tien trinh index cung luc (storage file-based, last-write-wins).
 #   make index-pdf ARGS="--limit 2 --dry-run"
 #   make index-pdf DOC=<doc-id>
 #   make index-pdf BG=1 ARGS="--limit 10"
 index-pdf:
-	@test -n "$(ARGS)" || ARGS="--limit 2"
 ifeq ($(BG),1)
 	@mkdir -p $(LOG_DIR)
 	@f=$(LOG_DIR)/index-pdf-$$(date +%Y%m%d-%H%M%S).log; \

@@ -1,10 +1,10 @@
 """Reuse image/table captions already stored by ami-multimodal-retrieval.
 
-Their pipeline persists each document's parsed items (including captions
-written by the describe stage) to MinIO at ``{ASSET_PREFIX}/{doc_id}/
-content_list.json``. Reading those artifacts instead of calling the caption
-LLM again saves API cost for documents already indexed there.
-Read-only access: this module never writes to their bucket.
+Their pipeline persists each document's parsed items to MinIO at
+``{ASSET_PREFIX}/{doc_id}/content_list.json`` and the describe-stage LLM
+captions to ``descriptions.json`` beside it. Reading those artifacts instead
+of calling the caption LLM again saves API cost for documents already indexed
+there. Read-only access: this module never writes to their bucket.
 """
 
 from __future__ import annotations
@@ -12,6 +12,8 @@ from __future__ import annotations
 import json
 import os
 from typing import Any
+
+from minio.error import S3Error
 
 DEFAULT_ENDPOINT = "localhost:9000"
 DEFAULT_BUCKET = "ami-data-documents"
@@ -33,26 +35,6 @@ def join_caption(value: Any) -> str:
     return str(value)
 
 
-def extract_captions(content_list: list[dict]) -> dict[str, str]:
-    """Map ``asset_key`` -> caption from a content_list artifact.
-
-    Covers image items (``image_caption``/``img_caption``) and table items
-    (``table_caption``). Items without an ``asset_key`` or caption are
-    skipped.
-    """
-    captions: dict[str, str] = {}
-    for item in content_list or []:
-        key = item.get("asset_key")
-        if not key:
-            continue
-        caption = join_caption(
-            item.get("image_caption") or item.get("img_caption") or item.get("table_caption")
-        ).strip()
-        if caption:
-            captions[key] = caption
-    return captions
-
-
 def extract_descriptions(descriptions: list[dict]) -> dict[int, str]:
     """Map item index -> LLM description from their descriptions.json artifact.
 
@@ -67,6 +49,21 @@ def extract_descriptions(descriptions: list[dict]) -> dict[int, str]:
         if desc and isinstance(entry.get("index"), int):
             out[entry["index"]] = desc
     return out
+
+
+def _read_json_object(client: Any, bucket: str, key: str) -> list[dict] | None:
+    """Read a JSON array object; None when it does not exist."""
+    try:
+        response = client.get_object(bucket, key)
+    except S3Error as exc:
+        if exc.code == "NoSuchKey":
+            return None
+        raise
+    try:
+        return json.loads(response.read().decode("utf-8"))
+    finally:
+        response.close()
+        response.release_conn()
 
 
 class CaptionReuseStore:
@@ -101,30 +98,13 @@ class CaptionReuseStore:
 
     def load_content_list(self, doc_id: str) -> list[dict] | None:
         """Return the stored content_list, or None when the doc is unknown."""
-        response = self._client.get_object(self.bucket, self.content_list_key(doc_id))
-        try:
-            return json.loads(response.read().decode("utf-8"))
-        finally:
-            response.close()
-            response.release_conn()
-
-    def get_captions(self, doc_id: str) -> dict[str, str]:
-        """Captions for one document: ``asset_key`` -> caption (empty if unknown)."""
-        content_list = self.load_content_list(doc_id)
-        if content_list is None:
-            return {}
-        return extract_captions(content_list)
+        return _read_json_object(self._client, self.bucket, self.content_list_key(doc_id))
 
     def load_descriptions(self, doc_id: str) -> list[dict] | None:
         """Their describe-stage artifact (LLM captions), None when absent."""
-        response = self._client.get_object(
-            self.bucket, f"{self.prefix}/{doc_id}/{DESCRIPTIONS_NAME}"
+        return _read_json_object(
+            self._client, self.bucket, f"{self.prefix}/{doc_id}/{DESCRIPTIONS_NAME}"
         )
-        try:
-            return json.loads(response.read().decode("utf-8"))
-        finally:
-            response.close()
-            response.release_conn()
 
     def get_descriptions(self, doc_id: str) -> dict[int, str]:
         """``item index`` -> LLM description (empty dict when absent)."""

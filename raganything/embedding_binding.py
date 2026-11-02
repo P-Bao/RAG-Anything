@@ -13,7 +13,6 @@ import asyncio
 import os
 from typing import Any, Callable
 
-import httpx
 from openai import AsyncOpenAI
 
 DEFAULT_URL = "http://localhost:8080"
@@ -90,14 +89,4 @@ def build_embedding_func(
 
     embed_func.model = model_name  # type: ignore[attr-defined]
     embed_func.dim = dim  # type: ignore[attr-defined]
-
-    async def verify() -> tuple[str, int]:
-        """Gateway handshake: /health + one probe embedding -> (model, dim)."""
-        async with httpx.AsyncClient(timeout=10) as hc:
-            resp = await hc.get(f"{base.rstrip('/')}/health")
-            resp.raise_for_status()
-        probe = await embed_func(["ping"], context="document")
-        return model_name, len(probe[0])
-
-    embed_func.verify = verify  # type: ignore[attr-defined]
     return embed_func

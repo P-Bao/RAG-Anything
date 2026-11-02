@@ -73,6 +73,12 @@ make index-status
 - Ingest chậm: ~3-7 phút/chunk (extract + gleaning ở ~17 tok/s). Tăng
   song song bằng `EXTRACT_MAX_ASYNC_LLM`/`KEYWORD_MAX_ASYNC_LLM` (LightRAG
   role env, mặc định 4) khi GPU cho phép.
+- Cache LLM: LightRAG tự cache extraction/keywords/query qua
+  `llm_response_cache` ở tầng operate (không phụ thuộc binding) — chạy lại
+  sau lỗi không phải trả token cho chunk đã extract thành công.
+- **Chỉ chạy 1 tiến trình index** trên cùng `KG_WORKING_DIR`: storage
+  file-based (NanoVectorDB/graphml) là last-write-wins, 2 process song song
+  gây mất dữ liệu im lặng.
 
 ## Audit LLM — mọi call site trên nhánh này
 
@@ -80,7 +86,7 @@ make index-status
 |---|---|---|---|---|---|
 | Entity/relation extraction + gleaning (LightRAG `extract`) | Qwen3.5 | **OFF** | 0.9 | 4000 | ✅ test thật (tuple format sạch, reasoning_content=null) |
 | Keyword extraction query time (`keyword`) | Qwen3.5 | **OFF** | 0.9 | 4000 | ⚠️ cùng wrapper — verify khi chạy smoke query |
-| Query answer (`query`) | Qwen3.5 | **ON** | 0.9 | 4000 | ⚠️ verify khi smoke (content phải non-null cả 2 mode) |
+| Query answer (`query`) | Qwen3.5 | **ON** | 0.6 | 4000 | ⚠️ verify khi smoke (content phải non-null cả 2 mode) |
 | Embedding (chunk/entity/relation/query) | nemotron vl 1b v2 | n/a | n/a | n/a | ⚠️ verify gateway khi smoke (`/health` + dim 2048) |
 | Caption ảnh (chỉ khi doc chưa có artifact + có key) | Gemini 3.5 flash lite | n/a | server default | server default | ⚠️ port từ ami-multimodal-retrieval — verify 1 call |
 | VLM-enhanced query, audio/video processors | — | — | — | — | ⛔ TẮT: không cấu hình, không đường gọi |

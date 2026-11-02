@@ -58,7 +58,22 @@ def test_content_none_raises():
         run(func, "q")
 
 
+def test_image_data_raises_text_only_contract():
+    client = FakeClient("hallucination")
+    func = build_llm_model_func(client=client, model="m")
+    with pytest.raises(RuntimeError, match="image_data"):
+        run(func, "describe", image_data="aGVsbG8=")
+    assert client.chat.completions.calls == []  # no LLM call made
+
+
+def test_temperature_override_via_role_kwarg():
+    client = FakeClient("ok")
+    func = build_llm_model_func(client=client, model="m")
+    run(func, "q", temperature=0.6)
+    assert client.chat.completions.calls[0]["temperature"] == 0.6
+
+
 def test_role_llm_configs_thinking_query_only():
     configs = role_llm_configs()
-    assert configs == {"query": {"kwargs": {"thinking": True}}}
+    assert configs == {"query": {"kwargs": {"thinking": True, "temperature": 0.6}}}
     assert "extract" not in configs and "keyword" not in configs

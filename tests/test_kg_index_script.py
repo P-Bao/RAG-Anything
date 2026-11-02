@@ -25,7 +25,11 @@ def test_format_image_with_reused_caption():
 
 def test_format_image_without_caption_has_no_noise_line():
     text = _kg.format_item({"type": "image"}, description="")
-    assert text == "[Hình ảnh]" and "Tóm tắt" not in text
+    assert text == "" and "Tóm tắt" not in text
+
+
+def test_format_table_without_body_or_caption_is_dropped():
+    assert _kg.format_item({"type": "table", "table_body": ""}, description="") == ""
 
 
 def test_format_table_with_body_and_description():
