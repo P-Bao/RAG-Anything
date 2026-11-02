@@ -16,6 +16,7 @@ import argparse
 import asyncio
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -109,7 +110,9 @@ async def cmd_index(args: argparse.Namespace) -> int:
         return 1
 
     total = 0
+    started = time.monotonic()
     for doc_id in doc_ids:
+        doc_started = time.monotonic()
         content_list = store.load_content_list(doc_id)
         if content_list is None:
             print(f"skip {doc_id}: no content_list artifact")
@@ -128,12 +131,16 @@ async def cmd_index(args: argparse.Namespace) -> int:
             continue
         await rag.ainsert(text)
         total += 1
-        print(f"indexed {doc_id}: {reused} reused captions, items {counts}")
+        print(
+            f"indexed {doc_id}: {reused} reused captions, items {counts}, "
+            f"{time.monotonic() - doc_started:.0f}s"
+        )
     if not args.dry_run:
         lg = rag.lightrag
         print(
             f"KG totals: entities={len(lg.entities_vdb)} "
-            f"relations={len(lg.relationships_vdb)} chunks={len(lg.chunks_vdb)}"
+            f"relations={len(lg.relationships_vdb)} chunks={len(lg.chunks_vdb)} "
+            f"in {time.monotonic() - started:.0f}s"
         )
     return 0
 
