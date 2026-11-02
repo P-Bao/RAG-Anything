@@ -1,0 +1,103 @@
+"""Nemotron VL embedding binding via the nemotron-vl-vllm gateway (KG branch).
+
+Gateway contract (machine B, :8080): ``POST /v1/embeddings`` with
+``{"input": [str items], "input_type": "query"|"document"}``, OpenAI-format
+response. LightRAG 1.5.7 auto-detects the ``context`` parameter on the
+wrapped func and injects ``"query"``/``"document"`` — mapped 1:1 to
+``input_type`` so asymmetric query/passage instructions are used correctly.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import os
+from typing import Any, Callable
+
+import httpx
+from openai import AsyncOpenAI
+
+DEFAULT_URL = "http://localhost:8080"
+DEFAULT_MODEL = "nvidia/llama-nemotron-embed-vl-1b-v2"
+DEFAULT_DIM = 2048
+DEFAULT_BATCH_SIZE = 16
+DEFAULT_MAX_CONCURRENCY = 4
+
+
+def _env(name: str, default: str) -> str:
+    return os.environ.get(name) or default
+
+
+def _int_env(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    return int(raw) if raw else default
+
+
+def build_embedding_func(
+    base_url: str | None = None,
+    model: str | None = None,
+    api_key: str | None = None,
+    embedding_dim: int | None = None,
+    batch_size: int | None = None,
+    max_concurrency: int | None = None,
+    client: AsyncOpenAI | None = None,
+) -> Callable[..., Any]:
+    """Build an async embedding func for ``EmbeddingFunc(func=...)``.
+
+    KG branch is text-only: items are plain strings (chunks, entity and
+    relation descriptions, queries). Batches requests and orders results
+    by response ``index``.
+    """
+    base = base_url or _env("NEMOTRON_EMBED_URL", DEFAULT_URL)
+    model_name = model or _env("NEMOTRON_EMBED_MODEL", DEFAULT_MODEL)
+    dim = embedding_dim or DEFAULT_DIM
+    batch = batch_size or _int_env("NEMOTRON_EMBED_BATCH_SIZE", DEFAULT_BATCH_SIZE)
+    sem = asyncio.Semaphore(
+        max_concurrency or _int_env("NEMOTRON_EMBED_MAX_CONCURRENCY", DEFAULT_MAX_CONCURRENCY)
+    )
+    client = client or AsyncOpenAI(
+        base_url=f"{base.rstrip('/')}/v1",
+        api_key=api_key or _env("NEMOTRON_EMBED_API_KEY", "EMPTY"),
+    )
+
+    async def _embed_batch(texts: list[str], input_type: str) -> list[list[float]]:
+        async with sem:
+            response = await client.embeddings.create(
+                model=model_name,
+                input=texts,
+                extra_body={"input_type": input_type},
+            )
+        vectors = [None] * len(texts)
+        for item in response.data:
+            if not 0 <= item.index < len(texts):
+                raise RuntimeError(f"gateway returned out-of-range index {item.index}")
+            vectors[item.index] = item.embedding
+        if any(v is None for v in vectors):
+            raise RuntimeError(
+                f"gateway returned {sum(v is None for v in vectors)} missing "
+                f"embeddings for {len(texts)} inputs"
+            )
+        return vectors  # type: ignore[return-value]
+
+    async def embed_func(
+        texts: list[str],
+        context: str = "document",
+        **kwargs: Any,
+    ) -> list[list[float]]:
+        input_type = "query" if context == "query" else "document"
+        batches = [texts[i : i + batch] for i in range(0, len(texts), batch)]
+        results = await asyncio.gather(*(_embed_batch(b, input_type) for b in batches))
+        return [v for r in results for v in r]
+
+    embed_func.model = model_name  # type: ignore[attr-defined]
+    embed_func.dim = dim  # type: ignore[attr-defined]
+
+    async def verify() -> tuple[str, int]:
+        """Gateway handshake: /health + one probe embedding -> (model, dim)."""
+        async with httpx.AsyncClient(timeout=10) as hc:
+            resp = await hc.get(f"{base.rstrip('/')}/health")
+            resp.raise_for_status()
+        probe = await embed_func(["ping"], context="document")
+        return model_name, len(probe[0])
+
+    embed_func.verify = verify  # type: ignore[attr-defined]
+    return embed_func
