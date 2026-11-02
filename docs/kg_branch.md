@@ -16,8 +16,10 @@ MinIO (ami-multimodal-retrieval, read-only)
                  ├─ gleaning: cùng cấu hình
                  └─ embedding: nemotron-embed-vl-1b-v2 qua gateway :8080
 Storage: file-based (NanoVectorDB + NetworkX graphml) trong KG_WORKING_DIR
-Query: LightRAG mode "mix" (KG + vector) + BGE rerank :8010 (query-time
-chunk ordering; service chết → LightRAG warning + giữ thứ tự gốc),
+Query: LightRAG mode "mix" (KG + vector) + BGE rerank :8010 — binding gửi
+hết documents (top_k = số documents), trả TẤT CẢ kết quả rerank, LightRAG
+cắt theo RERANK_TOP_K (chunk_top_k); service chết → LightRAG warning + giữ
+thứ tự gốc,
 thinking ON
 VLM-enhanced query: TẮT HẲN (vision_model_func không bao giờ được set —
 xem raganything/kg_factory.py)
@@ -89,8 +91,9 @@ dùng chung quy ước `ARGS`/`Q`/`MODE`/`BG`-không-có — BG chỉ cho local.
 | `NEMOTRON_EMBED_BATCH_SIZE` | `16` | |
 | `NEMOTRON_EMBED_MAX_CONCURRENCY` | `4` | |
 | `RERANK_BASE_URL` | `http://localhost:8010` | BGE rerank service; **rỗng** = tắt rerank |
-| `RERANK_TOP_K` | `5` | fallback khi LightRAG không truyền top_n |
+| `RERANK_TOP_K` | `5` | số chunk cuối cho query (`QueryParam.chunk_top_k`) — binding gửi **hết** documents cho BGE, không chọn khi gọi API |
 | `RERANK_TIMEOUT` | `60` | giây |
+| `MIN_RERANK_SCORE` | `0` | LightRAG lọc ngầm điểm rerank (default 0.5) — `0` = giữ tất cả kết quả rerank, chỉ cắt theo `RERANK_TOP_K` |
 | `MINIO_ENDPOINT` | `localhost:9000` | MinIO của ami-multimodal-retrieval (read-only) |
 | `MINIO_BUCKET` | `ami-data-documents` | |
 | `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | `minioadmin` / rỗng | |

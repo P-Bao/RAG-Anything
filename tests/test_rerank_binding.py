@@ -1,5 +1,7 @@
 """Tests for raganything.rerank_binding (legacy BGE service)."""
 
+import json
+
 import httpx
 import pytest
 
@@ -47,6 +49,38 @@ def test_missing_ranked_indices_falls_back_to_score_sort():
 
     out = asyncio.run(func("q", ["a", "b"], top_n=None))
     assert [r["index"] for r in out] == [1, 0]
+
+
+def test_ignores_top_n_returns_full_ranking():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"scores": [0.1, 0.5, 0.9], "ranked_indices": [2, 1, 0]}
+        )
+
+    func = build_bge_rerank_func(base_url="http://bge", transport=httpx.MockTransport(handler))
+    import asyncio
+
+    out = asyncio.run(func("q", ["a", "b", "c"], top_n=1))
+    assert [r["index"] for r in out] == [2, 1, 0]
+
+
+def test_top_k_equals_document_count_not_top_n():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"scores": [0.1] * 4})
+
+    func = build_bge_rerank_func(base_url="http://bge", transport=httpx.MockTransport(handler))
+    import asyncio
+
+    captured = {}
+
+    def spy(request: httpx.Request) -> httpx.Response:
+        captured.update(json.loads(request.read()))
+        return httpx.Response(200, json={"scores": [0.1] * 4, "ranked_indices": [0, 1, 2, 3]})
+
+    func = build_bge_rerank_func(base_url="http://bge", transport=httpx.MockTransport(spy))
+    out = asyncio.run(func("q", ["a", "b", "c", "d"], top_n=2))
+    assert captured["top_k"] == 4
+    assert len(out) == 4
 
 
 def test_out_of_range_indices_skipped():

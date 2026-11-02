@@ -187,9 +187,12 @@ async def cmd_query(args: argparse.Namespace) -> int:
     if not init.get("success"):
         print(f"LightRAG init failed: {init.get('error')}")
         return 1
+    # Rerank binding returns the FULL ranking; chunk_top_k (RERANK_TOP_K)
+    # is the only cut, applied by LightRAG after reranking.
+    chunk_top_k = int(_env("RERANK_TOP_K", "5") or 5)
     for query in args.query:
         print(f"Q: {query}")
-        print(await rag.aquery(query, mode=args.mode))
+        print(await rag.aquery(query, mode=args.mode, chunk_top_k=chunk_top_k))
         print()
     return 0
 
