@@ -31,7 +31,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from raganything.ingest import ingest
+from raganything.ingest import ingest, kg_totals
 from raganything.retrieval import retrieve_chunks
 
 logger = logging.getLogger(__name__)
@@ -158,17 +158,6 @@ def _references(documents: list[dict]) -> list[dict]:
     return refs
 
 
-def _kg_totals(rag: Any) -> dict[str, int] | None:
-    if rag is None:
-        return None
-    lg = rag.lightrag
-    return {
-        "entities": len(lg.entities_vdb),
-        "relations": len(lg.relationships_vdb),
-        "chunks": len(lg.chunks_vdb),
-    }
-
-
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
@@ -251,7 +240,7 @@ def create_app(
                     "error": app.state.init_error,
                 },
             )
-        return {"status": "ok", "kg": _kg_totals(app.state.rag)}
+        return {"status": "ok", "kg": await kg_totals(app.state.rag)}
 
     # -- /v2/rag/* (bearer auth) -------------------------------------------
     @app.post("/v2/rag/", dependencies=[Depends(verify_api_key)])
@@ -337,7 +326,7 @@ def create_app(
         return {
             "workspace": _env("KG_WORKING_DIR", "./rag_storage"),
             "ready": bool(app.state.ready),
-            "kg": _kg_totals(app.state.rag),
+            "kg": await kg_totals(app.state.rag),
             "queue": app.state.queue.stats(),
             "doc_status_counts": counts,
         }

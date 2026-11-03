@@ -135,6 +135,8 @@ async def cmd_status(_args: argparse.Namespace) -> int:
     from lightrag import LightRAG
     from lightrag.utils import EmbeddingFunc
 
+    from raganything.ingest import kg_totals
+
     async def dummy_llm(prompt, **kw):
         return ""
 
@@ -146,9 +148,10 @@ async def cmd_status(_args: argparse.Namespace) -> int:
         llm_model_func=dummy_llm,
         embedding_func=EmbeddingFunc(embedding_dim=2048, func=dummy_embed),
     )
+    totals = await kg_totals(lg)
     print(
-        f"KG: entities={len(lg.entities_vdb)} "
-        f"relations={len(lg.relationships_vdb)} chunks={len(lg.chunks_vdb)}"
+        f"KG: entities={totals['entities']} "
+        f"relations={totals['relations']} chunks={totals['chunks']}"
     )
     return 0
 

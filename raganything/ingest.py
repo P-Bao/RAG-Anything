@@ -130,14 +130,58 @@ def _summary(source: str, dry_run: bool, started: float) -> dict[str, Any]:
     }
 
 
-def _kg_totals(rag: Any) -> dict[str, int] | None:
+async def _resolve_attr(owner: Any, name: str) -> Any:
+    """Read an attribute that may be a value, a method, or an async property."""
+    raw = getattr(owner, name, None)
+    if raw is None:
+        return None
+    if asyncio.iscoroutine(raw):  # async property (e.g. client_storage)
+        return await raw
+    if callable(raw):
+        result = raw()
+        if asyncio.iscoroutine(result):
+            return await result
+        return result
+    return raw
+
+
+async def _vdb_size(vdb: Any) -> int | None:
+    """Row count of a LightRAG vector store.
+
+    The storage wrappers have no ``__len__``. ``_get_client()`` yields the
+    NanoVectorDB instance whose ``__len__`` is the row count; the
+    ``client_storage`` async property is a fallback and returns the raw
+    storage dict (rows under ``data``), not the client.
+    """
+    try:
+        return len(vdb)
+    except TypeError:
+        pass
+    for attr in ("_get_client", "client_storage"):
+        try:
+            inner = await _resolve_attr(vdb, attr)
+        except Exception:
+            continue
+        if inner is None:
+            continue
+        try:
+            return len(inner)
+        except TypeError:
+            rows = inner.get("data") if hasattr(inner, "get") else None
+            if rows is not None:
+                return len(rows)
+    return None
+
+
+async def kg_totals(rag: Any) -> dict[str, int | None] | None:
+    """Entity/relation/chunk counts of the local KG, or None without a rag."""
     if rag is None:
         return None
-    lg = rag.lightrag
+    lg = getattr(rag, "lightrag", rag)  # accepts a RAGAnything or a LightRAG
     return {
-        "entities": len(lg.entities_vdb),
-        "relations": len(lg.relationships_vdb),
-        "chunks": len(lg.chunks_vdb),
+        "entities": await _vdb_size(lg.entities_vdb),
+        "relations": await _vdb_size(lg.relationships_vdb),
+        "chunks": await _vdb_size(lg.chunks_vdb),
     }
 
 
@@ -189,7 +233,7 @@ async def index_artifacts(
         summary["indexed"] += 1
         _notify(on_doc, "indexed", doc_id, captions=reused, items=counts)
     summary["duration_s"] = round(time.monotonic() - started, 3)
-    summary["totals"] = _kg_totals(rag)
+    summary["totals"] = await kg_totals(rag)
     return summary
 
 
@@ -208,7 +252,7 @@ async def ingest_minio(
     if not ids:
         started = time.monotonic()
         summary = _summary("minio", dry_run, started)
-        summary["totals"] = _kg_totals(rag)
+        summary["totals"] = await kg_totals(rag)
         return summary
     return await index_artifacts(rag, store, ids, dry_run=dry_run, on_doc=on_doc)
 
@@ -254,7 +298,7 @@ async def ingest_mongo(
     summary["total"] = len(docs)
     if not docs:
         summary["duration_s"] = round(time.monotonic() - started, 3)
-        summary["totals"] = _kg_totals(rag)
+        summary["totals"] = await kg_totals(rag)
         return summary
 
     store = CaptionReuseStore()
@@ -290,7 +334,7 @@ async def ingest_mongo(
             summary["skipped"] += 1
 
     summary["duration_s"] = round(time.monotonic() - started, 3)
-    summary["totals"] = _kg_totals(rag)
+    summary["totals"] = await kg_totals(rag)
     return summary
 
 
@@ -420,3 +464,4 @@ async def ingest(
             on_doc=on_doc,
         )
     raise ValueError(f"unknown source: {source!r} (expected 'minio' or 'mongo')")
+

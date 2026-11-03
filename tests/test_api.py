@@ -190,6 +190,42 @@ def test_index_mongo_without_uri_is_400(client):
     assert resp.status_code == 400
 
 
+def test_kg_totals_reads_real_storage_shape():
+    """Real LightRAG storages expose no __len__; NanoVectorDB does, behind an
+    async property (client_storage -> raw storage dict)."""
+    import asyncio
+
+    from raganything.ingest import kg_totals
+
+    class _NanoClient:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def __len__(self):
+            return self._rows
+
+    class _Storage:
+        """Real shape: _get_client() async method + client_storage async property."""
+
+        def __init__(self, rows):
+            self._rows = rows
+
+        async def _get_client(self):
+            return _NanoClient(self._rows)
+
+        @property
+        async def client_storage(self):
+            return {"embedding_dim": 2048, "data": [{}] * 99}
+
+    class _LightRAG:
+        entities_vdb = _Storage(7)
+        relationships_vdb = _Storage(0)
+        chunks_vdb = _Storage(3)
+
+    totals = asyncio.run(kg_totals(_LightRAG()))
+    assert totals == {"entities": 7, "relations": 0, "chunks": 3}
+
+
 def test_status_endpoint(client):
     body = client.get("/v2/rag/status").json()
     assert body["ready"] is True
