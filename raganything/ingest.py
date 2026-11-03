@@ -233,6 +233,9 @@ async def index_artifacts(
                 on_doc, "dry-run", doc_id, chars=len(text), items=counts, captions=reused
             )
             continue
+        # Progress before the insert, not only after: a doc takes minutes and
+        # an empty progress list looks like a hung job.
+        _notify(on_doc, "indexing", doc_id, chars=len(text), items=counts)
         await rag.lightrag.ainsert(text)
         summary["indexed"] += 1
         _notify(on_doc, "indexed", doc_id, captions=reused, items=counts)
@@ -428,6 +431,7 @@ async def _ingest_mongo_doc(
         _notify(on_doc, "skip", doc_id, reason="empty text after assembly")
         return False
 
+    _notify(on_doc, "indexing", doc_id, source=source, chars=len(text), items=counts)
     await rag.lightrag.ainsert(text)
     if state is not None:
         state.mark_indexed(
