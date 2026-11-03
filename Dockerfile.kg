@@ -1,4 +1,5 @@
-# KG index runner: batch PDF indexing/query via scripts/kg_index_pdfs.py
+# KG branch image: one image serves both the resident API (kg-api, port 8009)
+# and the one-shot CLI runner (kg-rag, scripts/kg_index_pdfs.py).
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -13,6 +14,8 @@ COPY pyproject.toml setup.py requirements.txt MANIFEST.in README.md LICENSE ./
 COPY raganything ./raganything
 COPY scripts ./scripts
 
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir ".[service]"
+
+EXPOSE 8009
 
 CMD ["python", "scripts/kg_index_pdfs.py", "--help"]

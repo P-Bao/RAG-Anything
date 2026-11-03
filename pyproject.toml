@@ -34,6 +34,10 @@ dependencies = [
 [project.optional-dependencies]
 image = ["Pillow>=10.0.0"]
 text = ["reportlab>=4.0.0"]
+service = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+]
 office = []  # Requires LibreOffice (external program)
 paddleocr = [
     "paddleocr>=2.7.0",

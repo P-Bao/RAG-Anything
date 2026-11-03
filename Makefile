@@ -8,15 +8,22 @@ SHELL = /bin/bash
 LOG_DIR ?= logs
 COMPOSE_FILE ?= docker-compose.kg.yml
 
-.PHONY: help setup style lint test index-pdf index-status index-mongo query clean \
-	docker-build docker-index-pdf docker-index-status docker-index-mongo docker-query docker-clean
+.PHONY: help setup style lint test api index-pdf index-status index-mongo query clean \
+	network docker-build docker-up docker-down docker-logs docker-restart \
+	docker-index-pdf docker-index-status docker-index-mongo docker-query docker-clean
 
 help:
 	@echo "Available commands:"
-	@echo "  make setup        - Cai dependencies (uv sync --extra text)"
+	@echo "  make setup        - Cai dependencies (uv sync --extra text --extra service)"
 	@echo "  make style        - Format + auto-fix lint (ruff, neu co)"
 	@echo "  make lint         - Kiem tra import smoke (python compileall)"
 	@echo "  make test         - Chay pytest"
+	@echo "  make api          - Chay API server local (port 8009, uvicorn)"
+	@echo "  make network      - Tao docker network ami-network neu chua co"
+	@echo "  make docker-up    - Build + chay kg-api (thuong tru, port 8009)"
+	@echo "  make docker-down  - Dung container kg-api"
+	@echo "  make docker-logs  - Log kg-api"
+	@echo "  make docker-restart - Down roi up lai kg-api"
 	@echo "  make index-pdf    - Index PDF da parse tu MinIO (ami-multimodal-retrieval)"
 	@echo "                      ARGS='--doc <id>' | ARGS='--limit 2 --dry-run' | BG=1 de chay nen"
 	@echo "  make index-status - Dem entity/relation/chunk trong KG local"
@@ -31,7 +38,7 @@ help:
 	@echo "  make clean        - Xoa cache pytest/rag_storage tam"
 
 setup:
-	uv sync --extra text
+	uv sync --extra text --extra service
 
 style:
 	uv run python -m compileall -q raganything scripts
@@ -41,6 +48,11 @@ lint:
 
 test:
 	PYTHONIOENCODING=utf-8 uv run pytest -q tests --ignore=tests/ami_service
+
+# API server local (resident, port 8009 = port cu cua ami-multimodal-retrieval).
+# Env: API_HOST/API_PORT/RAG_API_KEY/MONGO_URI/KG_STATE_COLLECTION (xem .env.example).
+api:
+	uv run python -c "from raganything.api import run; run()"
 
 # Index theo MinIO artifacts cua ami-multimodal-retrieval (read-only).
 # KHONG chay 2 tien trinh index cung luc (storage file-based, last-write-wins).
@@ -70,11 +82,30 @@ clean:
 	rm -rf .pytest_cache
 	find . -path ./.venv -prune -o -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
-# --- Docker (mot-shot runner; KHONG chay 2 index song song cung volume) ---
+# --- Docker ---
 # .env can ton tai (env_file). Host trong .env = ten container tren ami-network.
+# kg-api = service thuong tru (8009); kg-rag = runner mot-shot cho CLI.
+# KHONG chay 2 index song song cung volume.
+
+# Compose khai bao network external nen phai ton tai truoc khi up.
+network:
+	@docker network inspect ami-network >/dev/null 2>&1 || docker network create ami-network
 
 docker-build:
 	docker compose -f $(COMPOSE_FILE) build
+
+docker-up: network
+	docker compose -f $(COMPOSE_FILE) up --build -d kg-api
+
+docker-down:
+	docker compose -f $(COMPOSE_FILE) down --remove-orphans
+
+docker-logs:
+	docker compose -f $(COMPOSE_FILE) logs -f kg-api
+
+docker-restart: network
+	docker compose -f $(COMPOSE_FILE) down --remove-orphans
+	docker compose -f $(COMPOSE_FILE) up --build -d kg-api
 
 docker-index-pdf:
 	docker compose -f $(COMPOSE_FILE) run --rm kg-rag python scripts/kg_index_pdfs.py index $(ARGS)

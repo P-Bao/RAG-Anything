@@ -24,6 +24,8 @@ Doc mới (registry Mongo, `make index-mongo`) — chỉ khi artifact chưa có:
                  ├─ gleaning: cùng cấu hình
                  └─ embedding: nemotron-embed-vl-1b-v2 qua gateway :8080
 Storage: file-based (NanoVectorDB + NetworkX graphml) trong KG_WORKING_DIR
+API server: kg-api :8009 (thường trú) — /v2/rag (retrieval + generate), /v2/rag/index
+  (nhận docs từ MinIO hoặc Mongo; 1 worker, query song song), /v2/rag/status, /readyz
 Query: LightRAG mode "mix" (KG + vector) + BGE rerank :8010 — binding gửi
 hết documents (top_k = số documents), trả TẤT CẢ kết quả rerank, LightRAG
 cắt theo RERANK_TOP_K (chunk_top_k); service chết → LightRAG warning + giữ
@@ -66,28 +68,35 @@ Nhánh chỉ tồn tại local (chưa push) — clone xong phải có nhánh
 9. Index thêm: `make index-pdf BG=1 ARGS="--limit 10"` rồi
    `tail -f logs/index-pdf-*.log`.
 
-### Docker (one-shot runner)
+### Server API (cổng 8009)
 
-Image cài đủ deps pyproject (kể cả `mineru[core]` — nặng nhưng bắt buộc vì
-`RAGAnything` init kiểm tra `MineruParser.check_installation()`, dù script
-không parse). Storage nằm trong volume `rag-storage` — **không chạy 2 index
-song song**.
+Service thường trú thay thế API của `ami-multimodal-retrieval` (cùng cổng 8009,
+cùng kiểu auth bearer). 1 image dùng cho cả `kg-api` (server) và `kg-rag` (CLI).
 
 ```bash
-cp .env.example .env            # host = tên container trên ami-network khi chạy kèm hạ tầng
-make docker-build
-make docker-index-pdf ARGS="--limit 2 --dry-run"
-make docker-index-pdf ARGS="--limit 2"
-make docker-index-status
-make docker-query Q="chương trình AI-RAG do ai phụ trách?"
-make docker-clean               # xóa container + volume + image local
+make api                        # local: uvicorn raganything.api (API_PORT=8009)
+make docker-up                  # build + chạy kg-api detached (restart: unless-stopped)
+make docker-logs                # theo dõi log
+make docker-restart             # down + up lại
+make docker-down                # dừng
 ```
 
-Yêu cầu: network `ami-network` tồn tại (`docker network create ami-network`)
-và `.env` có trước khi `run` (env_file). Local `make index-pdf` và docker
-dùng chung quy ước `ARGS`/`Q`/`MODE`/`BG`-không-có — BG chỉ cho local.
+| Route | Việc |
+|---|---|
+| `GET /` | `{service, version}` |
+| `GET /healthz` | liveness `{status:"ok"}` |
+| `GET /readyz` | readiness: LightRAG đã init + counts KG (503 khi chưa xong) |
+| `POST /v2/rag/` | retrieval: `{query \| messages, top_k, include_references, generate}` → `{query, documents[], references[], meta{latency_ms, requested_top_k, returned, candidates, fusion}}`; `generate=true` thêm `answer` (LLM) |
+| `POST /v2/rag/index` | 202 `{job_id}` — `{source:"minio"\|"mongo", document_ids?, limit?, dry_run?}` **tiếp nhận docs từ MinIO hoặc Mongo** |
+| `GET /v2/rag/index/{job_id}` | trạng thái job + tiến độ từng doc |
+| `GET /v2/rag/status` | counts KG + queue + `doc_status_counts` |
 
-## Environment variables
+- Auth: `Authorization: Bearer $RAG_API_KEY` cho mọi `/v2/rag/*`; `RAG_API_KEY` rỗng = không auth (nội bộ). `GET /`, `/healthz`, `/readyz` mở.
+- Ingest chạy **1 worker** (queue trong process) — storage file-based không ghi song song; **query chạy song song** (mọi storage LightRAG ghi atomic).
+- Trạng thái doc ghi vào collection riêng `KG_STATE_COLLECTION` (mặc định `kg_rag_documents`) — **không** đụng `multimodal_rag_documents`; không có `MONGO_URI` → fallback file JSON.
+- Phiên này **chưa có**: `/admin/*`, `/metrics`, Redis queue, Qdrant, OTEL, `/v2/rag/stream`.
+
+### Docker CLI (one-shot runner)
 
 | Var | Mặc định | Vai trò |
 |---|---|---|
@@ -107,6 +116,9 @@ dùng chung quy ước `ARGS`/`Q`/`MODE`/`BG`-không-có — BG chỉ cho local.
 | `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | `minioadmin` / rỗng | |
 | `ASSET_PREFIX` | `rag-assets` | prefix artifact bên kia |
 | `KG_WORKING_DIR` | `./rag_storage` | storage file-based của KG |
+| `API_HOST` / `API_PORT` | `0.0.0.0` / `8009` | server kg-api (8009 = cổng API cũ) |
+| `RAG_API_KEY` | rỗng | bearer cho `/v2/rag/*`; rỗng = không auth |
+| `KG_STATE_COLLECTION` | `kg_rag_documents` | collection trạng thái ingest (riêng, không dùng chung) |
 | `MONGO_URI` | `mongodb://localhost:27017` | registry production (`make index-mongo`) — **read-only** |
 | `ORG_DB` / `DOC_COLLECTION` | `organization_db` / `documents` | query `{status: "active"}` |
 | `PARSE_METHOD` | `auto` | method MinerU (`auto`/`ocr`/`txt`) |
@@ -144,6 +156,15 @@ make index-status
 # 5. Doc mới theo danh sách Mongo (production upload) — parse nếu thiếu artifact
 make index-mongo ARGS="--limit 5 --dry-run"
 make index-mongo ARGS="--limit 5"
+
+# 6. API server (thay API cũ, cổng 8009)
+make api                                   # local; hoặc: make docker-up (thường trú)
+curl localhost:8009/readyz
+curl -X POST localhost:8009/v2/rag/ -H "Content-Type: application/json" \
+     -d '{"query":"chương trình AI-RAG do ai phụ trách?","generate":true}'
+curl -X POST localhost:8009/v2/rag/index -H "Content-Type: application/json" \
+     -d '{"source":"mongo","limit":5}'
+curl localhost:8009/v2/rag/index/<job_id>
 ```
 
 - Doc đã được ami-multimodal-retrieval index → caption tái sử dụng từ
@@ -197,7 +218,7 @@ select_source(doc):
 | Keyword extraction query time (`keyword`) | Qwen3.5 | **OFF** | 0.9 | 4000 | ⚠️ cùng wrapper — verify khi chạy smoke query |
 | Query answer (`query`) | Qwen3.5 | **ON** | 0.6 | 4000 | ⚠️ verify khi smoke (content phải non-null cả 2 mode) |
 | Rerank (`rerank_model_func`, query-time chunk ordering) | BGE `bge-reranker-v2-m3` :8010 | n/a | n/a | n/a | ⚠️ verify khi smoke (LightRAG fallback chunks gốc nếu service chết — warning, không fatal) |
-| Embedding (chunk/entity/relation/query) | nemotron vl 1b v2 | n/a | n/a | n/a | ⚠️ verify gateway khi smoke (`/health` + dim 2048) |
+| Embedding (chunk/entity/relation/query) | nemotron vl 1b v2 | n/a | n/a | n/a | ⚠️ verify gateway khi smoke (`/health` + dim 2048); query dùng `input_type=query` — `EmbeddingFunc(supports_asymmetric=True)` (thiếu cờ này LightRAG bỏ `context`) |
 | Caption ảnh (doc mới parse hoặc doc chưa có artifact, có key) | Gemini 3.5 flash lite | n/a | server default | server default | ⚠️ port từ ami-multimodal-retrieval - verify 1 call |
 | Parse text/bảng (`make index-mongo`, doc mới, `PARSE_TEXT_SOURCE=backend_data`) | OCR service :12006 (hierarchy-parse + raw_miner_ocr/qwen) | n/a | n/a | n/a | ⚠️ verify khi parse doc mới; lỗi/timeout → fallback Vintern :8090 |
 | VLM-enhanced query, audio/video processors | — | — | — | — | ⛔ TẮT: không cấu hình, không đường gọi |

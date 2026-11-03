@@ -1,7 +1,39 @@
-# KG branch runner: one-shot container for kg_index_pdfs.py (index/status/query).
-# No long-running service. .env supplies QWEN/NEMOTRON/MINIO/RERANK hosts
-# (container names on the external network when deployed beside them).
+# KG branch: resident API (kg-api, port 8009 — the old vector API port) plus a
+# one-shot CLI runner (kg-rag) sharing the same image and KG volume.
+# .env supplies QWEN/NEMOTRON/MINIO/MONGO/OCR/RERANK hosts (container names on
+# the external network when deployed beside them).
 services:
+  kg-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.kg
+    container_name: kg-api
+    env_file: .env
+    environment:
+      KG_WORKING_DIR: /app/rag_storage
+      API_PORT: "8009"
+    command:
+      ["python", "-m", "uvicorn", "raganything.api:app", "--host", "0.0.0.0", "--port", "8009"]
+    ports:
+      - "8009:8009"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8009/healthz', timeout=5).status == 200 else 1)"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    volumes:
+      - rag-storage:/app/rag_storage
+      - mineru-models:/models/huggingface
+      - ./logs:/app/logs
+    networks:
+      - ami-network
+
   kg-rag:
     build:
       context: .
