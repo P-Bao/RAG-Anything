@@ -57,8 +57,8 @@ services:
       - ami-network
 
 volumes:
-  rag-storage
-  mineru-models
+  rag-storage:
+  mineru-models:
 
 networks:
   ami-network:

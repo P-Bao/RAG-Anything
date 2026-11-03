@@ -1,6 +1,6 @@
 # KG branch image: one image serves both the resident API (kg-api, port 8009)
-# and the one-shot CLI runner (kg-rag, scripts/kg_index_pdfs.py).
-FROM python:3.11-slim
+# and the resident ingest worker (kg-rag, python -m raganything.worker).
+FROM python:3.12-slim
 
 WORKDIR /app
 

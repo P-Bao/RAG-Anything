@@ -10,4 +10,5 @@ docs
 monitoring
 Makefile
 *.md
+!README.md
 .env
