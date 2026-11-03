@@ -25,7 +25,12 @@ Doc mới (registry Mongo, `make index-mongo`) — chỉ khi artifact chưa có:
                  └─ embedding: nemotron-embed-vl-1b-v2 qua gateway :8080
 Storage: file-based (NanoVectorDB + NetworkX graphml) trong KG_WORKING_DIR
 API server: kg-api :8009 (thường trú) — /v2/rag (retrieval + generate), /v2/rag/index
-  (nhận docs từ MinIO hoặc Mongo; 1 worker, query song song), /v2/rag/status, /readyz
+  (nhận docs từ MinIO hoặc Mongo; xem worker bên dưới), /v2/rag/status, /readyz
+Worker: kg-rag (thường trú) — kiến trúc giống ami-multimodal-retrieval:
+  kg-api XADD job vào Redis Stream "kg:ingest" → kg-rag XREADGROUP (1 consumer)
+  → chạy ingest → HSET progress → XACK. Chỉ 1 process ghi KG tại một thời điểm;
+  query vẫn song song ở kg-api. Không có REDIS_URL → kg-api tự chạy job
+  trong process (chế độ 1 container, dev).
 Query: LightRAG mode "mix" (KG + vector) + BGE rerank :8010 — binding gửi
 hết documents (top_k = số documents), trả TẤT CẢ kết quả rerank, LightRAG
 cắt theo RERANK_TOP_K (chunk_top_k); service chết → LightRAG warning + giữ
@@ -87,16 +92,18 @@ make docker-down                # dừng
 | `GET /healthz` | liveness `{status:"ok"}` |
 | `GET /readyz` | readiness: LightRAG đã init + counts KG (503 khi chưa xong) |
 | `POST /v2/rag/` | retrieval: `{query \| messages, top_k, include_references, generate}` → `{query, documents[], references[], meta{latency_ms, requested_top_k, returned, candidates, fusion}}`; `generate=true` thêm `answer` (LLM) |
-| `POST /v2/rag/index` | 202 `{job_id}` — `{source:"minio"\|"mongo", document_ids?, limit?, dry_run?}` **tiếp nhận docs từ MinIO hoặc Mongo** |
+| `POST /v2/rag/index` | 202 `{job_id, status, backend}` — `{source:"minio"\|"mongo", document_ids?, limit?, dry_run?}` **tiếp nhận docs từ MinIO hoặc Mongo**; có `REDIS_URL` → enqueue cho worker kg-rag |
+| `GET /v2/rag/index` | 20 job gần nhất (`?limit=`) |
 | `GET /v2/rag/index/{job_id}` | trạng thái job + tiến độ từng doc |
-| `GET /v2/rag/status` | counts KG + queue + `doc_status_counts` |
+| `GET /v2/rag/status` | counts KG + backend queue + `doc_status_counts` |
 
 - Auth: `Authorization: Bearer $RAG_API_KEY` cho mọi `/v2/rag/*`; `RAG_API_KEY` rỗng = không auth (nội bộ). `GET /`, `/healthz`, `/readyz` mở.
-- Ingest chạy **1 worker** (queue trong process) — storage file-based không ghi song song; **query chạy song song** (mọi storage LightRAG ghi atomic).
+- Ingest **không bao giờ chạy 2 lần cùng lúc**: có `REDIS_URL` thì kg-api chỉ enqueue vào Redis Stream và **kg-rag** (container thường trú) chạy tuần tự; không có Redis thì kg-api chạy 1 worker trong process. **Query luôn song song** (mọi storage LightRAG ghi atomic).
+- Job treo do worker bị kill giữa chừng: worker khởi động lại tự `XAUTOCLAIM` job cũ (`KG_WORKER_STALE_SECONDS`), chạy lại an toàn (LightRAG dedup theo content hash).
 - Trạng thái doc ghi vào collection riêng `KG_STATE_COLLECTION` (mặc định `kg_rag_documents`) — **không** đụng `multimodal_rag_documents`; không có `MONGO_URI` → fallback file JSON.
-- Phiên này **chưa có**: `/admin/*`, `/metrics`, Redis queue, Qdrant, OTEL, `/v2/rag/stream`.
+- Phiên này **chưa có**: `/admin/*`, `/metrics`, Qdrant, OTEL, `/v2/rag/stream`.
 
-### Docker CLI (one-shot runner)
+## Environment variables
 
 | Var | Mặc định | Vai trò |
 |---|---|---|
@@ -119,6 +126,11 @@ make docker-down                # dừng
 | `API_HOST` / `API_PORT` | `0.0.0.0` / `8009` | server kg-api (8009 = cổng API cũ) |
 | `RAG_API_KEY` | rỗng | bearer cho `/v2/rag/*`; rỗng = không auth |
 | `KG_STATE_COLLECTION` | `kg_rag_documents` | collection trạng thái ingest (riêng, không dùng chung) |
+| `REDIS_URL` | rỗng | Redis cho hàng đợi job. **Rỗng = kg-api tự chạy job trong process** (dev 1 container). Redis cần bật persistence (AOF/RDB) |
+| `KG_JOB_STREAM` / `KG_JOB_GROUP` | `kg:ingest` / `kg-workers` | stream + consumer group |
+| `KG_WORKER_NAME` | `kg-<hostname>-<pid>` | tên consumer (đặt cố định khi muốn theo dõi 1 worker) |
+| `KG_WORKER_STALE_SECONDS` | `600` | ngưỡng `XAUTOCLAIM` khi worker khởi động |
+| `KG_WORKER_POLL_MS` | `5000` | thời gian block mỗi lần chờ job |
 | `MONGO_URI` | `mongodb://localhost:27017` | registry production (`make index-mongo`) — **read-only** |
 | `ORG_DB` / `DOC_COLLECTION` | `organization_db` / `documents` | query `{status: "active"}` |
 | `PARSE_METHOD` | `auto` | method MinerU (`auto`/`ocr`/`txt`) |
@@ -136,6 +148,26 @@ make docker-down                # dừng
 | `CAPTION_LLM_BASE_URL` | Google OpenAI-compatible | `https://generativelanguage.googleapis.com/v1beta/openai/` |
 | `CAPTION_LLM_MODEL` | `gemini-3.5-flash-lite` | |
 | `CAPTION_LLM_LANGUAGE` | `vi` | |
+
+### Docker
+
+```bash
+cp .env.example .env          # host = tên container trên ami-network; REDIS_URL bắt buộc cho worker
+make docker-build
+make docker-up                # kg-api (8009) + kg-rag (worker), restart: unless-stopped
+make docker-logs              # log cả hai
+make docker-index-pdf LIMIT=2 # enqueue qua API -> worker chạy nền
+make docker-jobs              # theo dõi job
+make docker-index-status      # đọc counts KG trong volume (read-only)
+make docker-query Q="..."     # query read-only qua container one-shot
+make docker-cli ARGS="index --limit 2"   # ingest one-shot: cấm khi worker đang chạy (FORCE=1 override)
+make docker-down              # dừng (giữ volume/KG)
+make docker-clean             # down -v --rmi local: XOÁ luôn KG
+```
+
+- Network `ami-network` phải tồn tại (`make network`); `.env` phải có trước khi `up` (env_file).
+- `docker compose run --rm kg-rag ...` vẫn dùng được cho lệnh read-only (`status`, `query`); container one-shot tự xoá sau khi xong (`--rm`).
+- Index chỉ nên đi 1 đường: qua API/worker (khuyến nghị) **hoặc** CLI one-shot khi worker đã down — không chạy cả hai.
 
 ## Runbook
 
@@ -162,14 +194,19 @@ make index-mongo ARGS="--limit 5"
 make index-pdf ARGS="--limit 0 --dry-run"
 make index-mongo ARGS="--limit 0 --dry-run"
 
-# 6. API server (thay API cũ, cổng 8009)
-make api                                   # local; hoặc: make docker-up (thường trú)
+# 6. API server + worker (thay API cũ, cổng 8009)
+make api                                   # local, terminal 1
+make worker                                # local, terminal 2 (cần REDIS_URL)
+# hoặc 1 lệnh cho cả hai: make docker-up (kg-api + kg-rag, thường trú)
 curl localhost:8009/readyz
 curl -X POST localhost:8009/v2/rag/ -H "Content-Type: application/json" \
      -d '{"query":"chương trình AI-RAG do ai phụ trách?","generate":true}'
-curl -X POST localhost:8009/v2/rag/index -H "Content-Type: application/json" \
-     -d '{"source":"mongo","limit":5}'
-curl localhost:8009/v2/rag/index/<job_id>
+
+# 7. Index khi server đang chạy: enqueue (không spawn container, không chặn terminal)
+make docker-index-pdf LIMIT=2              # MinIO, DRY=1 để xem trước
+make docker-index-mongo LIMIT=5            # doc cụ thể: curl ... -d '{"source":"mongo","document_ids":["<id>"]}'
+make docker-jobs                           # 20 job gần nhất
+make docker-jobs JOB=<job_id>              # tiến độ từng doc
 ```
 
 - Doc đã được ami-multimodal-retrieval index → caption tái sử dụng từ
