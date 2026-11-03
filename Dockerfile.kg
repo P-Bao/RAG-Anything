@@ -3,12 +3,16 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# MinerU model cache: mount a volume here to avoid re-downloading per run
+ENV PYTHONIOENCODING=utf-8 \
+    KG_WORKING_DIR=/app/rag_storage \
+    MINERU_MODEL_SOURCE=huggingface \
+    HF_HOME=/models/huggingface
+
 COPY pyproject.toml setup.py requirements.txt MANIFEST.in README.md LICENSE ./
 COPY raganything ./raganything
 COPY scripts ./scripts
 
 RUN pip install --no-cache-dir .
-
-ENV PYTHONIOENCODING=utf-8 KG_WORKING_DIR=/app/rag_storage
 
 CMD ["python", "scripts/kg_index_pdfs.py", "--help"]

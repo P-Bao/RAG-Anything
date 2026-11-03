@@ -8,8 +8,8 @@ SHELL = /bin/bash
 LOG_DIR ?= logs
 COMPOSE_FILE ?= docker-compose.kg.yml
 
-.PHONY: help setup style lint test index-pdf index-status query clean \
-	docker-build docker-index-pdf docker-index-status docker-query docker-clean
+.PHONY: help setup style lint test index-pdf index-status index-mongo query clean \
+	docker-build docker-index-pdf docker-index-status docker-index-mongo docker-query docker-clean
 
 help:
 	@echo "Available commands:"
@@ -20,6 +20,8 @@ help:
 	@echo "  make index-pdf    - Index PDF da parse tu MinIO (ami-multimodal-retrieval)"
 	@echo "                      ARGS='--doc <id>' | ARGS='--limit 2 --dry-run' | BG=1 de chay nen"
 	@echo "  make index-status - Dem entity/relation/chunk trong KG local"
+	@echo "  make index-mongo  - Index theo danh sach Mongo (parse PDF thieu artifacts)"
+	@echo "                      ARGS='--limit 5' | '--doc <ObjectId>' | '--dry-run'"
 	@echo "  make query        - Query KG: make query Q='cau hoi' [MODE=mix]"
 	@echo "  make docker-build       - Build image kg-rag"
 	@echo "  make docker-index-pdf   - Index trong container (ARGS/BG nhu index-pdf)"
@@ -79,6 +81,12 @@ docker-index-pdf:
 
 docker-index-status:
 	docker compose -f $(COMPOSE_FILE) run --rm kg-rag python scripts/kg_index_pdfs.py status
+
+index-mongo:
+	uv run python scripts/kg_index_pdfs.py mongo $(ARGS)
+
+docker-index-mongo:
+	docker compose -f $(COMPOSE_FILE) run --rm kg-rag python scripts/kg_index_pdfs.py mongo $(ARGS)
 
 docker-query:
 	@test -n "$(Q)" || { echo "usage: make docker-query Q='<question>' [MODE=hybrid]"; exit 2; }

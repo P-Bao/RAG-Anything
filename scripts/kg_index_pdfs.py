@@ -7,6 +7,10 @@ document and inserts it into LightRAG: chunking + Qwen3.5 entity extraction
 
 Subcommands:
   index   --doc ID [--doc ID ...] | --limit N [--dry-run]
+  mongo   --doc ObjectId [--doc ...] | --limit N [--dry-run]
+          - docs from the Mongo registry (status=active, read-only);
+            missing MinIO artifacts are parsed (MinerU + backend_data OCR,
+            describe) then indexed; existing artifacts are reused
   status                     - entity/relation/chunk counts of the local KG
   query   QUERY [QUERY ...]  - aquery (mode mix, thinking ON via role config)
 """
@@ -17,11 +21,12 @@ import argparse
 import asyncio
 import os
 import sys
+import tempfile
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from raganything.caption_reuse import CaptionReuseStore, join_caption  # noqa: E402
+from raganything.caption_reuse import CaptionReuseStore, extract_descriptions, join_caption  # noqa: E402
 from raganything.kg_factory import build_kg_raganything  # noqa: E402
 
 
@@ -102,6 +107,16 @@ async def list_candidate_docs(store: CaptionReuseStore, limit: int) -> list[str]
     return [doc_id for _, doc_id in docs[:limit]]
 
 
+def artifact_text(store: CaptionReuseStore, doc_id: str) -> tuple[str, dict, int] | None:
+    """(text, item counts, reused captions) from MinIO artifacts; None when absent."""
+    content_list = store.load_content_list(doc_id)
+    if content_list is None:
+        return None
+    descriptions = store.get_descriptions(doc_id)
+    text, counts = assemble_document_text(content_list, descriptions)
+    return text, counts, len(descriptions)
+
+
 async def cmd_index(args: argparse.Namespace) -> int:
     store = CaptionReuseStore()
     if args.doc:
@@ -124,13 +139,11 @@ async def cmd_index(args: argparse.Namespace) -> int:
     started = time.monotonic()
     for doc_id in doc_ids:
         doc_started = time.monotonic()
-        content_list = store.load_content_list(doc_id)
-        if content_list is None:
+        cached = artifact_text(store, doc_id)
+        if cached is None:
             print(f"skip {doc_id}: no content_list artifact")
             continue
-        descriptions = store.get_descriptions(doc_id)
-        reused = len(descriptions)
-        text, counts = assemble_document_text(content_list, descriptions)
+        text, counts, reused = cached
         if not text.strip():
             print(f"skip {doc_id}: empty text after assembly")
             continue
@@ -147,6 +160,129 @@ async def cmd_index(args: argparse.Namespace) -> int:
             f"{time.monotonic() - doc_started:.0f}s"
         )
     if not args.dry_run:
+        lg = rag.lightrag
+        print(
+            f"KG totals: entities={len(lg.entities_vdb)} "
+            f"relations={len(lg.relationships_vdb)} chunks={len(lg.chunks_vdb)} "
+            f"in {time.monotonic() - started:.0f}s"
+        )
+    return 0
+
+
+async def cmd_mongo(args: argparse.Namespace) -> int:
+    """Index docs from the Mongo registry; parse PDFs missing artifacts first.
+
+    Read-only on Mongo (no status writes): idempotence = artifact already in
+    MinIO -> reuse, else parse + caption + upload (same layout as the sibling
+    pipeline) and index. Dry-run never parses.
+    """
+    from raganything.caption_binding import build_caption_func
+    from raganything.mongo_registry import MongoDocumentRepo, select_source
+    from raganything.parse_pipeline import ParseArtifactStore, parse_and_store
+
+    repo = MongoDocumentRepo()  # raises without MONGO_URI
+    try:
+        if args.doc:
+            docs = [
+                doc
+                for doc in (
+                    await asyncio.to_thread(repo.find_by_id, doc_id)
+                    for doc_id in args.doc
+                )
+                if doc
+            ]
+        else:
+            docs = await asyncio.to_thread(repo.list_active)
+            if args.limit:
+                docs = docs[: args.limit]
+    finally:
+        repo.close()
+    if not docs:
+        print("no active documents found in Mongo")
+        return 1
+
+    store = CaptionReuseStore()
+    parse_store = ParseArtifactStore()
+    caption_func = build_caption_func()
+
+    rag = None
+    if not args.dry_run:
+        rag = build_kg_raganything(
+            lightrag_kwargs={"working_dir": _env("KG_WORKING_DIR", "./rag_storage")}
+        )
+        init = await rag._ensure_lightrag_initialized()
+        if not init.get("success"):
+            print(f"LightRAG init failed: {init.get('error')}")
+            return 1
+
+    total = 0
+    started = time.monotonic()
+    for doc in docs:
+        doc_id = str(doc.get("_id") or "")
+        doc_started = time.monotonic()
+        source = select_source(doc)
+
+        if source == "mongo_text":
+            text = (doc.get("content") or "").strip()
+            if not text:
+                print(f"skip {doc_id}: mongo_text without content")
+                continue
+            if args.dry_run:
+                print(f"[dry-run] {doc_id}: mongo_text, {len(text)} chars")
+                continue
+            await rag.lightrag.ainsert(text)
+            total += 1
+            print(
+                f"indexed {doc_id}: mongo_text {len(text)} chars, "
+                f"{time.monotonic() - doc_started:.0f}s"
+            )
+            continue
+
+        file_path = doc.get("file_path")
+        if not file_path:
+            print(f"skip {doc_id}: minio_parse without file_path")
+            continue
+
+        cached = artifact_text(store, doc_id)
+        if cached is None and args.dry_run:
+            print(f"[dry-run] {doc_id}: PARSE needed, file_path={file_path}")
+            continue
+        if cached is None:
+            print(f"parse {doc_id}: {file_path}")
+            with tempfile.TemporaryDirectory(prefix="kg-parse-") as tmp:
+                try:
+                    local = await asyncio.to_thread(parse_store.fetch, file_path, tmp)
+                    content_list, descriptions = await parse_and_store(
+                        parse_store, doc_id, local, caption_func=caption_func
+                    )
+                except Exception as exc:
+                    print(f"FAILED {doc_id}: parse: {exc}")
+                    continue
+            text, counts = assemble_document_text(
+                content_list, extract_descriptions(descriptions)
+            )
+            reused = sum(
+                1 for d in descriptions if str(d.get("description") or "").strip()
+            )
+        else:
+            text, counts, reused = cached
+        if not text.strip():
+            print(f"skip {doc_id}: empty text after assembly")
+            continue
+        if args.dry_run:
+            print(
+                f"[dry-run] {doc_id}: reuse artifact, {reused} captions, "
+                f"{len(text)} chars, items {counts}"
+            )
+            continue
+        await rag.lightrag.ainsert(text)
+        total += 1
+        print(
+            f"indexed {doc_id}: {reused} captions, items {counts}, "
+            f"{time.monotonic() - doc_started:.0f}s"
+        )
+
+    if rag is not None:
         lg = rag.lightrag
         print(
             f"KG totals: entities={len(lg.entities_vdb)} "
@@ -206,6 +342,14 @@ def main() -> int:
     p_index.add_argument("--limit", type=int, default=2, help="max docs when scanning")
     p_index.add_argument("--dry-run", action="store_true")
     p_index.set_defaults(func=cmd_index)
+
+    p_mongo = sub.add_parser(
+        "mongo", help="index Mongo registry docs (parse PDFs missing artifacts)"
+    )
+    p_mongo.add_argument("--doc", action="append", help="document ObjectId (repeatable)")
+    p_mongo.add_argument("--limit", type=int, default=0, help="max docs (0 = all active)")
+    p_mongo.add_argument("--dry-run", action="store_true")
+    p_mongo.set_defaults(func=cmd_mongo)
 
     p_status = sub.add_parser("status", help="show KG counts")
     p_status.set_defaults(func=cmd_status)

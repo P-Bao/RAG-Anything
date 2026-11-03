@@ -7,10 +7,18 @@ nhất của nhánh; docs còn lại trong `docs/` là của upstream RAG-Anythi
 ## Kiến trúc
 
 ```
-MinIO (ami-multimodal-retrieval, read-only)
+MinIO (ami-multimodal-retrieval)
   └─ rag-assets/{doc_id}/content_list.json + descriptions.json
        └─ kg_index_pdfs.py: ghép text theo template (caption tái sử dụng, 0 call API)
             └─ LightRAG.ainsert
+
+Doc mới (registry Mongo, `make index-mongo`) — chỉ khi artifact chưa có:
+  file gốc (MinIO) → MinerU parse (layout + ảnh)
+    → PARSE_TEXT_SOURCE=backend_data: pdfplumber/PyMuPDF + OCR :12006
+      (fallback Vintern :8090) thay text/bảng
+    → upload ảnh + content_list.json → describe (caption Gemini cho ảnh,
+      bảng raw, công thức LaTeX) → descriptions.json
+    → ghép text → LightRAG.ainsert (như trên)
                  ├─ chunking (LightRAG, ~1200 tokens)
                  ├─ entity/relation extraction: Qwen3.5-35B-A3B GPTQ-Int4, thinking OFF
                  ├─ gleaning: cùng cấu hình
@@ -94,12 +102,25 @@ dùng chung quy ước `ARGS`/`Q`/`MODE`/`BG`-không-có — BG chỉ cho local.
 | `RERANK_TOP_K` | `5` | số chunk cuối cho query (`QueryParam.chunk_top_k`) — binding gửi **hết** documents cho BGE, không chọn khi gọi API |
 | `RERANK_TIMEOUT` | `60` | giây |
 | `MIN_RERANK_SCORE` | `0` | LightRAG lọc ngầm điểm rerank (default 0.5) — `0` = giữ tất cả kết quả rerank, chỉ cắt theo `RERANK_TOP_K` |
-| `MINIO_ENDPOINT` | `localhost:9000` | MinIO của ami-multimodal-retrieval (read-only) |
+| `MINIO_ENDPOINT` | `localhost:9000` | MinIO của ami-multimodal-retrieval; parse stage **ghi** artifact mới (ảnh + content_list + descriptions) |
 | `MINIO_BUCKET` | `ami-data-documents` | |
 | `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | `minioadmin` / rỗng | |
 | `ASSET_PREFIX` | `rag-assets` | prefix artifact bên kia |
 | `KG_WORKING_DIR` | `./rag_storage` | storage file-based của KG |
-| `CAPTION_LLM_API_KEY` | rỗng | đặt thì fallback caption Gemini cho doc chưa có artifact |
+| `MONGO_URI` | `mongodb://localhost:27017` | registry production (`make index-mongo`) — **read-only** |
+| `ORG_DB` / `DOC_COLLECTION` | `organization_db` / `documents` | query `{status: "active"}` |
+| `PARSE_METHOD` | `auto` | method MinerU (`auto`/`ocr`/`txt`) |
+| `PARSE_TEXT_SOURCE` | `backend_data` | `backend_data` = thay text/table bằng pdfplumber/PyMuPDF + OCR; `mineru` = giữ nguyên output MinerU |
+| `MINERU_BACKEND` / `MINERU_LANG` / `MINERU_SOURCE` / `MINERU_TIMEOUT` | rỗng / rỗng / rỗng / `0` | kwargs truyền `parse_document` (parser_kwargs như pipeline bên kia) |
+| `MINERU_DEVICE` / `MINERU_VIRTUAL_VRAM_SIZE` | rỗng / `0` | env subprocess MinerU (`MINERU_DEVICE_MODE`/`MINERU_VIRTUAL_VRAM_SIZE`) |
+| `OCR_SERVICE_URL` | `http://171.226.10.153:12006` | OCR service (text hierarchy-parse + bảng Qwen) |
+| `OCR_SERVICE_TIMEOUT` | `300` | giây |
+| `OCR_TABLE_ENDPOINT` / `OCR_TEXT_ENDPOINT` | `/api/v1/raw_miner_ocr/qwen` / `/api/v1/hierarchy-parse` | |
+| `OCR_FALLBACK_ENABLED` | `true` | fallback Vintern khi OCR service lỗi/timeout/trả rỗng (tắt = `false` hoặc URL rỗng) |
+| `OCR_FALLBACK_URL` / `OCR_FALLBACK_TOKEN` | `http://localhost:8090` / rỗng | vLLM Vintern; token là bearer tuỳ chọn, **không** dùng để tắt |
+| `OCR_FALLBACK_MODEL` / `OCR_FALLBACK_TIMEOUT` / `OCR_FALLBACK_RETRIES` | `5CD-AI/Vintern-1B-v3_5` / `300` / `1` | |
+| `OCR_FALLBACK_ON_EMPTY` / `OCR_FALLBACK_MODES` | `true` / `text,table` | bật fallback khi kết quả rỗng; kind được fallback — **giá trị rỗng = tắt fallback** |
+| `CAPTION_LLM_API_KEY` | rỗng | caption Gemini cho ảnh doc mới parse (không có → fallback `img_caption` trong content_list) |
 | `CAPTION_LLM_BASE_URL` | Google OpenAI-compatible | `https://generativelanguage.googleapis.com/v1beta/openai/` |
 | `CAPTION_LLM_MODEL` | `gemini-3.5-flash-lite` | |
 | `CAPTION_LLM_LANGUAGE` | `vi` | |
@@ -119,12 +140,16 @@ make index-pdf BG=1 ARGS="--limit 10"
 
 # 4. Trạng thái KG
 make index-status
+
+# 5. Doc mới theo danh sách Mongo (production upload) — parse nếu thiếu artifact
+make index-mongo ARGS="--limit 5 --dry-run"
+make index-mongo ARGS="--limit 5"
 ```
 
 - Doc đã được ami-multimodal-retrieval index → caption tái sử dụng từ
   `descriptions.json`, **không tốn API caption**.
-- Thiếu artifact → script skip + warn; muốn index doc mới chưa parse thì phải
-  qua pipeline bên kia (parse MinerU) rồi chạy lại script.
+- `make index-pdf` (scan MinIO): thiếu artifact → skip + warn. Dùng
+  `make index-mongo` cho doc mới chưa parse (xem dưới).
 - Ingest chậm: ~3-7 phút/chunk (extract + gleaning ở ~17 tok/s). Tăng
   song song bằng `EXTRACT_MAX_ASYNC_LLM`/`KEYWORD_MAX_ASYNC_LLM` (LightRAG
   role env, mặc định 4) khi GPU cho phép.
@@ -135,6 +160,35 @@ make index-status
   file-based (NanoVectorDB/graphml) là last-write-wins, 2 process song song
   gây mất dữ liệu im lặng.
 
+### Index theo danh sách Mongo (`make index-mongo`)
+
+Danh sách doc lấy từ registry production (`{ORG_DB}.{DOC_COLLECTION}`,
+query `{status: "active"}` — **read-only, không ghi Mongo**). Mỗi doc:
+
+```
+select_source(doc):
+├─ mongo_text (txt/crawl, không có file) → content trong Mongo → index trực tiếp
+└─ minio_parse (pdf/docx) → rag-assets/<doc_id>/content_list.json tồn tại?
+     ├─ có → reuse artifact + caption (như make index-pdf)
+     └─ không → PARSE: fetch file gốc (doc.file_path) → MinerU (layout + ảnh)
+                → PARSE_TEXT_SOURCE=backend_data: thay text/table bằng
+                  pdfplumber/PyMuPDF + OCR service (fallback Vintern)
+                → upload ảnh + content_list.json (layout như pipeline bên kia)
+                → DESCRIBE: image → CAPTION_LLM (fallback img_caption),
+                  table → TABLE_DESCRIBE_MODE (raw mặc định, không gọi LLM),
+                  equation → LaTeX có sẵn
+                → descriptions.json → assemble → index
+```
+
+- Idempotent: artifact đã tồn tại → skip parse; insert lại do LightRAG dedup.
+- Hạ tầng parse cần sống: MinIO, OCR service (`OCR_SERVICE_URL`),
+  fallback Vintern (`OCR_FALLBACK_URL`, token). OCR service chết/timeout →
+  fallback Vintern; cả hai chết → parse fail cho doc đó, các doc khác chạy tiếp.
+- `PARSE_TEXT_SOURCE=mineru` = escape hatch giữ nguyên output MinerU khi
+  không muốn OCR (chậm hơn về chất lượng text/bảng).
+- Flags: `--limit N`, `--doc <ObjectId>` (lặp được), `--dry-run`
+  (dry-run KHÔNG parse — chỉ liệt kê nguồn/reuse).
+
 ## Audit LLM — mọi call site trên nhánh này
 
 | Call site | Model | thinking | temp | max_tokens | Verified |
@@ -144,7 +198,8 @@ make index-status
 | Query answer (`query`) | Qwen3.5 | **ON** | 0.6 | 4000 | ⚠️ verify khi smoke (content phải non-null cả 2 mode) |
 | Rerank (`rerank_model_func`, query-time chunk ordering) | BGE `bge-reranker-v2-m3` :8010 | n/a | n/a | n/a | ⚠️ verify khi smoke (LightRAG fallback chunks gốc nếu service chết — warning, không fatal) |
 | Embedding (chunk/entity/relation/query) | nemotron vl 1b v2 | n/a | n/a | n/a | ⚠️ verify gateway khi smoke (`/health` + dim 2048) |
-| Caption ảnh (chỉ khi doc chưa có artifact + có key) | Gemini 3.5 flash lite | n/a | server default | server default | ⚠️ port từ ami-multimodal-retrieval — verify 1 call |
+| Caption ảnh (doc mới parse hoặc doc chưa có artifact, có key) | Gemini 3.5 flash lite | n/a | server default | server default | ⚠️ port từ ami-multimodal-retrieval - verify 1 call |
+| Parse text/bảng (`make index-mongo`, doc mới, `PARSE_TEXT_SOURCE=backend_data`) | OCR service :12006 (hierarchy-parse + raw_miner_ocr/qwen) | n/a | n/a | n/a | ⚠️ verify khi parse doc mới; lỗi/timeout → fallback Vintern :8090 |
 | VLM-enhanced query, audio/video processors | — | — | — | — | ⛔ TẮT: không cấu hình, không đường gọi |
 
 Không còn call site LLM nào khác: `kg_factory.py` là điểm wire duy nhất;
@@ -176,7 +231,8 @@ dashboard JSON) — đừng viết lại từ đầu.
 | Embed | nemotron gateway :8080 | nemotron gateway :8080 (giống) |
 | Rerank | BGE `bge-reranker-v2-m3` :8010 | BGE :8010 / nemotron :8080 |
 | Caption | Tái sử dụng MinIO artifacts, fallback Gemini | Qwen VLM describe |
-| Ingest | script + Makefile | API + worker + Mongo registry |
+| Ingest | script + Makefile; danh sách doc từ Mongo (read-only) + parse MinerU/OCR tại chỗ cho doc mới | API + worker + Mongo registry |
+| Parse text/bảng | pdfplumber/PyMuPDF + OCR :12006 + fallback Vintern :8090 (port) | như trên (nguồn gốc) |
 
 Quay lại nhánh vector: `git switch feature/ami-service && uv sync --extra text`
 (venv được sync theo branch).

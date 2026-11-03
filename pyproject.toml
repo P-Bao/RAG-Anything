@@ -25,6 +25,9 @@ dependencies = [
     "lightrag-hku>=1.5.7,<2",
     "minio",
     "mineru[core]>=3.4.1",
+    "pymongo>=4.6",
+    "pdfplumber>=0.11",
+    "pymupdf>=1.24",
     "tqdm",
 ]
 

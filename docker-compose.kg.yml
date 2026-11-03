@@ -12,12 +12,14 @@ services:
       KG_WORKING_DIR: /app/rag_storage
     volumes:
       - rag-storage:/app/rag_storage
+      - mineru-models:/models/huggingface
       - ./logs:/app/logs
     networks:
       - ami-network
 
 volumes:
   rag-storage
+  mineru-models
 
 networks:
   ami-network:
