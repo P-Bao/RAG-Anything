@@ -1,7 +1,11 @@
-# KG branch: resident API (kg-api, port 8009 — the old vector API port) plus a
-# one-shot CLI runner (kg-rag) sharing the same image and KG volume.
-# .env supplies QWEN/NEMOTRON/MINIO/MONGO/OCR/RERANK hosts (container names on
-# the external network when deployed beside them).
+# KG branch, same split as ami-multimodal-retrieval: a resident API
+# (kg-api, port 8009 — the old vector API port) and a resident ingest worker
+# (kg-rag) sharing one image and one KG volume. The API enqueues jobs into the
+# Redis Stream (REDIS_URL) and the worker executes them one at a time, so a
+# single process ever writes the file-based KG. `docker compose run --rm kg-rag
+# <cli args>` still works for read-only CLI commands (status/query).
+# .env supplies REDIS/QWEN/NEMOTRON/MINIO/MONGO/OCR/RERANK hosts (container
+# names on the external network when deployed beside them).
 services:
   kg-api:
     build:
@@ -34,6 +38,7 @@ services:
     networks:
       - ami-network
 
+  # Resident ingest worker: consumes the Redis job queue, one job at a time.
   kg-rag:
     build:
       context: .
@@ -42,6 +47,8 @@ services:
     env_file: .env
     environment:
       KG_WORKING_DIR: /app/rag_storage
+    command: ["python", "-m", "raganything.worker"]
+    restart: unless-stopped
     volumes:
       - rag-storage:/app/rag_storage
       - mineru-models:/models/huggingface
