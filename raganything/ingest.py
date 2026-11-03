@@ -102,8 +102,11 @@ def artifact_text(store: CaptionReuseStore, doc_id: str) -> tuple[str, dict, int
     return text, counts, len(descriptions)
 
 
-async def list_candidate_docs(store: CaptionReuseStore, limit: int) -> list[str]:
-    """Doc ids with a content_list artifact, most recently modified first."""
+async def list_candidate_docs(store: CaptionReuseStore, limit: int = 0) -> list[str]:
+    """Doc ids with a content_list artifact, most recently modified first.
+
+    ``limit`` 0 or None means every doc (same convention as the mongo path).
+    """
     objects = store._client.list_objects(
         store.bucket, prefix=f"{store.prefix}/", recursive=True
     )
@@ -113,7 +116,8 @@ async def list_candidate_docs(store: CaptionReuseStore, limit: int) -> list[str]
         if rest.endswith("content_list.json"):
             docs.append((obj.last_modified, rest.split("/")[0]))
     docs.sort(key=lambda pair: pair[0], reverse=True)
-    return [doc_id for _, doc_id in docs[:limit]]
+    selected = docs[:limit] if limit else docs
+    return [doc_id for _, doc_id in selected]
 
 
 def _summary(source: str, dry_run: bool, started: float) -> dict[str, Any]:
@@ -242,13 +246,16 @@ async def ingest_minio(
     store: CaptionReuseStore | None = None,
     doc_ids: list[str] | None = None,
     *,
-    limit: int = 2,
+    limit: int = 0,
     dry_run: bool = False,
     on_doc: Callable[..., None] | None = None,
 ) -> dict[str, Any]:
-    """Index MinIO artifacts; ``doc_ids`` None scans the artifact prefix."""
+    """Index MinIO artifacts; ``doc_ids`` None scans the artifact prefix.
+
+    ``limit`` 0 means every doc with artifacts; ignored when ``doc_ids`` given.
+    """
     store = store or CaptionReuseStore()
-    ids = list(doc_ids) if doc_ids else await list_candidate_docs(store, limit or 2)
+    ids = list(doc_ids) if doc_ids else await list_candidate_docs(store, limit)
     if not ids:
         started = time.monotonic()
         summary = _summary("minio", dry_run, started)
@@ -450,7 +457,7 @@ async def ingest(
             rag,
             store,
             document_ids,
-            limit=limit or 2,
+            limit=limit,
             dry_run=dry_run,
             on_doc=on_doc,
         )

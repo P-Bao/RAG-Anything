@@ -90,7 +90,7 @@ async def _build_rag():
 async def cmd_index(args: argparse.Namespace) -> int:
     store = CaptionReuseStore()
     if not args.doc:
-        candidates = await list_candidate_docs(store, args.limit or 2)
+        candidates = await list_candidate_docs(store, args.limit)
         if not candidates:
             print("no documents with content_list artifacts found in MinIO")
             return 1
@@ -101,7 +101,7 @@ async def cmd_index(args: argparse.Namespace) -> int:
         rag,
         store,
         args.doc,
-        limit=args.limit or 2,
+        limit=args.limit,
         dry_run=args.dry_run,
         on_doc=_print_doc,
     )
@@ -176,7 +176,9 @@ def main() -> int:
 
     p_index = sub.add_parser("index", help="index docs from MinIO artifacts")
     p_index.add_argument("--doc", action="append", help="doc id (repeatable)")
-    p_index.add_argument("--limit", type=int, default=2, help="max docs when scanning")
+    p_index.add_argument(
+        "--limit", type=int, default=2, help="max docs when scanning (0 = all)"
+    )
     p_index.add_argument("--dry-run", action="store_true")
     p_index.set_defaults(func=cmd_index)
 

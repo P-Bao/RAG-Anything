@@ -157,6 +157,11 @@ make index-status
 make index-mongo ARGS="--limit 5 --dry-run"
 make index-mongo ARGS="--limit 5"
 
+# 5b. Tất cả: --limit 0 (index = mọi artifact trong MinIO mới nhất trước,
+#     mongo = mọi doc status=active). Lâu + tốn LLM, nên --dry-run trước.
+make index-pdf ARGS="--limit 0 --dry-run"
+make index-mongo ARGS="--limit 0 --dry-run"
+
 # 6. API server (thay API cũ, cổng 8009)
 make api                                   # local; hoặc: make docker-up (thường trú)
 curl localhost:8009/readyz
@@ -207,7 +212,8 @@ select_source(doc):
   fallback Vintern; cả hai chết → parse fail cho doc đó, các doc khác chạy tiếp.
 - `PARSE_TEXT_SOURCE=mineru` = escape hatch giữ nguyên output MinerU khi
   không muốn OCR (chậm hơn về chất lượng text/bảng).
-- Flags: `--limit N`, `--doc <ObjectId>` (lặp được), `--dry-run`
+- Flags: `--limit N` (0 = tất cả; mặc định `index` 2, `mongo` 0),
+  `--doc <ObjectId>` (lặp được, bỏ qua `--limit`), `--dry-run`
   (dry-run KHÔNG parse — chỉ liệt kê nguồn/reuse).
 
 ## Audit LLM — mọi call site trên nhánh này

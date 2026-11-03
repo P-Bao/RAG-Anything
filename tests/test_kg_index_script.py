@@ -1,5 +1,6 @@
 """Tests for scripts/kg_index_pdfs.py item formatting (template port)."""
 
+import asyncio
 import importlib.util
 import os
 import sys
@@ -61,3 +62,34 @@ def test_assemble_drops_empty_items():
     text, counts = _kg.assemble_document_text([{"type": "text", "text": ""}], {})
     assert text == ""
     assert counts == {"text": 1}
+
+
+class _Obj:
+    def __init__(self, name, last_modified):
+        self.object_name = name
+        self.last_modified = last_modified
+
+
+class _Store:
+    """Duck-typed CaptionReuseStore (only what list_candidate_docs touches)."""
+
+    bucket = "bucket"
+    prefix = "rag-assets"
+    _client = None
+
+    def list_objects(self, bucket, prefix="", recursive=True):
+        return iter(
+            [
+                _Obj("rag-assets/d1/content_list.json", 1),
+                _Obj("rag-assets/d2/content_list.json", 3),
+                _Obj("rag-assets/d3/content_list.json", 2),
+                _Obj("rag-assets/d2/sha16.png", 9),  # noise: not a content_list
+            ]
+        )
+
+
+def test_list_candidate_docs_limit_zero_means_all():
+    store = _Store()
+    store._client = store
+    assert asyncio.run(_kg.list_candidate_docs(store, 0)) == ["d2", "d3", "d1"]
+    assert asyncio.run(_kg.list_candidate_docs(store, 1)) == ["d2"]  # newest first
