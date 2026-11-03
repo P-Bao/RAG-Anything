@@ -185,6 +185,79 @@ def test_index_unknown_job_is_404(client):
     assert client.get("/v2/rag/index/nope").status_code == 404
 
 
+class _FakeJobs:
+    """Duck-typed JobStore: the Redis path (no REDIS_URL in tests)."""
+
+    def __init__(self):
+        self.enqueued = []
+        self.closed = False
+
+    def enqueue(self, *, source, document_ids=None, limit=0, dry_run=False) -> str:
+        self.enqueued.append(
+            {
+                "source": source,
+                "document_ids": document_ids,
+                "limit": limit,
+                "dry_run": dry_run,
+            }
+        )
+        return "job123"
+
+    def get(self, job_id):
+        return {"job_id": job_id, "state": "running", "progress": []} if job_id == "job123" else None
+
+    def list(self, limit=20):
+        return [{"job_id": "job123", "state": "queued"}]
+
+    def close(self):
+        self.closed = True
+
+
+def test_redis_queue_enqueues_and_lists():
+    from fastapi.testclient import TestClient
+
+    from raganything.api import create_app
+
+    jobs = _FakeJobs()
+    app = create_app(rag=_Rag(), state=_State(), jobs=jobs)
+    with TestClient(app) as c:
+        resp = c.post("/v2/rag/index", json={"source": "minio", "limit": 0, "dry_run": True})
+        assert resp.status_code == 202
+        assert resp.json() == {"job_id": "job123", "status": "queued", "backend": "redis"}
+        assert jobs.enqueued == [
+            {"source": "minio", "document_ids": None, "limit": 0, "dry_run": True}
+        ]
+
+        assert c.get("/v2/rag/index/job123").json()["state"] == "running"
+        assert c.get("/v2/rag/index/nope").status_code == 404
+        listed = c.get("/v2/rag/index").json()
+        assert listed == {"backend": "redis", "jobs": [{"job_id": "job123", "state": "queued"}]}
+        assert c.get("/v2/rag/status").json()["queue"] == {"backend": "redis"}
+    assert jobs.closed is True
+
+
+def test_redis_jobs_helper_follows_env(monkeypatch):
+    """REDIS_URL decides the backend: set -> Redis JobStore, unset -> in-process."""
+    import asyncio
+
+    from raganything import api as api_mod
+
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    assert api_mod._redis_jobs() is None
+
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    store = api_mod._redis_jobs()
+    assert type(store).__name__ == "JobStore"
+    asyncio.run(store.close())  # from_url is lazy: no connection was opened
+
+
+def test_in_process_queue_lists_recent_and_reports_backend(client):
+    body = client.get("/v2/rag/index").json()
+    assert body["backend"] == "in-process"
+    client.post("/v2/rag/index", json={"source": "minio", "limit": 1})
+    assert client.get("/v2/rag/status").json()["queue"] == {"backend": "in-process"}
+
+
 def test_index_mongo_without_uri_is_400(client):
     resp = client.post("/v2/rag/index", json={"source": "mongo"})
     assert resp.status_code == 400
@@ -231,4 +304,5 @@ def test_status_endpoint(client):
     assert body["ready"] is True
     assert body["kg"]["chunks"] == 5
     assert body["doc_status_counts"] == {"indexed": 2, "failed": 1}
-    assert body["queue"]["queued"] == 0
+    assert body["queue"] == {"backend": "in-process"}
+    assert body["in_process_queue"]["queued"] == 0

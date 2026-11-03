@@ -7,13 +7,18 @@ Endpoints (this session — admin/metrics/redis/qdrant/otel intentionally out):
   POST /v2/rag/             hybrid chunk retrieval (LightRAG vector + BGE rerank);
                             ``generate=true`` adds the LLM answer
   POST /v2/rag/index        202 + job id; ingest documents from MinIO or Mongo
+  GET  /v2/rag/index        recent ingest jobs
   GET  /v2/rag/index/{id}   job status/progress
   GET  /v2/rag/status       KG counts + queue + per-document status counts
 
 Auth mirrors the old server: ``Authorization: Bearer <RAG_API_KEY>`` on every
-``/v2/rag/*`` route; empty ``RAG_API_KEY`` disables auth. Ingest jobs run on a
-single in-process worker — LightRAG file storage must never be written
-concurrently — while queries run concurrently in request handlers.
+``/v2/rag/*`` route; empty ``RAG_API_KEY`` disables auth.
+
+Ingest never runs twice at once — LightRAG file storage must never be written
+concurrently. With ``REDIS_URL`` set the API only *enqueues* (Redis Stream) and
+the resident kg-rag worker executes, exactly one job at a time; without Redis
+an in-process worker task does it (single-container dev). Queries always run
+concurrently in the request handlers.
 """
 
 from __future__ import annotations
@@ -46,6 +51,20 @@ def _env(name: str, default: str = "") -> str:
 
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _redis_jobs() -> Any:
+    """Redis-backed JobStore when REDIS_URL is set, else None (in-process queue).
+
+    ``redis`` only ships in the ``service`` extra, and REDIS_URL is what makes
+    the resident kg-rag worker possible, so both are optional at runtime.
+    """
+    try:
+        from raganything.jobs import JobStore, available
+    except ImportError:  # pragma: no cover - service extra not installed
+        logger.warning("redis not installed: ingest jobs stay in-process")
+        return None
+    return JobStore() if available() else None
 
 
 # ---------------------------------------------------------------------------
@@ -109,6 +128,9 @@ class JobQueue:
     def get(self, job_id: str) -> dict | None:
         return self._jobs.get(job_id)
 
+    def recent(self, limit: int = 20) -> list[dict]:
+        return [self._jobs[job_id] for job_id in self._order[-limit:]]
+
     def stats(self) -> dict[str, Any]:
         return {"queued": self._queue.qsize(), "history": len(self._jobs)}
 
@@ -166,9 +188,14 @@ def create_app(
     rag: Any = None,
     state: Any = None,
     queue: JobQueue | None = None,
+    jobs: Any = None,
     working_dir: str | None = None,
 ) -> FastAPI:
-    """Build the app. ``rag``/``state``/``queue`` are injection points for tests."""
+    """Build the app. ``rag``/``state``/``queue``/``jobs`` are test injection points.
+
+    Ingest jobs go to Redis (``jobs``) when REDIS_URL is set so the resident
+    kg-rag worker runs them; otherwise the in-process ``queue`` runs them.
+    """
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -176,6 +203,8 @@ def create_app(
             from raganything.doc_state import DocStatusStore
 
             app.state.doc_state = DocStatusStore()
+        if app.state.jobs is None:
+            app.state.jobs = _redis_jobs()
         if app.state.rag is None:
             try:
                 from raganything.kg_factory import build_kg_raganything
@@ -200,6 +229,8 @@ def create_app(
             yield
         finally:
             await app.state.queue.stop()
+            if app.state.jobs is not None:
+                app.state.jobs.close()
             if app.state.doc_state is not None:
                 app.state.doc_state.close()
 
@@ -209,6 +240,7 @@ def create_app(
     app.state.init_error = None
     app.state.doc_state = state
     app.state.queue = queue or JobQueue()
+    app.state.jobs = jobs
 
     def verify_api_key(authorization: str | None = Header(default=None)) -> None:
         """Bearer auth identical to the old vector API; empty key = open."""
@@ -282,6 +314,23 @@ def create_app(
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST, "source=mongo requires MONGO_URI"
             )
+        if app.state.jobs is not None:
+            # Hand the job to the resident kg-rag worker through Redis.
+            try:
+                job_id = app.state.jobs.enqueue(
+                    source=req.source,
+                    document_ids=req.document_ids,
+                    limit=req.limit,
+                    dry_run=req.dry_run,
+                )
+            except Exception as exc:
+                logger.exception("enqueue failed")
+                raise HTTPException(
+                    status.HTTP_503_SERVICE_UNAVAILABLE,
+                    f"job queue unavailable: {type(exc).__name__}: {exc}",
+                ) from exc
+            return {"job_id": job_id, "status": "queued", "backend": "redis"}
+
         job_id = uuid.uuid4().hex[:12]
 
         async def factory(on_doc: Callable) -> dict:
@@ -313,9 +362,19 @@ def create_app(
         )
         return {"job_id": job_id, "status": "queued"}
 
+    @app.get("/v2/rag/index", dependencies=[Depends(verify_api_key)])
+    async def rag_index_list(limit: int = 20) -> dict[str, Any]:
+        if app.state.jobs is not None:
+            return {"backend": "redis", "jobs": app.state.jobs.list(limit)}
+        return {"backend": "in-process", "jobs": app.state.queue.recent(limit)}
+
     @app.get("/v2/rag/index/{job_id}", dependencies=[Depends(verify_api_key)])
     async def rag_index_status(job_id: str) -> dict[str, Any]:
-        job = app.state.queue.get(job_id)
+        job = (
+            app.state.jobs.get(job_id)
+            if app.state.jobs is not None
+            else app.state.queue.get(job_id)
+        )
         if job is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown job id")
         return job
@@ -327,7 +386,8 @@ def create_app(
             "workspace": _env("KG_WORKING_DIR", "./rag_storage"),
             "ready": bool(app.state.ready),
             "kg": await kg_totals(app.state.rag),
-            "queue": app.state.queue.stats(),
+            "queue": {"backend": "redis" if app.state.jobs is not None else "in-process"},
+            "in_process_queue": app.state.queue.stats(),
             "doc_status_counts": counts,
         }
 
