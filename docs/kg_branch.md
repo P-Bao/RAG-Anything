@@ -130,7 +130,7 @@ make docker-down                # dừng
 | `KG_JOB_STREAM` / `KG_JOB_GROUP` | `kg:ingest` / `kg-workers` | stream + consumer group |
 | `KG_WORKER_NAME` | `kg-<hostname>-<pid>` | tên consumer (đặt cố định khi muốn theo dõi 1 worker) |
 | `KG_WORKER_STALE_SECONDS` | `600` | ngưỡng `XAUTOCLAIM` khi worker khởi động |
-| `KG_WORKER_POLL_MS` | `5000` | thời gian block mỗi lần chờ job |
+| `KG_WORKER_POLL_MS` | `5000` | thời gian block mỗi lần chờ job — **phải nhỏ hơn** timeout đọc socket; `jobs.py` đặt `socket_timeout=None` (blocking `XREADGROUP` + default 5s của redis-py gây `TimeoutError` mỗi lần queue rỗng) |
 | `MONGO_URI` | `mongodb://localhost:27017` | registry production (`make index-mongo`) — **read-only** |
 | `ORG_DB` / `DOC_COLLECTION` | `organization_db` / `documents` | query `{status: "active"}` |
 | `PARSE_METHOD` | `auto` | method MinerU (`auto`/`ocr`/`txt`) |

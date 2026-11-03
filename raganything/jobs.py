@@ -98,7 +98,17 @@ class JobStore:
     def _client_or_raise(self):
         if self._client is None:
             # lazy: tests inject a client, and available() gates construction
-            self._client = aioredis.Redis.from_url(self.url, decode_responses=True)
+            self._client = aioredis.Redis.from_url(
+                self.url,
+                decode_responses=True,
+                # XREADGROUP BLOCK waits server-side for the whole block window.
+                # redis-py defaults socket_timeout to 5s, which races a 5s block
+                # and raises TimeoutError on every idle poll, so reads must not
+                # time out; keepalive still detects a dead peer.
+                socket_timeout=None,
+                socket_connect_timeout=5,
+                socket_keepalive=True,
+            )
         return self._client
 
     async def _ensure_group(self, client) -> None:

@@ -306,6 +306,27 @@ def test_available_and_missing_url(monkeypatch):
         JobStore(url="")
 
 
+def test_client_has_no_read_timeout_for_blocking_reads(monkeypatch):
+    """XREADGROUP BLOCK 5000 vs redis-py's default 5s socket timeout raised
+    TimeoutError on every idle poll; the read timeout must be disabled."""
+    captured = {}
+
+    def fake_from_url(url, **kwargs):
+        captured["url"] = url
+        captured.update(kwargs)
+        return FakeRedis()
+
+    monkeypatch.setattr(jobs.aioredis.Redis, "from_url", fake_from_url)
+    store = JobStore(url="redis://redis:6379/0")
+
+    store._client_or_raise()
+
+    assert captured["url"] == "redis://redis:6379/0"
+    assert captured["decode_responses"] is True
+    assert captured["socket_timeout"] is None
+    assert captured["socket_connect_timeout"] == 5
+
+
 @pytest.mark.asyncio
 async def test_close_prefers_aclose():
     fake = FakeRedis()
