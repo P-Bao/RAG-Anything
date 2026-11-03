@@ -49,6 +49,29 @@ def test_factory_wires_bindings_and_disables_vlm_query():
         }
 
 
+def test_default_embedding_func_forwards_query_context(monkeypatch):
+    """LightRAG pops `context` unless supports_asymmetric is set."""
+    seen = {}
+
+    import numpy as np
+
+    async def fake_transport(texts, context="document"):
+        seen["context"] = context
+        return np.zeros((len(texts), 2048), dtype=float)
+
+    from raganything import kg_factory
+
+    monkeypatch.setattr(
+        kg_factory, "build_embedding_func", lambda *a, **k: fake_transport
+    )
+    rag = build_kg_raganything(
+        llm_model_func=_fake_llm, lightrag_kwargs={"working_dir": "unused"}
+    )
+    assert rag.embedding_func.supports_asymmetric is True
+    asyncio.run(rag.embedding_func(["q"], context="query"))
+    assert seen["context"] == "query"
+
+
 def test_factory_caption_none_without_key(monkeypatch):
     monkeypatch.delenv("CAPTION_LLM_API_KEY", raising=False)
     with tempfile.TemporaryDirectory() as tmp:

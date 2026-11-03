@@ -2,9 +2,11 @@
 
 Gateway contract (machine B, :8080): ``POST /v1/embeddings`` with
 ``{"input": [str items], "input_type": "query"|"document"}``, OpenAI-format
-response. LightRAG 1.5.7 auto-detects the ``context`` parameter on the
-wrapped func and injects ``"query"``/``"document"`` — mapped 1:1 to
-``input_type`` so asymmetric query/passage instructions are used correctly.
+response. LightRAG injects ``context="query"|"document"`` on the wrapped func,
+mapped 1:1 to ``input_type`` so asymmetric query/passage instructions are used
+correctly. LightRAG's ``EmbeddingFunc`` only forwards ``context`` when built
+with ``supports_asymmetric=True`` (see ``raganything.kg_factory``); without it
+the kwarg is popped and queries are embedded as documents.
 """
 
 from __future__ import annotations

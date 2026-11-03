@@ -55,7 +55,13 @@ def build_kg_raganything(
     return RAGAnything(
         llm_model_func=llm_model_func or build_llm_model_func(),
         embedding_func=embedding_func
-        or EmbeddingFunc(embedding_dim=embed_dim, func=build_embedding_func()),
+        or EmbeddingFunc(
+            embedding_dim=embed_dim,
+            func=build_embedding_func(),
+            # LightRAG pops the `context` kwarg unless this is set, which would
+            # silently embed queries as documents (nemotron is asymmetric).
+            supports_asymmetric=True,
+        ),
         modal_caption_func=(
             caption_func if caption_func is not None else build_caption_func()
         ),
