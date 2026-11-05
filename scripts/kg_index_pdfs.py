@@ -148,7 +148,11 @@ async def cmd_status(_args: argparse.Namespace) -> int:
         llm_model_func=dummy_llm,
         embedding_func=EmbeddingFunc(embedding_dim=2048, func=dummy_embed),
     )
-    totals = await kg_totals(lg)
+    await lg.initialize_storages()
+    try:
+        totals = await kg_totals(lg)
+    finally:
+        await lg.finalize_storages()
     print(
         f"KG: entities={totals['entities']} "
         f"relations={totals['relations']} chunks={totals['chunks']}"
