@@ -198,6 +198,22 @@ def _notify(on_doc: Callable[..., None] | None, event: str, doc_id: str, **info)
         pass
 
 
+async def _doc_index_status(lg: Any, text: str) -> tuple[str, str | None]:
+    """LightRAG records a failed document in doc_status and returns normally.
+
+    Returns ``(status, error_msg)``; status is "" when LightRAG left no row
+    (e.g. it skipped the document as already stored).
+    """
+    from lightrag.utils import compute_mdhash_id
+
+    row = await lg.doc_status.get_by_id(compute_mdhash_id(text, prefix="doc-"))
+    if not row:
+        return "", None
+    status = row.get("status")
+    status = getattr(status, "value", status) or ""
+    return str(status), (str(row.get("error_msg") or "") or None)
+
+
 async def index_artifacts(
     rag: Any,
     store: CaptionReuseStore,
@@ -237,6 +253,13 @@ async def index_artifacts(
         # an empty progress list looks like a hung job.
         _notify(on_doc, "indexing", doc_id, chars=len(text), items=counts)
         await rag.lightrag.ainsert(text)
+        status, error = await _doc_index_status(rag.lightrag, text)
+        if status != "processed":
+            reason = error or f"lightrag doc_status={status or 'missing'}"
+            summary["failed"] += 1
+            summary["errors"].append({"document_id": doc_id, "error": reason})
+            _notify(on_doc, "failed", doc_id, error=reason)
+            continue
         summary["indexed"] += 1
         _notify(on_doc, "indexed", doc_id, captions=reused, items=counts)
     summary["duration_s"] = round(time.monotonic() - started, 3)
@@ -319,7 +342,7 @@ async def ingest_mongo(
         doc_id = str(doc.get("_id") or "")
         source = select_source(doc)
         try:
-            indexed = await _ingest_mongo_doc(
+            outcome = await _ingest_mongo_doc(
                 rag,
                 store,
                 parse_store,
@@ -338,10 +361,11 @@ async def ingest_mongo(
                 state.mark_failed(doc_id, str(exc))
             _notify(on_doc, "failed", doc_id, error=str(exc))
             continue
-        if indexed:
-            summary["indexed"] += 1
-        else:
-            summary["skipped"] += 1
+        summary[outcome] += 1
+        if outcome == "failed":
+            summary["errors"].append(
+                {"document_id": doc_id, "error": "lightrag doc_status failed"}
+            )
 
     summary["duration_s"] = round(time.monotonic() - started, 3)
     summary["totals"] = await kg_totals(rag)
@@ -360,16 +384,16 @@ async def _ingest_mongo_doc(
     dry_run: bool,
     state: Any,
     on_doc: Callable[..., None] | None,
-) -> bool:
-    """Returns True when the document text was inserted into LightRAG."""
+) -> str:
+    """Returns "indexed" | "skipped" | "failed"."""
     if source == "mongo_text":
         text = (doc.get("content") or "").strip()
         if not text:
             _notify(on_doc, "skip", doc_id, reason="mongo_text without content")
-            return False
+            return "skipped"
         if dry_run:
             _notify(on_doc, "dry-run", doc_id, chars=len(text), parse=False)
-            return False
+            return "skipped"
         if state is not None:
             state.ensure_pending(
                 doc_id,
@@ -380,21 +404,29 @@ async def _ingest_mongo_doc(
                 organization_unit_id=doc.get("organization_unit_id"),
                 owner_id=doc.get("owner_id"),
             )
+        _notify(on_doc, "indexing", doc_id, source=source, chars=len(text), items={"text": 1})
         await rag.lightrag.ainsert(text)
+        status, error = await _doc_index_status(rag.lightrag, text)
+        if status != "processed":
+            reason = error or f"lightrag doc_status={status or 'missing'}"
+            _notify(on_doc, "failed", doc_id, error=reason)
+            if state is not None:
+                state.mark_failed(doc_id, reason)
+            return "failed"
         if state is not None:
             state.mark_indexed(doc_id, counts={"text": 1}, parser="mongo_text")
         _notify(on_doc, "indexed", doc_id, source="mongo_text", chars=len(text))
-        return True
+        return "indexed"
 
     file_path = doc.get("file_path")
     if not file_path:
         _notify(on_doc, "skip", doc_id, reason="minio_parse without file_path")
-        return False
+        return "skipped"
 
     cached = artifact_text(store, doc_id)
     if cached is None and dry_run:
         _notify(on_doc, "dry-run", doc_id, parse=True, file_path=file_path)
-        return False
+        return "skipped"
 
     if state is not None and not dry_run:
         state.ensure_pending(
@@ -429,10 +461,17 @@ async def _ingest_mongo_doc(
 
     if not text.strip():
         _notify(on_doc, "skip", doc_id, reason="empty text after assembly")
-        return False
+        return "skipped"
 
     _notify(on_doc, "indexing", doc_id, source=source, chars=len(text), items=counts)
     await rag.lightrag.ainsert(text)
+    status, error = await _doc_index_status(rag.lightrag, text)
+    if status != "processed":
+        reason = error or f"lightrag doc_status={status or 'missing'}"
+        _notify(on_doc, "failed", doc_id, error=reason)
+        if state is not None:
+            state.mark_failed(doc_id, reason)
+        return "failed"
     if state is not None:
         state.mark_indexed(
             doc_id,
@@ -440,7 +479,7 @@ async def _ingest_mongo_doc(
             parser=_env("PARSE_TEXT_SOURCE", "backend_data"),
         )
     _notify(on_doc, "indexed", doc_id, source="minio_parse", captions=reused, items=counts)
-    return True
+    return "indexed"
 
 
 async def ingest(
