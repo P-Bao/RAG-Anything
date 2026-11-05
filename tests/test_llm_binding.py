@@ -9,15 +9,34 @@ from raganything.llm_binding import build_llm_model_func, role_llm_configs
 
 
 class FakeCompletions:
+    """SSE-shaped stream: one chunk per delta char + a usage chunk."""
+
     def __init__(self, content):
-        self.content = content
         self.calls = []
+        self._content = content
 
     async def create(self, **kwargs):
         self.calls.append(kwargs)
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content=self.content))]
-        )
+
+        async def gen():
+            for ch in self._content or "":
+                yield SimpleNamespace(
+                    choices=[
+                        SimpleNamespace(
+                            delta=SimpleNamespace(content=ch), finish_reason=None
+                        )
+                    ]
+                )
+            yield SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        delta=SimpleNamespace(content=None), finish_reason="length"
+                    )
+                ]
+            )
+            yield SimpleNamespace(choices=[])  # usage-only frame
+
+        return gen()
 
 
 class FakeClient:
@@ -71,6 +90,14 @@ def test_temperature_override_via_role_kwarg():
     func = build_llm_model_func(client=client, model="m")
     run(func, "q", temperature=0.6)
     assert client.chat.completions.calls[0]["temperature"] == 0.6
+
+
+def test_streams_and_ignores_usage_frame():
+    client = FakeClient("Hi there")
+    func = build_llm_model_func(client=client, model="m")
+    out = run(func, "q")
+    assert out == "Hi there"  # nối delta, bỏ chunk choices=[]
+    assert client.chat.completions.calls[0]["stream"] is True
 
 
 def test_role_llm_configs_thinking_query_only():

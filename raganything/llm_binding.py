@@ -9,6 +9,11 @@ Response contract: reasoning arrives in a separate ``reasoning_content``
 field and is ignored on purpose — only ``message.content`` is returned.
 ``content=None`` raises loudly (vLLM Qwen3.5 bug #38894) instead of
 silently yielding an empty knowledge graph.
+
+Calls stream (``stream=True``): the gateway in front of vLLM cuts idle
+connections at 120s, so a non-streaming generation was killed mid-flight
+(504 "Upstream timeout sau 120.0s"). Measured: streaming ran 179s and
+produced 4000 tokens cleanly — the timeout is idle-based, not total.
 """
 
 from __future__ import annotations
@@ -75,15 +80,24 @@ def build_llm_model_func(
             messages.append({"role": "system", "content": system_prompt})
         messages.extend(history_messages or [])
         messages.append({"role": "user", "content": prompt})
-        response = await client.chat.completions.create(
+        stream = await client.chat.completions.create(
             model=model_name,
             messages=messages,
             temperature=temperature if temperature is not None else temp,
             max_tokens=max_tok,
+            stream=True,
             extra_body={"thinking": thinking},
         )
-        content = response.choices[0].message.content
-        if content is None:
+        parts: list[str] = []
+        async for chunk in stream:
+            # The last chunk carries usage with no choices; role/empty deltas
+            # have content None or "".
+            if chunk.choices:
+                delta = chunk.choices[0].delta
+                if delta and delta.content:
+                    parts.append(delta.content)
+        content = "".join(parts)
+        if not content:
             raise RuntimeError(
                 f"Qwen LLM returned content=None (thinking={thinking}); "
                 "see vLLM issue #38894 - check server reasoning parser"
