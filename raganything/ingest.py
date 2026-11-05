@@ -198,20 +198,45 @@ def _notify(on_doc: Callable[..., None] | None, event: str, doc_id: str, **info)
         pass
 
 
-async def _doc_index_status(lg: Any, text: str) -> tuple[str, str | None]:
-    """LightRAG records a failed document in doc_status and returns normally.
+def _row_field(row: Any, name: str) -> Any:
+    """Read a doc_status row field from a dict (JSON backend) or a
+    DocProcessingStatus dataclass."""
+    if isinstance(row, dict):
+        return row.get(name)
+    return getattr(row, name, None)
 
-    Returns ``(status, error_msg)``; status is "" when LightRAG left no row
-    (e.g. it skipped the document as already stored).
+
+async def _insert_outcome(lg: Any, track_id: Any, text: str) -> tuple[str, str | None]:
+    """Classify one ainsert attempt by the doc_status rows of its track.
+
+    ainsert returns normally even when LightRAG failed the document or
+    skipped it as a duplicate: a duplicate leaves only a ``dup-*`` record
+    (the ``doc-`` row keeps its stale status from an older run). Rows are
+    read back via ``get_docs_by_track_id`` so only this attempt's rows
+    count. Returns ``("processed"|"failed"|"skipped", reason)``.
     """
     from lightrag.utils import compute_mdhash_id
 
-    row = await lg.doc_status.get_by_id(compute_mdhash_id(text, prefix="doc-"))
-    if not row:
-        return "", None
-    status = row.get("status")
-    status = getattr(status, "value", status) or ""
-    return str(status), (str(row.get("error_msg") or "") or None)
+    rows = await lg.doc_status.get_docs_by_track_id(str(track_id))
+    doc_rows = [v for k, v in (rows or {}).items() if str(k).startswith("doc-")]
+    dup_rows = [v for k, v in (rows or {}).items() if str(k).startswith("dup-")]
+    if doc_rows:
+        row = doc_rows[0]
+        status = _row_field(row, "status")
+        status = str(getattr(status, "value", status) or "")
+        if status == "processed":
+            return "processed", None
+        reason = str(_row_field(row, "error_msg") or "")
+        return "failed", (reason or f"lightrag doc_status={status}")
+    if dup_rows:
+        reason = str(_row_field(dup_rows[0], "error_msg") or "")
+        return "skipped", (reason or "duplicate of an already stored document")
+    # No rows for this track: content stored earlier (status file wiped,
+    # race re-enqueue) or the insert silently did nothing.
+    stored = await lg.full_docs.get_by_id(compute_mdhash_id(text, prefix="doc-"))
+    if stored:
+        return "skipped", "already stored (no doc_status row)"
+    return "failed", "no doc_status row after insert"
 
 
 async def index_artifacts(
@@ -252,16 +277,24 @@ async def index_artifacts(
         # Progress before the insert, not only after: a doc takes minutes and
         # an empty progress list looks like a hung job.
         _notify(on_doc, "indexing", doc_id, chars=len(text), items=counts)
-        await rag.lightrag.ainsert(text)
-        status, error = await _doc_index_status(rag.lightrag, text)
-        if status != "processed":
-            reason = error or f"lightrag doc_status={status or 'missing'}"
-            summary["failed"] += 1
-            summary["errors"].append({"document_id": doc_id, "error": reason})
-            _notify(on_doc, "failed", doc_id, error=reason)
+        track_id = await rag.lightrag.ainsert(text)
+        outcome, reason = await _insert_outcome(rag.lightrag, track_id, text)
+        if outcome == "processed":
+            summary["indexed"] += 1
+            _notify(on_doc, "indexed", doc_id, captions=reused, items=counts)
             continue
-        summary["indexed"] += 1
-        _notify(on_doc, "indexed", doc_id, captions=reused, items=counts)
+        if outcome == "skipped":
+            # LightRAG skipped the insert (duplicate of stored content):
+            # not an error, but the reason still belongs in the summary.
+            summary["skipped"] += 1
+            summary["errors"].append(
+                {"document_id": doc_id, "error": reason, "skipped": True}
+            )
+            _notify(on_doc, "skip", doc_id, reason=reason)
+            continue
+        summary["failed"] += 1
+        summary["errors"].append({"document_id": doc_id, "error": reason})
+        _notify(on_doc, "failed", doc_id, error=reason)
     summary["duration_s"] = round(time.monotonic() - started, 3)
     summary["totals"] = await kg_totals(rag)
     return summary
@@ -405,14 +438,16 @@ async def _ingest_mongo_doc(
                 owner_id=doc.get("owner_id"),
             )
         _notify(on_doc, "indexing", doc_id, source=source, chars=len(text), items={"text": 1})
-        await rag.lightrag.ainsert(text)
-        status, error = await _doc_index_status(rag.lightrag, text)
-        if status != "processed":
-            reason = error or f"lightrag doc_status={status or 'missing'}"
+        track_id = await rag.lightrag.ainsert(text)
+        outcome, reason = await _insert_outcome(rag.lightrag, track_id, text)
+        if outcome == "failed":
             _notify(on_doc, "failed", doc_id, error=reason)
             if state is not None:
                 state.mark_failed(doc_id, reason)
             return "failed"
+        if outcome == "skipped":
+            _notify(on_doc, "skip", doc_id, reason=reason)
+            return "skipped"
         if state is not None:
             state.mark_indexed(doc_id, counts={"text": 1}, parser="mongo_text")
         _notify(on_doc, "indexed", doc_id, source="mongo_text", chars=len(text))
@@ -464,14 +499,16 @@ async def _ingest_mongo_doc(
         return "skipped"
 
     _notify(on_doc, "indexing", doc_id, source=source, chars=len(text), items=counts)
-    await rag.lightrag.ainsert(text)
-    status, error = await _doc_index_status(rag.lightrag, text)
-    if status != "processed":
-        reason = error or f"lightrag doc_status={status or 'missing'}"
+    track_id = await rag.lightrag.ainsert(text)
+    outcome, reason = await _insert_outcome(rag.lightrag, track_id, text)
+    if outcome == "failed":
         _notify(on_doc, "failed", doc_id, error=reason)
         if state is not None:
             state.mark_failed(doc_id, reason)
         return "failed"
+    if outcome == "skipped":
+        _notify(on_doc, "skip", doc_id, reason=reason)
+        return "skipped"
     if state is not None:
         state.mark_indexed(
             doc_id,
