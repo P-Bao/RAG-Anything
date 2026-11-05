@@ -43,6 +43,30 @@ def test_document_default_and_query_context():
     assert len(out) == 2 and len(out_q) == 1
 
 
+def test_returns_numpy_array():
+    """EmbeddingFunc validates result.size -> must be an ndarray."""
+    import numpy as np
+
+    func = build_embedding_func(client=FakeClient(), model="m")
+    out = run(func(["a", "b"]))
+    assert isinstance(out, np.ndarray)
+    assert out.shape == (2, 4)
+    assert out.dtype == float
+
+
+def test_wrapped_in_lightrag_embeddingfunc():
+    """Regression: wrapping in the real EmbeddingFunc used to raise
+    AttributeError: 'list' object has no attribute 'size'."""
+    import numpy as np
+
+    from lightrag.utils import EmbeddingFunc
+
+    func = build_embedding_func(client=FakeClient(), model="m")
+    wrapped = EmbeddingFunc(embedding_dim=4, func=func)
+    out = run(wrapped(["q"], context="query"))
+    assert isinstance(out, np.ndarray) and out.shape == (1, 4)
+
+
 def test_batching_preserves_order():
     client = FakeClient()
     func = build_embedding_func(client=client, model="m", embedding_dim=4, batch_size=2)

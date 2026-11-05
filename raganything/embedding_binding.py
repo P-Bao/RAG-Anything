@@ -7,12 +7,17 @@ mapped 1:1 to ``input_type`` so asymmetric query/passage instructions are used
 correctly. LightRAG's ``EmbeddingFunc`` only forwards ``context`` when built
 with ``supports_asymmetric=True`` (see ``raganything.kg_factory``); without it
 the kwarg is popped and queries are embedded as documents.
+
+The returned arrays must be ``np.ndarray``: LightRAG's ``EmbeddingFunc``
+validates ``result.size``, so a plain list fails every call.
 """
 
 from __future__ import annotations
 
 import asyncio
 import os
+
+import numpy as np
 from typing import Any, Callable
 
 from openai import AsyncOpenAI
@@ -83,11 +88,14 @@ def build_embedding_func(
         texts: list[str],
         context: str = "document",
         **kwargs: Any,
-    ) -> list[list[float]]:
+    ) -> Any:
         input_type = "query" if context == "query" else "document"
         batches = [texts[i : i + batch] for i in range(0, len(texts), batch)]
         results = await asyncio.gather(*(_embed_batch(b, input_type) for b in batches))
-        return [v for r in results for v in r]
+        # LightRAG's EmbeddingFunc validates ``result.size``: a plain list
+        # raises AttributeError there ("'list' object has no attribute
+        # 'size'") and every vdb flush fails, so documents never index.
+        return np.asarray([v for r in results for v in r], dtype=float)
 
     embed_func.model = model_name  # type: ignore[attr-defined]
     embed_func.dim = dim  # type: ignore[attr-defined]
