@@ -22,7 +22,7 @@ classifiers = [
 ]
 dependencies = [
     "huggingface_hub",
-    "lightrag-hku>=1.5.7,<2",
+    "lightrag-hku==1.5.7",
     "minio",
     "mineru[core]>=3.4.1",
     "pymongo>=4.6",
