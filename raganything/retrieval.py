@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import time
 from typing import Any
 
@@ -26,6 +27,24 @@ logger = logging.getLogger(__name__)
 
 # Stored chunk keys echoed back to the client only when the record carries them.
 _PASSTHROUGH_KEYS = ("page", "modality", "caption", "table_body", "artifact_url")
+
+# Chunks shorter than this are ingest-era junk (fixed-window tail chunks like
+# ":" / "sẻ:" that slipped into the DB before the chunker filter). They never
+# reach rerank or the client. Chunk text is multilingual, so chars — not
+# tokens — are the cheap proxy here.
+MIN_CHUNK_CHARS = 20
+
+
+def _rerank_min_score() -> float:
+    """Optional floor on BGE relevance; 0 keeps every ranked result."""
+    raw = os.environ.get("RERANK_MIN_SCORE")
+    if not raw:
+        return 0.0
+    try:
+        return float(raw)
+    except ValueError:
+        logger.warning("RERANK_MIN_SCORE=%r is not a float; ignoring", raw)
+        return 0.0
 
 
 def _as_float(value: Any) -> float | None:
@@ -153,21 +172,24 @@ async def retrieve_chunks(
     pool: list[tuple[str, dict, float | None]] = []
     for chunk_id in ids:
         record = by_id.get(chunk_id)
-        if record:
+        if record and len(record.get("content") or "") >= MIN_CHUNK_CHARS:
             pool.append((chunk_id, record, sims.get(chunk_id)))
 
     if rerank_func is not None and pool:
         texts = [entry[1].get("content", "") for entry in pool]
+        min_score = _rerank_min_score()
         try:
             ranked = await rerank_func(query=query, documents=texts, top_n=top_k)
             scored = _rerank_scores(ranked, len(pool))
+            if min_score:
+                scored = [pair for pair in scored if pair[1] >= min_score]
             if scored:
                 pool = [
                     (pool[index][0], pool[index][1], score)
                     for index, score in scored
                 ][:top_k]
             else:
-                pool = pool[:top_k]
+                pool = [] if min_score else pool[:top_k]
         except Exception as exc:
             logger.warning("rerank failed, keeping vector order: %s", exc)
             pool = pool[:top_k]

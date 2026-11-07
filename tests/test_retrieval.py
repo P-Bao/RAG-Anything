@@ -57,9 +57,9 @@ class FakeRAG:
 
 def _records():
     return {
-        "c1": {"content": "alpha", "full_doc_id": "d1", "file_path": "f1"},
-        "c2": {"content": "beta", "full_doc_id": "d2", "file_path": "f2"},
-        "c3": {"content": "gamma", "full_doc_id": "d3", "file_path": "f3"},
+        "c1": {"content": "alpha chunk with enough text", "full_doc_id": "d1", "file_path": "f1"},
+        "c2": {"content": "beta chunk with enough text", "full_doc_id": "d2", "file_path": "f2"},
+        "c3": {"content": "gamma chunk with enough text", "full_doc_id": "d3", "file_path": "f3"},
     }
 
 
@@ -89,7 +89,7 @@ def test_happy_path_rerank_reorders_and_scores():
 
     assert [d["reference_id"] for d in docs] == ["c3", "c2"]
     assert [d["score"] for d in docs] == [0.99, 0.5]
-    assert docs[0]["text"] == "gamma"
+    assert docs[0]["text"] == "gamma chunk with enough text"
     assert docs[0]["metadata"] == {
         "doc_id": "d3",
         "chunk_id": "c3",
@@ -141,6 +141,81 @@ def test_rerank_failure_falls_back_to_vector_order():
     assert [d["reference_id"] for d in docs] == ["c1", "c2"]
     assert [d["score"] for d in docs] == [0.9, 0.8]
     assert meta["returned"] == 2
+
+
+def test_short_junk_chunks_are_dropped():
+    """Ingest-era micro tail chunks (":", "sẻ:") never reach the client."""
+    records = {
+        **_records(),
+        "c4": {"content": ":", "full_doc_id": "d1", "file_path": "f1"},
+        "c5": {"content": "ia sẻ:", "full_doc_id": "d2", "file_path": "f2"},
+    }
+    results = _results() + [
+        {"id": "c4", "distance": 0.95},
+        {"id": "c5", "distance": 0.94},
+    ]
+    lg = FakeLightRAG(results=results, records=records, embedding_func=RecordingEmbed())
+    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi", 5))
+
+    assert [d["reference_id"] for d in docs] == ["c1", "c2", "c3"]
+    assert meta["candidates"] == 5  # junk counted as candidates...
+    assert meta["returned"] == 3  # ...but filtered before the client
+    # filter sits after the KV fetch, before rerank: junk fetched, never ranked
+
+
+def test_rerank_min_score_drops_low_relevance(monkeypatch):
+    async def rerank(query, documents, top_n=None, **kwargs):
+        return [
+            {"index": 0, "relevance_score": 0.02},
+            {"index": 1, "relevance_score": 0.6},
+        ]
+
+    monkeypatch.setenv("RERANK_MIN_SCORE", "0.2")
+    lg = FakeLightRAG(
+        results=_results()[:2],
+        records=_records(),
+        embedding_func=RecordingEmbed(),
+        rerank_model_func=rerank,
+    )
+    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi", 2))
+
+    assert [d["reference_id"] for d in docs] == ["c2"]
+    assert [d["score"] for d in docs] == [0.6]
+    assert meta["returned"] == 1
+
+
+def test_rerank_min_score_empty_result_returns_nothing(monkeypatch):
+    """A floor that cuts everything returns [] instead of unranked fallback."""
+    async def rerank(query, documents, top_n=None, **kwargs):
+        return [{"index": 0, "relevance_score": 0.01}]
+
+    monkeypatch.setenv("RERANK_MIN_SCORE", "0.2")
+    lg = FakeLightRAG(
+        results=_results(),
+        records=_records(),
+        embedding_func=RecordingEmbed(),
+        rerank_model_func=rerank,
+    )
+    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi", 2))
+
+    assert docs == []
+    assert meta["returned"] == 0
+
+
+def test_rerank_min_score_invalid_value_is_ignored(monkeypatch):
+    async def rerank(query, documents, top_n=None, **kwargs):
+        return [{"index": 1, "relevance_score": 0.05}]
+
+    monkeypatch.setenv("RERANK_MIN_SCORE", "not-a-float")
+    lg = FakeLightRAG(
+        results=_results()[:2],
+        records=_records(),
+        embedding_func=RecordingEmbed(),
+        rerank_model_func=rerank,
+    )
+    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi", 2))
+
+    assert [d["reference_id"] for d in docs] == ["c2"]
 
 
 def test_empty_query_returns_empty():

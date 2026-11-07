@@ -159,8 +159,17 @@ class IndexRequest(BaseModel):
     dry_run: bool = False
 
 
+# OpenAPI/Swagger auto-fills optional string fields with "string"; clients that
+# open the docs page and hit Execute without editing send that placeholder
+# verbatim. Queries with no alnum char (":", "...", "null") are equally junk.
+def _is_junk_query(query: str) -> bool:
+    return query.strip().lower() == "string" or not any(
+        c.isalnum() for c in query
+    )
+
+
 def _resolve_query(req: RAGRequest) -> str:
-    if req.query and req.query.strip():
+    if req.query and req.query.strip() and not _is_junk_query(req.query):
         return req.query.strip()
     for message in reversed(req.messages or []):
         if (message.role or "").lower() == "user" and (message.content or "").strip():

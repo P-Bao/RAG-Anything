@@ -40,9 +40,11 @@ def build_kg_raganything(
     rerank so callers can still override (e.g. ``working_dir``).
     """
     from raganything import RAGAnything
+    from raganything.chunking import build_chunking_func
 
     merged_lightrag_kwargs = {
         "role_llm_configs": role_llm_configs(),
+        "chunking_func": build_chunking_func(),
         "rerank_model_func": (
             rerank_model_func
             if rerank_model_func is not None

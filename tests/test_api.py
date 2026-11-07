@@ -133,6 +133,36 @@ def test_rag_query_without_question_is_400(client):
     assert client.post("/v2/rag/", json={}).status_code == 400
 
 
+def test_swagger_placeholder_query_falls_back_to_messages(client):
+    """Swagger UI prefills optional string fields with "string"; a client that
+    hits Execute unedited must not retrieve for the literal word "string"."""
+    resp = client.post(
+        "/v2/rag/",
+        json={
+            "query": "string",
+            "messages": [{"role": "user", "content": "Cho hình ảnh sơ đồ mặt bằng"}],
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["query"] == "Cho hình ảnh sơ đồ mặt bằng"
+
+
+def test_placeholder_query_alone_is_400(client):
+    assert client.post("/v2/rag/", json={"query": "string"}).status_code == 400
+
+
+def test_punctuation_only_query_falls_back_to_messages(client):
+    resp = client.post(
+        "/v2/rag/",
+        json={
+            "query": ":",
+            "messages": [{"role": "user", "content": "câu hỏi thật"}],
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["query"] == "câu hỏi thật"
+
+
 def test_rag_query_generate_adds_answer(client):
     resp = client.post("/v2/rag/", json={"query": "q", "generate": True})
     assert resp.json()["answer"] == "answer for q"
