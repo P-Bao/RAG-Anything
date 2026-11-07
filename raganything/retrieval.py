@@ -26,7 +26,9 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # Stored chunk keys echoed back to the client only when the record carries them.
-_PASSTHROUGH_KEYS = ("page", "modality", "caption", "table_body", "artifact_url")
+# ``asset_key`` comes from the ingest-time backfill (images/tables); the API
+# layer resolves it to a presigned ``artifact_url`` before responding.
+_PASSTHROUGH_KEYS = ("page", "modality", "caption", "table_body", "artifact_url", "asset_key")
 
 # Chunks shorter than this are ingest-era junk (fixed-window tail chunks like
 # ":" / "sẻ:" that slipped into the DB before the chunker filter). They never

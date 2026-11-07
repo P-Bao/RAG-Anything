@@ -10,6 +10,7 @@ Two ingest sources (both reuse the same assemble + insert path in
 Subcommands:
   index   --doc ID [--doc ID ...] | --limit N [--dry-run]
   mongo   --doc ObjectId [--doc ...] | --limit N [--dry-run]
+  reindex [--doc ID ...] [--dry-run] - wipe the KG, index only the allowlist
   status                     - entity/relation/chunk counts of the local KG
   query   QUERY [QUERY ...]  - aquery (mode mix, thinking ON via role config)
 """
@@ -41,6 +42,32 @@ __all__ = [
     "format_item",
     "list_candidate_docs",
 ]
+
+# The only documents that should exist in the KG: everything else currently
+# indexed (crawled articles, stray artifacts) is reindex waste. Override the
+# allowlist with repeated --doc.
+REINDEX_DOC_IDS = [
+    "6a8ee761694f1f325e516aa9",  # Sổ tay sinh viên 2026 (68 ảnh khuôn viên)
+    "6a8f144188f0aede5ebc8828",  # Quyết định công tác cố vấn học tập 2022
+    "6a8eec753b7bc85ec8357ed7",  # Thông báo xét tuyển bổ sung ThS tích hợp
+    "6a8eec423b7bc85ec8357ed6",  # Quy định xét tuyển bổ sung tài năng
+]
+
+# All data-bearing storages except llm_response_cache: entity extraction cache
+# stays valid (keyed by text) and saves LLM calls on the reinsert.
+_WIPE_STORAGES = (
+    "full_docs",
+    "text_chunks",
+    "full_entities",
+    "full_relations",
+    "entity_chunks",
+    "relation_chunks",
+    "entities_vdb",
+    "relationships_vdb",
+    "chunks_vdb",
+    "chunk_entity_relation_graph",
+    "doc_status",
+)
 
 
 def _env(name: str, default: str = "") -> str:
@@ -105,6 +132,42 @@ async def cmd_index(args: argparse.Namespace) -> int:
         dry_run=args.dry_run,
         on_doc=_print_doc,
     )
+    _print_summary(summary)
+    return 0
+
+
+async def cmd_reindex(args: argparse.Namespace) -> int:
+    """Wipe the KG (index only, MinIO/Mongo untouched) and index the allowlist.
+
+    The allowlist is authoritative: every previously indexed document is
+    dropped with the storages. Run with the API server stopped — file-based
+    KV/graph storage is last-write-wins.
+    """
+    from raganything.ingest import kg_totals
+
+    store = CaptionReuseStore()
+    doc_ids = args.doc or REINDEX_DOC_IDS
+    rag = await _build_rag()
+    if rag is None:
+        return 1
+    lg = rag.lightrag
+    if args.dry_run:
+        before = await kg_totals(lg)
+        print(f"[dry-run] would wipe {len(_WIPE_STORAGES)} storages; totals: {before}")
+        print(f"[dry-run] would index: {', '.join(doc_ids)}")
+        for doc_id in doc_ids:
+            if artifact_text(store, doc_id) is None:
+                print(f"[dry-run] WARNING {doc_id}: no content_list artifact")
+        return 0
+    print(f"before: {await kg_totals(lg)}")
+    wiped = 0
+    for name in _WIPE_STORAGES:
+        storage = getattr(lg, name, None)
+        if storage is not None:
+            await storage.drop()
+            wiped += 1
+    print(f"wiped {wiped}/{len(_WIPE_STORAGES)} storages")
+    summary = await ingest_minio(rag, store, doc_ids, on_doc=_print_doc)
     _print_summary(summary)
     return 0
 
@@ -193,6 +256,13 @@ def main() -> int:
     p_mongo.add_argument("--limit", type=int, default=0, help="max docs (0 = all active)")
     p_mongo.add_argument("--dry-run", action="store_true")
     p_mongo.set_defaults(func=cmd_mongo)
+
+    p_reindex = sub.add_parser(
+        "reindex", help="wipe the KG and index only the pinned allowlist docs"
+    )
+    p_reindex.add_argument("--doc", action="append", help="override the allowlist")
+    p_reindex.add_argument("--dry-run", action="store_true")
+    p_reindex.set_defaults(func=cmd_reindex)
 
     p_status = sub.add_parser("status", help="show KG counts")
     p_status.set_defaults(func=cmd_status)

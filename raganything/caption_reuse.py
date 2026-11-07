@@ -112,3 +112,12 @@ class CaptionReuseStore:
         if descriptions is None:
             return {}
         return extract_descriptions(descriptions)
+
+    def presigned_url(self, key: str, expires_s: int | None = None) -> str:
+        """Presigned GET URL for an asset key (query-time image display)."""
+        raw = _env("ASSET_URL_EXPIRES_S", "3600")
+        try:
+            expires = expires_s or max(1, int(raw))
+        except ValueError:
+            expires = 3600
+        return self._client.presign_get_url(self.bucket, key, expires=expires)

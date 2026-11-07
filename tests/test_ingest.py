@@ -6,7 +6,7 @@ itself before it runs — an empty list while a doc takes minutes looks hung.
 
 import asyncio
 
-from raganything.ingest import index_artifacts
+from raganything.ingest import backfill_chunk_metadata, index_artifacts
 
 
 class _Store:
@@ -42,18 +42,38 @@ class _FullDocs:
         return next(iter(self.docs.values()), None)
 
 
+class _TextChunks:
+    """In-memory text_chunks KV: get_by_ids/upsert like the JSON backend."""
+
+    def __init__(self, records: dict | None = None):
+        self.records = dict(records or {})
+        self.upserts: list[dict] = []
+
+    async def get_by_ids(self, ids):
+        return [self.records.get(i) for i in ids]
+
+    async def upsert(self, data):
+        self.records.update(data)
+        self.upserts.append(data)
+
+
 _PROCESSED = {"doc-k": {"status": "processed", "error_msg": None}}
 
 
 class _LightRAG:
-    def __init__(self, doc_row=_PROCESSED, full_docs=None):
+    def __init__(self, doc_row=_PROCESSED, full_docs=None, chunks_list=None):
         self.inserted: list[str] = []
         self.entities_vdb = []
         self.relationships_vdb = []
         self.chunks_vdb = []
         self.doc_status = _DocStatus()
         self.full_docs = _FullDocs(full_docs)
-        if doc_row:
+        self.text_chunks = _TextChunks()
+        if chunks_list:
+            self.doc_status.rows["track-1"] = {
+                "doc-k": {**_PROCESSED["doc-k"], "chunks_list": chunks_list}
+            }
+        elif doc_row:
             self.doc_status.rows["track-1"] = doc_row
 
     async def ainsert(self, text):
@@ -218,3 +238,93 @@ def test_stored_content_without_doc_status_row_is_skipped():
     assert summary["errors"] == [
         {"document_id": "d1", "error": "already stored (no doc_status row)", "skipped": True}
     ]
+
+
+def test_index_writes_asset_marker_into_chunk_text():
+    """The ``Ảnh: {asset_key}`` marker must survive into the inserted text."""
+    rag = _Rag()
+    content_list = [
+        {"type": "text", "text": "hola"},
+        {
+            "type": "image",
+            "asset_key": "rag-assets/d1/abc123.png",
+            "page_idx": 3,
+            "image_caption": "cap",
+        },
+    ]
+    asyncio.run(
+        index_artifacts(rag, _Store({"d1": (content_list, {1: "photo of gate"})}), ["d1"])
+    )
+
+    text = rag.lightrag.inserted[0]
+    assert "[Hình ảnh]\nẢnh: rag-assets/d1/abc123.png\nphoto of gate" in text
+
+
+def test_backfill_merges_asset_metadata_into_chunk_records():
+    """Marker in chunk content -> flat metadata keys merged into the record."""
+    lg = _LightRAG(chunks_list=["chunk-1", "chunk-2"])
+    lg.text_chunks.records = {
+        "chunk-1": {
+            "content": "para\n\n[Hình ảnh]\nẢnh: rag-assets/d1/abc123.png\ndesc",
+            "full_doc_id": "doc-k",
+            "tokens": 30,
+        },
+        "chunk-2": {"content": "no image here", "full_doc_id": "doc-k", "tokens": 5},
+    }
+    asyncio.run(
+        backfill_chunk_metadata(
+            lg,
+            "track-1",
+            "d1",
+            [
+                {
+                    "modality": "image",
+                    "asset_key": "rag-assets/d1/abc123.png",
+                    "page": 3,
+                    "caption": "photo of gate",
+                    "marker": "Ảnh: rag-assets/d1/abc123.png",
+                }
+            ],
+        )
+    )
+
+    upserted = lg.text_chunks.upserts[0]
+    assert set(upserted) == {"chunk-1"}
+    merged = upserted["chunk-1"]
+    assert merged["modality"] == "image"
+    assert merged["asset_key"] == "rag-assets/d1/abc123.png"
+    assert merged["page"] == 3
+    assert merged["caption"] == "photo of gate"
+    assert merged["full_doc_id"] == "doc-k"  # original fields preserved
+    assert "marker" not in merged
+    assert lg.text_chunks.records["chunk-2"] == {
+        "content": "no image here",
+        "full_doc_id": "doc-k",
+        "tokens": 5,
+    }
+
+
+def test_backfill_survives_storage_errors():
+    """A broken KV must not fail an otherwise indexed document."""
+    lg = _LightRAG(chunks_list=["chunk-1"])
+
+    async def boom(ids):
+        raise RuntimeError("kv down")
+
+    lg.text_chunks.get_by_ids = boom
+    asyncio.run(
+        backfill_chunk_metadata(
+            lg, "track-1", "d1", [{"modality": "image", "asset_key": "k", "marker": "Ảnh: k"}]
+        )
+    )
+    assert lg.text_chunks.upserts == []
+
+
+def test_backfill_without_chunks_list_is_a_noop():
+    lg = _LightRAG()  # doc row without chunks_list
+    asyncio.run(
+        backfill_chunk_metadata(
+            lg, "track-1", "d1", [{"modality": "image", "asset_key": "k", "marker": "Ảnh: k"}]
+        )
+    )
+    assert lg.text_chunks.upserts == []

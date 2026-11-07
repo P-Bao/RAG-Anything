@@ -16,6 +16,7 @@ storage directory (file-based KV/vector/graph writes are last-write-wins).
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import tempfile
 import time
@@ -27,6 +28,8 @@ from raganything.caption_reuse import (
     join_caption,
 )
 from raganything.parse_pipeline import ParseArtifactStore, parse_and_store
+
+logger = logging.getLogger(__name__)
 
 
 def _env(name: str, default: str = "") -> str:
@@ -41,12 +44,17 @@ def format_item(item: dict, description: str) -> str:
     and entity-extracted as a junk chunk (their _build_chunks dropped those).
     """
     type_ = str(item.get("type") or "text").lower()
+    asset_key = str(item.get("asset_key") or "").strip()
     if type_ == "image":
         captions = join_caption(item.get("image_caption") or item.get("img_caption"))
         footnotes = join_caption(item.get("image_footnote") or item.get("img_footnote"))
         if not (description or captions or footnotes):
             return ""
         parts = ["[Hình ảnh]"]
+        if asset_key:
+            # asset reference stays in the text so backfill_chunk_metadata can
+            # map the description to its MinIO asset after LightRAG chunking
+            parts.append(f"Ảnh: {asset_key}")
         if description:
             parts.append(description)
         if captions:
@@ -59,7 +67,10 @@ def format_item(item: dict, description: str) -> str:
         body = join_caption(item.get("table_body") or item.get("text") or "")
         if not (body or caption or description):
             return ""
-        parts = ["[Bảng]", f"Chú thích: {caption or 'Không có'}"]
+        parts = ["[Bảng]"]
+        if asset_key:
+            parts.append(f"Ảnh: {asset_key}")
+        parts.append(f"Chú thích: {caption or 'Không có'}")
         if description.strip():
             parts.append(f"Mô tả: {description}")
         parts.append(body)
@@ -92,14 +103,97 @@ def assemble_document_text(
     return "\n\n".join(parts), counts
 
 
-def artifact_text(store: CaptionReuseStore, doc_id: str) -> tuple[str, dict, int] | None:
-    """(text, item counts, reused captions) from MinIO artifacts; None when absent."""
+def item_metadatas(content_list: list[dict], descriptions: dict[int, str]) -> list[dict]:
+    """Chunk-record metadata per asset item (image/table), document order.
+
+    ``marker`` matches the ``Ảnh: {asset_key}`` line ``format_item`` writes, so
+    backfill_chunk_metadata can locate the chunk holding each asset. Items
+    without an ``asset_key`` (text-only tables) carry nothing to point at and
+    are skipped.
+    """
+    metas: list[dict] = []
+    for index, item in enumerate(content_list):
+        type_ = str(item.get("type") or "text").lower()
+        if type_ not in ("image", "table"):
+            continue
+        asset_key = str(item.get("asset_key") or "").strip()
+        if not asset_key:
+            continue
+        meta: dict[str, Any] = {
+            "modality": type_,
+            "asset_key": asset_key,
+            "marker": f"Ảnh: {asset_key}",
+        }
+        page = item.get("page_idx")
+        if isinstance(page, int):
+            meta["page"] = page
+        caption = (
+            descriptions.get(index, "").strip()
+            or join_caption(item.get("image_caption") or item.get("img_caption")).strip()
+            or join_caption(item.get("table_caption")).strip()
+        )
+        if caption:
+            meta["caption"] = caption
+        metas.append(meta)
+    return metas
+
+
+async def backfill_chunk_metadata(
+    lg: Any, track_id: Any, doc_id: str, metas: list[dict]
+) -> None:
+    """Merge asset metadata into the inserted doc's text_chunks records.
+
+    LightRAG hardcodes chunk records to five fields (``_build_inserting_chunks``
+    in lightrag 1.5.7), so the metadata rides in the text (``Ảnh: {asset_key}``
+    markers) and is lifted back into the KV here. Merge-only: chunks shared
+    between documents (identical text -> identical chunk hash) keep the other
+    document's keys, and a chunk holding several assets keeps the first one in
+    document order (the rest stay discoverable via the markers in the text).
+    Never raises: losing metadata must not fail an otherwise indexed document.
+    """
+    if not metas:
+        return
+    try:
+        rows = await lg.doc_status.get_docs_by_track_id(str(track_id))
+        doc_rows = [v for k, v in (rows or {}).items() if str(k).startswith("doc-")]
+        if not doc_rows:
+            return
+        chunk_ids = _row_field(doc_rows[0], "chunks_list") or []
+        if not chunk_ids:
+            return
+        records = await lg.text_chunks.get_by_ids(list(chunk_ids))
+        updates: dict[str, dict] = {}
+        for chunk_id, record in zip(chunk_ids, records or []):
+            if not isinstance(record, dict):
+                continue
+            content = record.get("content") or ""
+            for meta in metas:
+                if meta["marker"] in content and chunk_id not in updates:
+                    updates[chunk_id] = {
+                        **record,
+                        **{k: v for k, v in meta.items() if k != "marker"},
+                    }
+        if updates:
+            await lg.text_chunks.upsert(updates)
+    except Exception as exc:
+        logger.warning("backfill metadata %s lỗi (bỏ qua): %s", doc_id, exc)
+
+
+def artifact_text(
+    store: CaptionReuseStore, doc_id: str
+) -> tuple[str, dict, int, list[dict]] | None:
+    """(text, item counts, reused captions, asset metas); None when absent."""
     content_list = store.load_content_list(doc_id)
     if content_list is None:
         return None
     descriptions = store.get_descriptions(doc_id)
     text, counts = assemble_document_text(content_list, descriptions)
-    return text, counts, len(descriptions)
+    return (
+        text,
+        counts,
+        len(descriptions),
+        item_metadatas(content_list, descriptions),
+    )
 
 
 async def list_candidate_docs(store: CaptionReuseStore, limit: int = 0) -> list[str]:
@@ -260,7 +354,7 @@ async def index_artifacts(
             )
             _notify(on_doc, "skip", doc_id, reason="no content_list artifact")
             continue
-        text, counts, reused = cached
+        text, counts, reused, metas = cached
         if not text.strip():
             summary["skipped"] += 1
             summary["errors"].append(
@@ -280,6 +374,7 @@ async def index_artifacts(
         track_id = await rag.lightrag.ainsert(text)
         outcome, reason = await _insert_outcome(rag.lightrag, track_id, text)
         if outcome == "processed":
+            await backfill_chunk_metadata(rag.lightrag, track_id, doc_id, metas)
             summary["indexed"] += 1
             _notify(on_doc, "indexed", doc_id, captions=reused, items=counts)
             continue
@@ -485,14 +580,14 @@ async def _ingest_mongo_doc(
             )
         if state is not None:
             state.mark_stage(doc_id, "describe")
-        text, counts = assemble_document_text(
-            content_list, extract_descriptions(descriptions)
-        )
+        descriptions_map = extract_descriptions(descriptions)
+        text, counts = assemble_document_text(content_list, descriptions_map)
+        metas = item_metadatas(content_list, descriptions_map)
         reused = sum(
             1 for d in descriptions if str(d.get("description") or "").strip()
         )
     else:
-        text, counts, reused = cached
+        text, counts, reused, metas = cached
 
     if not text.strip():
         _notify(on_doc, "skip", doc_id, reason="empty text after assembly")
@@ -509,6 +604,7 @@ async def _ingest_mongo_doc(
     if outcome == "skipped":
         _notify(on_doc, "skip", doc_id, reason=reason)
         return "skipped"
+    await backfill_chunk_metadata(rag.lightrag, track_id, doc_id, metas)
     if state is not None:
         state.mark_indexed(
             doc_id,

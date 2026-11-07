@@ -256,6 +256,30 @@ def create_app(
     app.state.queue = queue or JobQueue()
     app.state.jobs = jobs
 
+    def asset_store() -> Any:
+        """Lazy MinIO client for asset URL presigning; None when MinIO unreachable."""
+        cached = getattr(app.state, "_asset_store", False)
+        if cached is not False:
+            return cached
+        try:
+            from raganything.caption_reuse import CaptionReuseStore
+
+            app.state._asset_store = CaptionReuseStore()
+        except Exception as exc:
+            logger.warning("asset store unavailable (%s); artifact_url disabled", exc)
+            app.state._asset_store = None
+        return app.state._asset_store
+
+    def attach_artifact_url(document: dict) -> None:
+        """Resolve chunk ``asset_key`` -> presigned MinIO GET ``artifact_url``."""
+        key = document.get("asset_key")
+        if not key:
+            return
+        try:
+            document["artifact_url"] = asset_store().presigned_url(key)
+        except Exception as exc:
+            logger.warning("presign %s failed: %s", key, exc)
+
     def verify_api_key(authorization: str | None = Header(default=None)) -> None:
         """Bearer auth identical to the old vector API; empty key = open."""
         expected = _env("RAG_API_KEY")
@@ -304,6 +328,8 @@ def create_app(
             documents, meta = await retrieve_chunks(app.state.rag, query, top_k)
         except RuntimeError as exc:
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+        for document in documents:
+            attach_artifact_url(document)
         response: dict[str, Any] = {
             "query": query,
             "documents": documents,

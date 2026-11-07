@@ -93,3 +93,41 @@ def test_list_candidate_docs_limit_zero_means_all():
     store._client = store
     assert asyncio.run(_kg.list_candidate_docs(store, 0)) == ["d2", "d3", "d1"]
     assert asyncio.run(_kg.list_candidate_docs(store, 1)) == ["d2"]  # newest first
+
+
+def test_reindex_allowlist_pins_the_four_real_documents():
+    assert len(_kg.REINDEX_DOC_IDS) == 4
+    assert "6a8ee761694f1f325e516aa9" in _kg.REINDEX_DOC_IDS  # Sổ tay SV 2026
+    assert "6a8f144188f0aede5ebc8828" in _kg.REINDEX_DOC_IDS  # Cố vấn học tập 2022
+    assert "6a8eec753b7bc85ec8357ed7" in _kg.REINDEX_DOC_IDS  # TB xét tuyển ThS
+    assert "6a8eec423b7bc85ec8357ed6" in _kg.REINDEX_DOC_IDS  # QĐ xét tuyển tài năng
+
+
+def test_reindex_wipes_every_data_storage_but_keeps_llm_cache():
+    """Wipe covers chunks/graph/vdbs/doc_status; extraction cache survives."""
+    assert "chunks_vdb" in _kg._WIPE_STORAGES
+    assert "text_chunks" in _kg._WIPE_STORAGES
+    assert "chunk_entity_relation_graph" in _kg._WIPE_STORAGES
+    assert "doc_status" in _kg._WIPE_STORAGES
+    assert "llm_response_cache" not in _kg._WIPE_STORAGES
+
+
+def test_format_image_marker_carries_asset_key():
+    text = _kg.format_item(
+        {"type": "image", "asset_key": "rag-assets/d1/abc.png"}, description="desc"
+    )
+    assert text == "[Hình ảnh]\nẢnh: rag-assets/d1/abc.png\ndesc"
+
+
+def test_format_image_without_asset_key_has_no_marker():
+    text = _kg.format_item({"type": "image"}, description="desc")
+    assert text == "[Hình ảnh]\ndesc"
+
+
+def test_format_table_marker_only_with_asset_key():
+    with_asset = _kg.format_item(
+        {"type": "table", "table_body": "b", "asset_key": "k1"}, description=""
+    )
+    assert with_asset.startswith("[Bảng]\nẢnh: k1\n")
+    without = _kg.format_item({"type": "table", "table_body": "b"}, description="")
+    assert without.startswith("[Bảng]\nChú thích:")
