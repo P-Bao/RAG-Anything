@@ -86,6 +86,7 @@ def client(monkeypatch):
     monkeypatch.setattr("raganything.api.ingest", fake_ingest)
     monkeypatch.delenv("RAG_API_KEY", raising=False)
     monkeypatch.delenv("MONGO_URI", raising=False)
+    monkeypatch.delenv("REDIS_URL", raising=False)
 
     app = create_app(rag=rag, state=state, queue=JobQueue())
     with TestClient(app) as c:
@@ -243,27 +244,57 @@ class _FakeJobs:
         self.closed = True
 
 
+class _AsyncFakeJobs:
+    """Async JobStore fixture matching raganything.jobs.JobStore interface."""
+
+    def __init__(self):
+        self.enqueued = []
+        self.closed = False
+
+    async def enqueue(self, *, source, document_ids=None, limit=0, dry_run=False) -> str:
+        self.enqueued.append(
+            {
+                "source": source,
+                "document_ids": document_ids,
+                "limit": limit,
+                "dry_run": dry_run,
+            }
+        )
+        return "job_async_123"
+
+    async def get(self, job_id):
+        return {"job_id": job_id, "state": "running", "progress": []} if job_id == "job_async_123" else None
+
+    async def list(self, limit=20):
+        return [{"job_id": "job_async_123", "state": "queued"}]
+
+    async def close(self):
+        self.closed = True
+
+
 def test_redis_queue_enqueues_and_lists():
     from fastapi.testclient import TestClient
 
     from raganything.api import create_app
 
-    jobs = _FakeJobs()
-    app = create_app(rag=_Rag(), state=_State(), jobs=jobs)
-    with TestClient(app) as c:
-        resp = c.post("/v2/rag/index", json={"source": "minio", "limit": 0, "dry_run": True})
-        assert resp.status_code == 202
-        assert resp.json() == {"job_id": "job123", "status": "queued", "backend": "redis"}
-        assert jobs.enqueued == [
-            {"source": "minio", "document_ids": None, "limit": 0, "dry_run": True}
-        ]
+    for jobs_factory in (_FakeJobs, _AsyncFakeJobs):
+        jobs = jobs_factory()
+        expected_id = "job_async_123" if isinstance(jobs, _AsyncFakeJobs) else "job123"
+        app = create_app(rag=_Rag(), state=_State(), jobs=jobs)
+        with TestClient(app) as c:
+            resp = c.post("/v2/rag/index", json={"source": "minio", "limit": 0, "dry_run": True})
+            assert resp.status_code == 202
+            assert resp.json() == {"job_id": expected_id, "status": "queued", "backend": "redis"}
+            assert jobs.enqueued == [
+                {"source": "minio", "document_ids": None, "limit": 0, "dry_run": True}
+            ]
 
-        assert c.get("/v2/rag/index/job123").json()["state"] == "running"
-        assert c.get("/v2/rag/index/nope").status_code == 404
-        listed = c.get("/v2/rag/index").json()
-        assert listed == {"backend": "redis", "jobs": [{"job_id": "job123", "state": "queued"}]}
-        assert c.get("/v2/rag/status").json()["queue"] == {"backend": "redis"}
-    assert jobs.closed is True
+            assert c.get(f"/v2/rag/index/{expected_id}").json()["state"] == "running"
+            assert c.get("/v2/rag/index/nope").status_code == 404
+            listed = c.get("/v2/rag/index").json()
+            assert listed == {"backend": "redis", "jobs": [{"job_id": expected_id, "state": "queued"}]}
+            assert c.get("/v2/rag/status").json()["queue"] == {"backend": "redis"}
+        assert jobs.closed is True
 
 
 def test_redis_jobs_helper_follows_env(monkeypatch):

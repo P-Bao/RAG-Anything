@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import hmac
+import inspect
 import logging
 import os
 import time
@@ -239,7 +240,11 @@ def create_app(
         finally:
             await app.state.queue.stop()
             if app.state.jobs is not None:
-                app.state.jobs.close()
+                closer = getattr(app.state.jobs, "close", None)
+                if closer is not None:
+                    res = closer()
+                    if inspect.isawaitable(res):
+                        await res
             if app.state.doc_state is not None:
                 app.state.doc_state.close()
 
@@ -326,12 +331,13 @@ def create_app(
         if app.state.jobs is not None:
             # Hand the job to the resident kg-rag worker through Redis.
             try:
-                job_id = app.state.jobs.enqueue(
+                enq = app.state.jobs.enqueue(
                     source=req.source,
                     document_ids=req.document_ids,
                     limit=req.limit,
                     dry_run=req.dry_run,
                 )
+                job_id = await enq if inspect.isawaitable(enq) else enq
             except Exception as exc:
                 logger.exception("enqueue failed")
                 raise HTTPException(
@@ -374,16 +380,18 @@ def create_app(
     @app.get("/v2/rag/index", dependencies=[Depends(verify_api_key)])
     async def rag_index_list(limit: int = 20) -> dict[str, Any]:
         if app.state.jobs is not None:
-            return {"backend": "redis", "jobs": app.state.jobs.list(limit)}
+            res = app.state.jobs.list(limit)
+            jobs_list = await res if inspect.isawaitable(res) else res
+            return {"backend": "redis", "jobs": jobs_list}
         return {"backend": "in-process", "jobs": app.state.queue.recent(limit)}
 
     @app.get("/v2/rag/index/{job_id}", dependencies=[Depends(verify_api_key)])
     async def rag_index_status(job_id: str) -> dict[str, Any]:
-        job = (
-            app.state.jobs.get(job_id)
-            if app.state.jobs is not None
-            else app.state.queue.get(job_id)
-        )
+        if app.state.jobs is not None:
+            res = app.state.jobs.get(job_id)
+            job = await res if inspect.isawaitable(res) else res
+        else:
+            job = app.state.queue.get(job_id)
         if job is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown job id")
         return job

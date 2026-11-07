@@ -110,11 +110,11 @@ docker-down:
 	docker compose -f $(COMPOSE_FILE) down --remove-orphans
 
 docker-logs:
-	docker compose -f $(COMPOSE_FILE) logs -f --tail=100
+	docker compose -f $(COMPOSE_FILE) logs -f
 
 docker-restart: network
 	docker compose -f $(COMPOSE_FILE) down --remove-orphans
-	docker compose -f $(COMPOSE_FILE) up --build -d
+	docker compose -f $(COMPOSE_FILE) up -d
 
 # --- Index qua API (enqueue vao Redis; worker kg-rag chay) ---
 # Vi du: make docker-index-pdf LIMIT=0 DRY=1 | IDS=id1,id2 | SOURCE=minio
