@@ -4,8 +4,7 @@ Endpoints (this session — admin/metrics/redis/qdrant/otel intentionally out):
   GET  /                    service banner
   GET  /healthz             liveness
   GET  /readyz              readiness: LightRAG + storage initialised
-  POST /v2/rag/             hybrid chunk retrieval (LightRAG vector + BGE rerank);
-                            ``generate=true`` adds the LLM answer
+  POST /v2/rag/             retrieval-only chunk API (LightRAG vector + BGE rerank)
   POST /v2/rag/index        202 + job id; ingest documents from MinIO or Mongo
   GET  /v2/rag/index        recent ingest jobs
   GET  /v2/rag/index/{id}   job status/progress
@@ -147,15 +146,13 @@ class ChatMessage(BaseModel):
 class RAGRequest(BaseModel):
     query: str | None = None
     messages: list[ChatMessage] | None = None
-    top_k: int | None = Field(default=None, ge=1, le=200)
     include_references: bool = True
-    generate: bool = False
-    mode: str = "mix"
 
 
 class IndexRequest(BaseModel):
     source: Literal["minio", "mongo"] = "mongo"
     document_ids: list[str] | None = None
+    file_paths: dict[str, str] | None = None
     limit: int = Field(default=0, ge=0)
     dry_run: bool = False
 
@@ -323,9 +320,8 @@ def create_app(
             )
         if app.state.rag is None:
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "KG not ready")
-        top_k = req.top_k or int(_env("RERANK_TOP_K", "5") or 5)
         try:
-            documents, meta = await retrieve_chunks(app.state.rag, query, top_k)
+            documents, meta = await retrieve_chunks(app.state.rag, query)
         except RuntimeError as exc:
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
         for document in documents:
@@ -336,10 +332,6 @@ def create_app(
             "references": _references(documents) if req.include_references else [],
             "meta": meta,
         }
-        if req.generate:
-            response["answer"] = await app.state.rag.aquery(
-                query, mode=req.mode, chunk_top_k=top_k
-            )
         return response
 
     @app.post(
@@ -360,6 +352,7 @@ def create_app(
                 enq = app.state.jobs.enqueue(
                     source=req.source,
                     document_ids=req.document_ids,
+                    file_paths=req.file_paths,
                     limit=req.limit,
                     dry_run=req.dry_run,
                 )
@@ -379,6 +372,7 @@ def create_app(
                 app.state.rag,
                 source=req.source,
                 document_ids=req.document_ids,
+                file_paths=req.file_paths,
                 limit=req.limit,
                 dry_run=req.dry_run,
                 state=app.state.doc_state,

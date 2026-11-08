@@ -300,6 +300,15 @@ def _row_field(row: Any, name: str) -> Any:
     return getattr(row, name, None)
 
 
+def _citation_path(doc: dict, fallback: str) -> str:
+    """Best available citation name for a Mongo document."""
+    for key in ("original_file_name", "file_path", "title"):
+        value = str(doc.get(key) or "").strip()
+        if value:
+            return value
+    return fallback
+
+
 async def _insert_outcome(lg: Any, track_id: Any, text: str) -> tuple[str, str | None]:
     """Classify one ainsert attempt by the doc_status rows of its track.
 
@@ -340,6 +349,7 @@ async def index_artifacts(
     *,
     dry_run: bool = False,
     on_doc: Callable[..., None] | None = None,
+    file_paths: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Index docs that already have MinIO artifacts (reuse captions, no LLM)."""
     started = time.monotonic()
@@ -371,7 +381,8 @@ async def index_artifacts(
         # Progress before the insert, not only after: a doc takes minutes and
         # an empty progress list looks like a hung job.
         _notify(on_doc, "indexing", doc_id, chars=len(text), items=counts)
-        track_id = await rag.lightrag.ainsert(text)
+        source_path = (file_paths or {}).get(doc_id) or doc_id
+        track_id = await rag.lightrag.ainsert(text, file_paths=source_path)
         outcome, reason = await _insert_outcome(rag.lightrag, track_id, text)
         if outcome == "processed":
             await backfill_chunk_metadata(rag.lightrag, track_id, doc_id, metas)
@@ -403,6 +414,7 @@ async def ingest_minio(
     limit: int = 0,
     dry_run: bool = False,
     on_doc: Callable[..., None] | None = None,
+    file_paths: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Index MinIO artifacts; ``doc_ids`` None scans the artifact prefix.
 
@@ -415,7 +427,14 @@ async def ingest_minio(
         summary = _summary("minio", dry_run, started)
         summary["totals"] = await kg_totals(rag)
         return summary
-    return await index_artifacts(rag, store, ids, dry_run=dry_run, on_doc=on_doc)
+    return await index_artifacts(
+        rag,
+        store,
+        ids,
+        dry_run=dry_run,
+        on_doc=on_doc,
+        file_paths=file_paths,
+    )
 
 
 async def ingest_mongo(
@@ -426,6 +445,7 @@ async def ingest_mongo(
     dry_run: bool = False,
     state: Any = None,
     on_doc: Callable[..., None] | None = None,
+    file_paths: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Index the Mongo registry; parse PDFs that have no artifacts yet.
 
@@ -481,6 +501,7 @@ async def ingest_mongo(
                 dry_run=dry_run,
                 state=state,
                 on_doc=on_doc,
+                file_paths=file_paths,
             )
         except Exception as exc:  # one bad doc must not stop the batch
             summary["failed"] += 1
@@ -512,6 +533,7 @@ async def _ingest_mongo_doc(
     dry_run: bool,
     state: Any,
     on_doc: Callable[..., None] | None,
+    file_paths: dict[str, str] | None = None,
 ) -> str:
     """Returns "indexed" | "skipped" | "failed"."""
     if source == "mongo_text":
@@ -533,7 +555,8 @@ async def _ingest_mongo_doc(
                 owner_id=doc.get("owner_id"),
             )
         _notify(on_doc, "indexing", doc_id, source=source, chars=len(text), items={"text": 1})
-        track_id = await rag.lightrag.ainsert(text)
+        citation = (file_paths or {}).get(doc_id) or _citation_path(doc, doc_id)
+        track_id = await rag.lightrag.ainsert(text, file_paths=citation)
         outcome, reason = await _insert_outcome(rag.lightrag, track_id, text)
         if outcome == "failed":
             _notify(on_doc, "failed", doc_id, error=reason)
@@ -594,7 +617,8 @@ async def _ingest_mongo_doc(
         return "skipped"
 
     _notify(on_doc, "indexing", doc_id, source=source, chars=len(text), items=counts)
-    track_id = await rag.lightrag.ainsert(text)
+    citation = (file_paths or {}).get(doc_id) or _citation_path(doc, doc_id)
+    track_id = await rag.lightrag.ainsert(text, file_paths=citation)
     outcome, reason = await _insert_outcome(rag.lightrag, track_id, text)
     if outcome == "failed":
         _notify(on_doc, "failed", doc_id, error=reason)
@@ -625,6 +649,7 @@ async def ingest(
     state: Any = None,
     on_doc: Callable[..., None] | None = None,
     store: CaptionReuseStore | None = None,
+    file_paths: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Dispatch to the minio or mongo ingest path."""
     source = (source or "mongo").strip().lower()
@@ -636,6 +661,7 @@ async def ingest(
             limit=limit,
             dry_run=dry_run,
             on_doc=on_doc,
+            file_paths=file_paths,
         )
     if source == "mongo":
         return await ingest_mongo(
@@ -645,6 +671,7 @@ async def ingest(
             dry_run=dry_run,
             state=state,
             on_doc=on_doc,
+            file_paths=file_paths,
         )
     raise ValueError(f"unknown source: {source!r} (expected 'minio' or 'mongo')")
 

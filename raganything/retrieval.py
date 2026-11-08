@@ -104,27 +104,54 @@ def _rerank_scores(ranked: Any, count: int) -> list[tuple[int, float]]:
     return scored
 
 
+def _bounded_env_int(name: str, default: int) -> int:
+    """Read a bounded positive integer; bad values stay visible in logs."""
+    raw = os.environ.get(name)
+    try:
+        value = int(raw) if raw else default
+    except ValueError:
+        logger.warning("%s=%r is not an integer; using %s", name, raw, default)
+        value = default
+    clamped = min(max(value, 1), 200)
+    if value != clamped:
+        logger.warning("%s=%s outside 1..200; using %s", name, value, clamped)
+    return clamped
+
+
+def _candidate_count() -> int:
+    """Vector candidates fetched before reranking; rerank owns the final cut."""
+    return _bounded_env_int("RETRIEVAL_CANDIDATES", 20)
+
+
+def _fallback_top_k() -> int:
+    """Final count only for no-rerank and rerank-failure paths."""
+    return _bounded_env_int("RERANK_TOP_K", 5)
+
+
 async def retrieve_chunks(
     rag: Any,
     query: str,
-    top_k: int = 10,
     *,
-    min_candidates: int | None = None,
+    candidate_count: int | None = None,
 ) -> tuple[list[dict], dict]:
     """Retrieve chunks from ``rag.lightrag`` shaped like ``RetrievedDocV2``.
 
     Returns ``(documents, meta)``. Raises ``RuntimeError`` on any storage
-    failure (the API maps it to 503); rerank failures never raise and fall
-    back to vector order.
+    failure (the API maps it to 503); successful rerank output is returned
+    uncut. Rerank failure or disabled rerank falls back to vector order and
+    cuts it with ``RERANK_TOP_K``.
     """
     start = time.monotonic()
+
+    if candidate_count is None:
+        candidate_count = _candidate_count()
 
     if not query or not query.strip():
         return [], {
             "latency_ms": int((time.monotonic() - start) * 1000),
-            "requested_top_k": top_k,
+            "candidate_count": 0,
             "returned": 0,
-            "candidates": 0,
+            "reranked": False,
             "fusion": "vector",
         }
 
@@ -132,21 +159,16 @@ async def retrieve_chunks(
     if lg is None:
         raise RuntimeError("RAG instance is not initialised (no lightrag)")
 
-    def _meta(returned: int, candidate_count: int, fusion: str) -> dict:
+    def _meta(returned: int, candidate_count: int, fusion: str, reranked: bool) -> dict:
         return {
             "latency_ms": int((time.monotonic() - start) * 1000),
-            "requested_top_k": top_k,
             "returned": returned,
-            "candidates": candidate_count,
+            "candidate_count": candidate_count,
+            "reranked": reranked,
             "fusion": fusion,
         }
 
     rerank_func = getattr(lg, "rerank_model_func", None)
-    candidates = max(top_k * 4, top_k) if rerank_func is not None else top_k
-    if min_candidates is not None:
-        candidates = max(candidates, min_candidates)
-    fusion = "vector+rerank" if rerank_func is not None else "vector"
-
     try:
         query_embedding = None
         embedding_func = getattr(lg, "embedding_func", None)
@@ -154,13 +176,13 @@ async def retrieve_chunks(
             embeddings = await embedding_func([query], context="query")
             query_embedding = embeddings[0]
         results = await lg.chunks_vdb.query(
-            query, top_k=candidates, query_embedding=query_embedding
+            query, top_k=candidate_count, query_embedding=query_embedding
         )
     except Exception as exc:
         raise RuntimeError(f"chunk retrieval failed: {exc}") from exc
 
     if not results:
-        return [], _meta(0, 0, fusion)
+        return [], _meta(0, 0, "vector+rerank" if rerank_func is not None else "vector", False)
 
     ids = [r["id"] for r in results if r.get("id")]
     sims = {r["id"]: _as_float(r.get("distance")) for r in results if r.get("id")}
@@ -177,11 +199,13 @@ async def retrieve_chunks(
         if record and len(record.get("content") or "") >= MIN_CHUNK_CHARS:
             pool.append((chunk_id, record, sims.get(chunk_id)))
 
+    reranked = False
     if rerank_func is not None and pool:
         texts = [entry[1].get("content", "") for entry in pool]
         min_score = _rerank_min_score()
         try:
-            ranked = await rerank_func(query=query, documents=texts, top_n=top_k)
+            ranked = await rerank_func(query=query, documents=texts, top_n=None)
+            reranked = True
             scored = _rerank_scores(ranked, len(pool))
             if min_score:
                 scored = [pair for pair in scored if pair[1] >= min_score]
@@ -189,14 +213,15 @@ async def retrieve_chunks(
                 pool = [
                     (pool[index][0], pool[index][1], score)
                     for index, score in scored
-                ][:top_k]
+                ]
             else:
-                pool = [] if min_score else pool[:top_k]
+                pool = []
         except Exception as exc:
             logger.warning("rerank failed, keeping vector order: %s", exc)
-            pool = pool[:top_k]
+            reranked = False
+            pool = pool[:_fallback_top_k()]
     else:
-        pool = pool[:top_k]
+        pool = pool[:_fallback_top_k()]
 
     documents = []
     for chunk_id, record, score in pool:
@@ -223,4 +248,9 @@ async def retrieve_chunks(
                 document[key] = record[key]
         documents.append(document)
 
-    return documents, _meta(len(documents), len(ids), fusion)
+    return documents, _meta(
+        len(documents),
+        len(ids),
+        "vector+rerank" if rerank_func is not None else "vector",
+        reranked,
+    )

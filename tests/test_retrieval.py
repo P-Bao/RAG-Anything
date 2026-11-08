@@ -71,7 +71,10 @@ def _results():
     ]
 
 
-def test_happy_path_rerank_reorders_and_scores():
+def test_rerank_output_is_returned_uncut(monkeypatch):
+    monkeypatch.setenv("RETRIEVAL_CANDIDATES", "20")
+    monkeypatch.setenv("RERANK_TOP_K", "2")
+
     async def rerank(query, documents, top_n=None, **kwargs):
         return [
             {"index": 2, "relevance_score": 0.99},
@@ -85,10 +88,10 @@ def test_happy_path_rerank_reorders_and_scores():
         embedding_func=RecordingEmbed(),
         rerank_model_func=rerank,
     )
-    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi", 2))
+    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi"))
 
-    assert [d["reference_id"] for d in docs] == ["c3", "c2"]
-    assert [d["score"] for d in docs] == [0.99, 0.5]
+    assert [d["reference_id"] for d in docs] == ["c3", "c2", "c1"]
+    assert [d["score"] for d in docs] == [0.99, 0.5, 0.1]
     assert docs[0]["text"] == "gamma chunk with enough text"
     assert docs[0]["metadata"] == {
         "doc_id": "d3",
@@ -103,30 +106,89 @@ def test_happy_path_rerank_reorders_and_scores():
     }
     assert meta == {
         "latency_ms": meta["latency_ms"],
-        "requested_top_k": 2,
-        "returned": 2,
-        "candidates": 3,
+        "candidate_count": 3,
+        "returned": 3,
+        "reranked": True,
         "fusion": "vector+rerank",
     }
     assert isinstance(meta["latency_ms"], int)
-    # rerank available -> candidate pool widened
-    assert lg.chunks_vdb.calls[0]["top_k"] == 8
+    assert lg.chunks_vdb.calls[0]["top_k"] == 20
 
 
-def test_no_rerank_keeps_vector_order():
+def test_rerank_receives_explicit_top_n():
+    calls = []
+
+    async def rerank(query, documents, top_n=None, **kwargs):
+        calls.append({"top_n": top_n, "documents": documents})
+        return []
+
+    lg = FakeLightRAG(
+        results=_results(),
+        records=_records(),
+        embedding_func=RecordingEmbed(),
+        rerank_model_func=rerank,
+    )
+    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi"))
+
+    assert docs == []
+    assert calls == [{"top_n": None, "documents": [r["content"] for r in _records().values()]}]
+    assert meta["reranked"] is True
+
+
+def test_invalid_candidate_count_is_logged(monkeypatch, caplog):
+    monkeypatch.setenv("RETRIEVAL_CANDIDATES", "bogus")
     lg = FakeLightRAG(
         results=_results(), records=_records(), embedding_func=RecordingEmbed()
     )
-    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi", 2))
+
+    with caplog.at_level("WARNING"):
+        asyncio.run(retrieve_chunks(FakeRAG(lg), "hi"))
+
+    assert lg.chunks_vdb.calls[0]["top_k"] == 20
+    assert "RETRIEVAL_CANDIDATES" in caplog.text
+def test_rerank_return_count_controls_final_count(monkeypatch):
+    monkeypatch.setenv("RETRIEVAL_CANDIDATES", "20")
+    monkeypatch.setenv("RERANK_TOP_K", "5")
+
+    async def rerank(query, documents, top_n=None, **kwargs):
+        return [
+            {"index": 2, "relevance_score": 0.99},
+            {"index": 1, "relevance_score": 0.5},
+        ]
+
+    lg = FakeLightRAG(
+        results=_results(),
+        records=_records(),
+        embedding_func=RecordingEmbed(),
+        rerank_model_func=rerank,
+    )
+    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi"))
+
+    assert [d["reference_id"] for d in docs] == ["c3", "c2"]
+    assert meta["returned"] == 2
+    assert meta["reranked"] is True
+
+
+def test_no_rerank_falls_back_to_rerank_top_k(monkeypatch):
+    monkeypatch.setenv("RETRIEVAL_CANDIDATES", "20")
+    monkeypatch.setenv("RERANK_TOP_K", "2")
+    lg = FakeLightRAG(
+        results=_results(), records=_records(), embedding_func=RecordingEmbed()
+    )
+    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi"))
 
     assert [d["reference_id"] for d in docs] == ["c1", "c2"]
     assert [d["score"] for d in docs] == [0.9, 0.8]
     assert meta["fusion"] == "vector"
-    assert meta["candidates"] == 3
-    assert lg.chunks_vdb.calls[0]["top_k"] == 2
+    assert meta["candidate_count"] == 3
+    assert meta["reranked"] is False
+    assert lg.chunks_vdb.calls[0]["top_k"] == 20
 
 
-def test_rerank_failure_falls_back_to_vector_order():
+def test_rerank_failure_falls_back_to_vector_order(monkeypatch):
+    monkeypatch.setenv("RETRIEVAL_CANDIDATES", "20")
+    monkeypatch.setenv("RERANK_TOP_K", "2")
+
     async def rerank(query, documents, top_n=None, **kwargs):
         raise RuntimeError("bge down")
 
@@ -136,14 +198,17 @@ def test_rerank_failure_falls_back_to_vector_order():
         embedding_func=RecordingEmbed(),
         rerank_model_func=rerank,
     )
-    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi", 2))
+    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi"))
 
     assert [d["reference_id"] for d in docs] == ["c1", "c2"]
     assert [d["score"] for d in docs] == [0.9, 0.8]
     assert meta["returned"] == 2
+    assert meta["reranked"] is False
 
 
-def test_short_junk_chunks_are_dropped():
+def test_short_junk_chunks_are_dropped(monkeypatch):
+    monkeypatch.setenv("RETRIEVAL_CANDIDATES", "5")
+    monkeypatch.setenv("RERANK_TOP_K", "5")
     """Ingest-era micro tail chunks (":", "sẻ:") never reach the client."""
     records = {
         **_records(),
@@ -155,15 +220,17 @@ def test_short_junk_chunks_are_dropped():
         {"id": "c5", "distance": 0.94},
     ]
     lg = FakeLightRAG(results=results, records=records, embedding_func=RecordingEmbed())
-    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi", 5))
+    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi"))
 
     assert [d["reference_id"] for d in docs] == ["c1", "c2", "c3"]
-    assert meta["candidates"] == 5  # junk counted as candidates...
+    assert meta["candidate_count"] == 5  # junk counted as candidates...
     assert meta["returned"] == 3  # ...but filtered before the client
     # filter sits after the KV fetch, before rerank: junk fetched, never ranked
 
 
 def test_rerank_min_score_drops_low_relevance(monkeypatch):
+    monkeypatch.setenv("RETRIEVAL_CANDIDATES", "20")
+
     async def rerank(query, documents, top_n=None, **kwargs):
         return [
             {"index": 0, "relevance_score": 0.02},
@@ -177,7 +244,7 @@ def test_rerank_min_score_drops_low_relevance(monkeypatch):
         embedding_func=RecordingEmbed(),
         rerank_model_func=rerank,
     )
-    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi", 2))
+    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi"))
 
     assert [d["reference_id"] for d in docs] == ["c2"]
     assert [d["score"] for d in docs] == [0.6]
@@ -185,7 +252,10 @@ def test_rerank_min_score_drops_low_relevance(monkeypatch):
 
 
 def test_rerank_min_score_empty_result_returns_nothing(monkeypatch):
+    monkeypatch.setenv("RETRIEVAL_CANDIDATES", "20")
+
     """A floor that cuts everything returns [] instead of unranked fallback."""
+
     async def rerank(query, documents, top_n=None, **kwargs):
         return [{"index": 0, "relevance_score": 0.01}]
 
@@ -196,13 +266,15 @@ def test_rerank_min_score_empty_result_returns_nothing(monkeypatch):
         embedding_func=RecordingEmbed(),
         rerank_model_func=rerank,
     )
-    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi", 2))
+    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi"))
 
     assert docs == []
     assert meta["returned"] == 0
 
 
 def test_rerank_min_score_invalid_value_is_ignored(monkeypatch):
+    monkeypatch.setenv("RETRIEVAL_CANDIDATES", "20")
+
     async def rerank(query, documents, top_n=None, **kwargs):
         return [{"index": 1, "relevance_score": 0.05}]
 
@@ -213,24 +285,27 @@ def test_rerank_min_score_invalid_value_is_ignored(monkeypatch):
         embedding_func=RecordingEmbed(),
         rerank_model_func=rerank,
     )
-    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi", 2))
+    docs, _meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "hi"))
 
     assert [d["reference_id"] for d in docs] == ["c2"]
 
 
-def test_empty_query_returns_empty():
+def test_empty_query_returns_empty(monkeypatch):
+    monkeypatch.setenv("RETRIEVAL_CANDIDATES", "5")
     lg = FakeLightRAG(results=_results(), records=_records())
-    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "   ", 5))
+    docs, meta = asyncio.run(retrieve_chunks(FakeRAG(lg), "   "))
 
     assert docs == []
     assert meta["returned"] == 0
-    assert meta["candidates"] == 0
+    assert meta["candidate_count"] == 0
+    assert meta["reranked"] is False
 
 
-def test_storage_error_raises_runtime_error():
+def test_storage_error_raises_runtime_error(monkeypatch):
+    monkeypatch.setenv("RETRIEVAL_CANDIDATES", "5")
     lg = FakeLightRAG(error=RuntimeError("vdb exploded"))
     with pytest.raises(RuntimeError):
-        asyncio.run(retrieve_chunks(FakeRAG(lg), "hi", 5))
+        asyncio.run(retrieve_chunks(FakeRAG(lg), "hi"))
 
 
 def test_query_embedded_with_query_context():
@@ -240,7 +315,7 @@ def test_query_embedded_with_query_context():
         records=_records(),
         embedding_func=embed,
     )
-    asyncio.run(retrieve_chunks(FakeRAG(lg), "hello", 1))
+    asyncio.run(retrieve_chunks(FakeRAG(lg), "hello", candidate_count=1))
 
     assert embed.calls == [{"texts": ["hello"], "context": "query"}]
     assert lg.chunks_vdb.calls[0]["query_embedding"] == [0.7, 0.8]

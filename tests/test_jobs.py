@@ -133,13 +133,18 @@ async def test_enqueue_writes_stream_hash_and_index():
     store = JobStore(client=fake)
 
     job_id = await store.enqueue(
-        source="mongo", document_ids=["d1"], limit=5, dry_run=True
+        source="mongo",
+        document_ids=["d1"],
+        file_paths={"d1": "uploads/report.pdf"},
+        limit=5,
+        dry_run=True,
     )
 
     assert len(job_id) == 12
     h = fake.hashes[f"kg:job:{job_id}"]
     assert h["state"] == "queued"
     assert h["source"] == "mongo"
+    assert h["file_paths"] == '{"d1": "uploads/report.pdf"}'
     assert h["limit"] == "5"
     assert h["dry_run"] == "1"
     assert h["attempts"] == "0"
@@ -156,13 +161,18 @@ async def test_get_unknown_and_type_coercion():
     assert await store.get("nope") is None
 
     job_id = await store.enqueue(
-        source="minio", document_ids=["a", "b"], limit=3, dry_run=True
+        source="minio",
+        document_ids=["a", "b"],
+        file_paths={"a": "a.pdf", "b": "b.pdf"},
+        limit=3,
+        dry_run=True,
     )
     job = await store.get(job_id)
     assert isinstance(job["limit"], int) and job["limit"] == 3
     assert job["dry_run"] is True
     assert isinstance(job["attempts"], int) and job["attempts"] == 0
     assert job["document_ids"] == ["a", "b"]
+    assert job["file_paths"] == {"a": "a.pdf", "b": "b.pdf"}
     assert job["state"] == "queued"
 
 
@@ -173,6 +183,7 @@ async def test_get_no_document_ids_and_dry_run_false():
     job_id = await store.enqueue(source="mongo")
     job = await store.get(job_id)
     assert job["document_ids"] is None
+    assert job["file_paths"] is None
     assert job["dry_run"] is False
 
 

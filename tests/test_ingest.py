@@ -69,6 +69,7 @@ class _LightRAG:
         self.doc_status = _DocStatus()
         self.full_docs = _FullDocs(full_docs)
         self.text_chunks = _TextChunks()
+        self.insert_kwargs: list[dict] = []
         if chunks_list:
             self.doc_status.rows["track-1"] = {
                 "doc-k": {**_PROCESSED["doc-k"], "chunks_list": chunks_list}
@@ -76,8 +77,9 @@ class _LightRAG:
         elif doc_row:
             self.doc_status.rows["track-1"] = doc_row
 
-    async def ainsert(self, text):
+    async def ainsert(self, text, **kwargs):
         self.inserted.append(text)
+        self.insert_kwargs.append(kwargs)
         return f"track-{len(self.inserted)}"
 
 
@@ -108,6 +110,35 @@ def test_index_announces_the_doc_before_inserting():
     assert rag.lightrag.inserted == ["hola"]
     assert summary["indexed"] == 1
     assert summary["totals"] == {"entities": 0, "relations": 0, "chunks": 0}
+
+
+def test_index_sends_document_id_as_citation():
+    rag = _Rag()
+
+    asyncio.run(
+        index_artifacts(
+            rag,
+            _Store({"d1": ([{"type": "text", "text": "hola"}], {})}),
+            ["d1"],
+        )
+    )
+
+    assert rag.lightrag.insert_kwargs == [{"file_paths": "d1"}]
+
+
+def test_index_prefers_mapped_citation():
+    rag = _Rag()
+
+    asyncio.run(
+        index_artifacts(
+            rag,
+            _Store({"d1": ([{"type": "text", "text": "hola"}], {})}),
+            ["d1"],
+            file_paths={"d1": "uploads/report.pdf"},
+        )
+    )
+
+    assert rag.lightrag.insert_kwargs == [{"file_paths": "uploads/report.pdf"}]
 
 
 def test_dry_run_lists_without_inserting():

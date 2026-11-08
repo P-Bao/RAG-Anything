@@ -127,6 +127,7 @@ class JobStore:
             "job_id": raw.get("job_id"),
             "source": raw.get("source"),
             "document_ids": _load_json(raw.get("document_ids"), None),
+            "file_paths": _load_json(raw.get("file_paths"), None),
             "limit": _as_int(raw.get("limit")),
             "dry_run": raw.get("dry_run") == "1",
             "state": raw.get("state"),
@@ -145,12 +146,14 @@ class JobStore:
         *,
         source: str,
         document_ids: list[str] | None = None,
+        file_paths: dict[str, str] | None = None,
         limit: int = 0,
         dry_run: bool = False,
     ) -> str:
         client = self._client_or_raise()
         job_id = uuid.uuid4().hex[:12]
         doc_json = json.dumps(list(document_ids)) if document_ids else ""
+        paths_json = json.dumps(file_paths) if file_paths else ""
         dry = "1" if dry_run else "0"
         await client.xadd(
             self.stream,
@@ -158,6 +161,7 @@ class JobStore:
                 "job_id": job_id,
                 "source": source,
                 "document_ids": doc_json,
+                "file_paths": paths_json,
                 "limit": str(limit),
                 "dry_run": dry,
             },
@@ -168,6 +172,7 @@ class JobStore:
                 "job_id": job_id,
                 "source": source,
                 "document_ids": doc_json,
+                "file_paths": paths_json,
                 "limit": str(limit),
                 "dry_run": dry,
                 "state": "queued",

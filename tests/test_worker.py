@@ -12,6 +12,7 @@ def make_job(job_id="j1", **over):
         "job_id": job_id,
         "source": "minio",
         "document_ids": ["d1"],
+        "file_paths": {"d1": "uploads/report.pdf"},
         "limit": 3,
         "dry_run": False,
     }
@@ -95,6 +96,7 @@ def test_process_job_happy_path(monkeypatch):
     assert out is summary
     assert calls[0]["source"] == "minio"
     assert calls[0]["document_ids"] == ["d1"]
+    assert calls[0]["file_paths"] == {"d1": "uploads/report.pdf"}
     assert calls[0]["limit"] == 3
     assert calls[0]["dry_run"] is False
     assert calls[0]["state"] == "STATE"

@@ -55,6 +55,7 @@ async def process_job(rag: Any, jobs: Any, job: dict, *, state: Any = None) -> d
             rag,
             source=job["source"],
             document_ids=job["document_ids"],
+            file_paths=job.get("file_paths"),
             limit=job["limit"],
             dry_run=job["dry_run"],
             state=state,

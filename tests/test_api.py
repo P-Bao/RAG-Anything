@@ -21,19 +21,11 @@ class _LightRAG:
         self.entities_vdb = _Vdb(3)
         self.relationships_vdb = _Vdb(2)
         self.chunks_vdb = _Vdb(5)
-        self.queries: list[dict] = []
-
-    async def aquery(self, query, **kwargs):
-        self.queries.append({"query": query, **kwargs})
-        return f"answer for {query}"
 
 
 class _Rag:
     def __init__(self):
         self.lightrag = _LightRAG()
-
-    async def aquery(self, query, **kwargs):
-        return await self.lightrag.aquery(query, **kwargs)
 
 
 class _State:
@@ -55,7 +47,7 @@ def client(monkeypatch):
     rag = _Rag()
     state = _State()
 
-    async def fake_retrieve(rag_, query, top_k, **kwargs):
+    async def fake_retrieve(rag_, query, **kwargs):
         return (
             [
                 {
@@ -68,9 +60,9 @@ def client(monkeypatch):
             ],
             {
                 "latency_ms": 5,
-                "requested_top_k": top_k,
+                "candidate_count": 20,
                 "returned": 1,
-                "candidates": 4,
+                "reranked": True,
                 "fusion": "vector+rerank",
             },
         )
@@ -111,9 +103,19 @@ def test_rag_query_shape(client):
     assert body["query"] == "hỏi gì đó"
     assert body["documents"][0]["reference_id"] == "c1"
     assert body["references"] == [{"document_id": "d1", "chunk_id": "c1"}]
-    assert body["meta"]["requested_top_k"] == 3
+    assert body["meta"]["candidate_count"] == 20
+    assert body["meta"]["reranked"] is True
     assert body["meta"]["fusion"] == "vector+rerank"
     assert "answer" not in body
+
+
+def test_legacy_query_fields_are_ignored(client):
+    resp = client.post(
+        "/v2/rag/",
+        json={"query": "q", "top_k": 3, "generate": True, "mode": "local"},
+    )
+    assert resp.status_code == 200
+    assert "answer" not in resp.json()
 
 
 def test_rag_query_reads_last_user_message(client):
@@ -164,11 +166,6 @@ def test_punctuation_only_query_falls_back_to_messages(client):
     assert resp.json()["query"] == "câu hỏi thật"
 
 
-def test_rag_query_generate_adds_answer(client):
-    resp = client.post("/v2/rag/", json={"query": "q", "generate": True})
-    assert resp.json()["answer"] == "answer for q"
-
-
 def test_references_can_be_disabled(client):
     resp = client.post("/v2/rag/", json={"query": "q", "include_references": False})
     assert resp.json()["references"] == []
@@ -212,6 +209,21 @@ def test_index_enqueues_and_reports_progress(client):
     ]
 
 
+def test_index_passes_file_paths(client):
+    resp = client.post(
+        "/v2/rag/index",
+        json={
+            "source": "minio",
+            "document_ids": ["d1"],
+            "file_paths": {"d1": "uploads/report.pdf"},
+        },
+    )
+
+    assert resp.status_code == 202
+    job = _wait_done(client, resp.json()["job_id"])
+    assert job["state"] == "done"
+
+
 def test_index_unknown_job_is_404(client):
     assert client.get("/v2/rag/index/nope").status_code == 404
 
@@ -223,11 +235,20 @@ class _FakeJobs:
         self.enqueued = []
         self.closed = False
 
-    def enqueue(self, *, source, document_ids=None, limit=0, dry_run=False) -> str:
+    def enqueue(
+        self,
+        *,
+        source,
+        document_ids=None,
+        file_paths=None,
+        limit=0,
+        dry_run=False,
+    ) -> str:
         self.enqueued.append(
             {
                 "source": source,
                 "document_ids": document_ids,
+                "file_paths": file_paths,
                 "limit": limit,
                 "dry_run": dry_run,
             }
@@ -251,11 +272,20 @@ class _AsyncFakeJobs:
         self.enqueued = []
         self.closed = False
 
-    async def enqueue(self, *, source, document_ids=None, limit=0, dry_run=False) -> str:
+    async def enqueue(
+        self,
+        *,
+        source,
+        document_ids=None,
+        file_paths=None,
+        limit=0,
+        dry_run=False,
+    ) -> str:
         self.enqueued.append(
             {
                 "source": source,
                 "document_ids": document_ids,
+                "file_paths": file_paths,
                 "limit": limit,
                 "dry_run": dry_run,
             }
@@ -282,11 +312,26 @@ def test_redis_queue_enqueues_and_lists():
         expected_id = "job_async_123" if isinstance(jobs, _AsyncFakeJobs) else "job123"
         app = create_app(rag=_Rag(), state=_State(), jobs=jobs)
         with TestClient(app) as c:
-            resp = c.post("/v2/rag/index", json={"source": "minio", "limit": 0, "dry_run": True})
+            resp = c.post(
+                "/v2/rag/index",
+                json={
+                    "source": "minio",
+                    "document_ids": ["d1"],
+                    "file_paths": {"d1": "uploads/report.pdf"},
+                    "limit": 0,
+                    "dry_run": True,
+                },
+            )
             assert resp.status_code == 202
             assert resp.json() == {"job_id": expected_id, "status": "queued", "backend": "redis"}
             assert jobs.enqueued == [
-                {"source": "minio", "document_ids": None, "limit": 0, "dry_run": True}
+                {
+                    "source": "minio",
+                    "document_ids": ["d1"],
+                    "file_paths": {"d1": "uploads/report.pdf"},
+                    "limit": 0,
+                    "dry_run": True,
+                }
             ]
 
             assert c.get(f"/v2/rag/index/{expected_id}").json()["state"] == "running"
