@@ -32,7 +32,7 @@ services:
       retries: 3
       start_period: 120s
     volumes:
-      - ${KG_VOLUME:-rag-storage}:/app/rag_storage
+      - kg-storage:/app/rag_storage
       - mineru-models:/models/huggingface
       - ./logs:/app/logs
     networks:
@@ -50,14 +50,15 @@ services:
     command: ["python", "-m", "raganything.worker"]
     restart: unless-stopped
     volumes:
-      - ${KG_VOLUME:-rag-storage}:/app/rag_storage
+      - kg-storage:/app/rag_storage
       - mineru-models:/models/huggingface
       - ./logs:/app/logs
     networks:
       - ami-network
 
 volumes:
-  rag-storage:
+  kg-storage:
+    name: ${KG_VOLUME:-rag-storage}
   mineru-models:
 
 networks:
