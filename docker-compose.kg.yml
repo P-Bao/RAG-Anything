@@ -32,7 +32,7 @@ services:
       retries: 3
       start_period: 120s
     volumes:
-      - rag-storage:/app/rag_storage
+      - ${KG_VOLUME:-rag-storage}:/app/rag_storage
       - mineru-models:/models/huggingface
       - ./logs:/app/logs
     networks:
@@ -50,7 +50,7 @@ services:
     command: ["python", "-m", "raganything.worker"]
     restart: unless-stopped
     volumes:
-      - rag-storage:/app/rag_storage
+      - ${KG_VOLUME:-rag-storage}:/app/rag_storage
       - mineru-models:/models/huggingface
       - ./logs:/app/logs
     networks:
